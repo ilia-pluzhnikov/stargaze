@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "jsx": "react-jsx",
+    "types": ["node"]
+  },
+  "include": ["cli", "server", "src/logic", "src/types.ts", "src/data"],
+  "exclude": ["src/logic/api.ts"]
+}

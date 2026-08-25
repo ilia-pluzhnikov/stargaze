@@ -1,0 +1,259 @@
+{
+  "commit": "d4d99ac858706d6bf5ea56cc723b65dc8224df9f",
+  "working_tree_dirty": true,
+  "dirty_files": [
+    "ocs/codemap/codemap.html",
+    "docs/codemap/codemap.json",
+    "docs/codemap/codemap.lock",
+    "docs/codemap/model.mjs"
+  ],
+  "generated_at": "2026-08-25T19:43:17.974Z",
+  "scanned_scope": [
+    "src/",
+    "cli/",
+    "server/",
+    "deploy/",
+    ".github/workflows/",
+    "index.html",
+    "vite.config.ts"
+  ],
+  "excluded_directories": [
+    "node_modules/",
+    "dist/",
+    "dist-node/",
+    "coverage/",
+    ".git/",
+    ".superpowers/",
+    "docs/",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "tsconfig.node.json"
+  ],
+  "scanned_files": 77,
+  "fingerprint_algorithm": "sha256(sorted(\"<path>\u0000\" + sha256(file bytes; текст нормализован к LF)))",
+  "modules": {
+    "web-app": {
+      "path": "src/App.tsx",
+      "external": false,
+      "files": [
+        "index.html",
+        "src/App.tsx",
+        "src/index.css",
+        "src/main.tsx",
+        "vite.config.ts"
+      ],
+      "fingerprint": "dbbcd90e2b2209fb82817614ddc52d14c43180c23f377b3b564b3390a8ff85f6"
+    },
+    "web-sky": {
+      "path": "src/components/Sky.tsx",
+      "external": false,
+      "files": [
+        "src/components/BgStars.tsx",
+        "src/components/CosmosBackdrop.tsx",
+        "src/components/Galaxy.tsx",
+        "src/components/GalaxyHud.tsx",
+        "src/components/GalaxyView.tsx",
+        "src/components/Sky.tsx",
+        "src/components/StarCard.tsx",
+        "src/components/skyColors.test.ts",
+        "src/components/skyColors.ts",
+        "src/components/skyField.test.ts",
+        "src/components/skyField.ts",
+        "src/components/skyGlyphs.ts",
+        "src/hooks/usePanZoom.ts"
+      ],
+      "fingerprint": "6ece1cf4ef3e0588b953d053170143984f86c9511823d2493a85454ecee8c259"
+    },
+    "web-panels": {
+      "path": "src/components/Journal.tsx",
+      "external": false,
+      "files": [
+        "src/components/Chronicle.tsx",
+        "src/components/Journal.tsx",
+        "src/components/LevelUpOverlay.tsx",
+        "src/components/QuestRow.tsx",
+        "src/components/SkillPanel.tsx",
+        "src/components/Wallet.tsx"
+      ],
+      "fingerprint": "eef8263c683cf7f53d407fa20e245da3a6e110591cbfd6107339399cdd074bae"
+    },
+    "web-modals": {
+      "path": "src/components/Modals.tsx",
+      "external": false,
+      "files": [
+        "src/components/Modals.tsx"
+      ],
+      "fingerprint": "c44a93c67ea890e899ddc9a0086e1245ddef9b75dedb55da22253d82c4f04ac4"
+    },
+    "web-usestore": {
+      "path": "src/hooks/useStore.ts",
+      "external": false,
+      "files": [
+        "src/hooks/useStore.ts"
+      ],
+      "fingerprint": "dcf61c5f0eabb0fc57b14c850125e36d5235a81f9e37bba7ee1b079b8e697c8e"
+    },
+    "web-sync": {
+      "path": "src/logic/sync.ts",
+      "external": false,
+      "files": [
+        "src/logic/api.ts",
+        "src/logic/migrate.test.ts",
+        "src/logic/migrate.ts",
+        "src/logic/sync.test.ts",
+        "src/logic/sync.ts"
+      ],
+      "fingerprint": "5d0ef30e65a9d9d83a80b3cd4253d270a8140a11ddca186179529211c81ffe63"
+    },
+    "core-store": {
+      "path": "src/logic/store.ts",
+      "external": false,
+      "files": [
+        "src/data/seed.test.ts",
+        "src/data/seed.ts",
+        "src/logic/economy.test.ts",
+        "src/logic/store.test.ts",
+        "src/logic/store.ts"
+      ],
+      "fingerprint": "a757e78f985209ae0bebf902b009d1fde9642251e2f1679021938c7897f97654"
+    },
+    "core-sparks": {
+      "path": "src/logic/sparks.ts",
+      "external": false,
+      "files": [
+        "src/logic/economy.test.ts",
+        "src/logic/sparks.test.ts",
+        "src/logic/sparks.ts"
+      ],
+      "fingerprint": "2ea12ccbd4780d80f90725515f4bc146556bfbfa85cead9efc7f9d6f97601a93"
+    },
+    "core-stars": {
+      "path": "src/logic/stars.ts",
+      "external": false,
+      "files": [
+        "src/logic/stars.test.ts",
+        "src/logic/stars.ts"
+      ],
+      "fingerprint": "13992da85cb597525720e4667fb0d780c9f449e219121eff14d492c1ad8ab88b"
+    },
+    "core-progress": {
+      "path": "src/logic/selectors.ts",
+      "external": false,
+      "files": [
+        "src/logic/recurring.test.ts",
+        "src/logic/recurring.ts",
+        "src/logic/selectors.test.ts",
+        "src/logic/selectors.ts",
+        "src/logic/stats.test.ts",
+        "src/logic/stats.ts",
+        "src/logic/streak.test.ts",
+        "src/logic/streak.ts",
+        "src/logic/xp.test.ts",
+        "src/logic/xp.ts"
+      ],
+      "fingerprint": "026d6a7c999d7d127b8cfbd157274288af508aa62b61d9678478f9a7286e05ac"
+    },
+    "core-validate": {
+      "path": "src/logic/validate.ts",
+      "external": false,
+      "files": [
+        "src/logic/validate.test.ts",
+        "src/logic/validate.ts"
+      ],
+      "fingerprint": "710ad257c9921f631e7f9108b473f623fd87a96c5291b368533df4c8fd9cf7d7"
+    },
+    "core-layout": {
+      "path": "src/logic/layout.ts",
+      "external": false,
+      "files": [
+        "src/logic/layout.test.ts",
+        "src/logic/layout.ts"
+      ],
+      "fingerprint": "2e1ac2decdf2a336a67dcef94a21a9c9eb364ddd8c3afd0c8f8405bfaf9928f1"
+    },
+    "core-model": {
+      "path": "src/types.ts",
+      "external": false,
+      "files": [
+        "src/logic/dates.ts",
+        "src/types.ts"
+      ],
+      "fingerprint": "8a7cb753a5df6f60ddbdd55f70fbb9ba2e56b5f322df9550c220ab84631439fc"
+    },
+    "core-storage": {
+      "path": "src/logic/storage.ts",
+      "external": false,
+      "files": [
+        "src/logic/storage.test.ts",
+        "src/logic/storage.ts"
+      ],
+      "fingerprint": "87a9938bcc88393962f81558126e71feeea7bd4c7d67f0f222e1383f72c1638b"
+    },
+    "server": {
+      "path": "server/app.ts",
+      "external": false,
+      "files": [
+        "server/app.test.ts",
+        "server/app.ts",
+        "server/main.ts"
+      ],
+      "fingerprint": "602ef3ef0f70b000b6f320b21fe730f3cdc5d9370ab55adb7fb538c5d2729c2e"
+    },
+    "cli": {
+      "path": "cli/app.ts",
+      "external": false,
+      "files": [
+        "cli/app.test.ts",
+        "cli/app.ts",
+        "cli/helpers.test.ts",
+        "cli/helpers.ts",
+        "cli/main.ts",
+        "cli/smoke.test.ts"
+      ],
+      "fingerprint": "769e6986eccc8d8f377fb4367aec65e2da9274c9601819d40126f37c9e3cb6c2"
+    },
+    "store-json": {
+      "path": null,
+      "external": true,
+      "files": [],
+      "fingerprint": null
+    },
+    "browser-localstorage": {
+      "path": null,
+      "external": true,
+      "files": [],
+      "fingerprint": null
+    },
+    "infra-deploy": {
+      "path": "deploy/docker-compose.yml",
+      "external": false,
+      "files": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/deploy.yml",
+        ".github/workflows/release.yml",
+        "deploy/Caddyfile.example",
+        "deploy/docker-compose.yml",
+        "deploy/stargaze-wrapper.sh"
+      ],
+      "fingerprint": "290be15cf15e51318270adbdb721ae5d80579c19aae8a2044e34c7fcd7874759"
+    }
+  },
+  "previous": {
+    "commit": "d4d99ac858706d6bf5ea56cc723b65dc8224df9f",
+    "generated_at": "2026-08-25T19:43:08.402Z",
+    "changed_modules": [],
+    "new_modules": [],
+    "removed_modules": []
+  },
+  "unknowns": [
+    "web-app: прямых тестов нет",
+    "web-panels: прямых тестов нет",
+    "web-modals: прямых тестов нет",
+    "web-usestore: прямых тестов нет",
+    "core-model: прямых тестов нет",
+    "store-json: внешняя система — файлов в репозитории нет, доказательства косвенные (src/logic/storage.ts, src/logic/storage.ts)",
+    "browser-localstorage: внешняя система — файлов в репозитории нет, доказательства косвенные (src/logic/migrate.ts, src/logic/sync.ts)",
+    "infra-deploy: прямых тестов нет"
+  ]
+}

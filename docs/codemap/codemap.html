@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карта кода · stargaze</title>
+<style>
+  :root {
+    --bg: #0a0e14; --panel: #10151d; --panel-2: #151c26; --line: #212a37;
+    --fg: #dbe4f0; --dim: #8291a6; --accent: #ff7715; --ok: #63d68a; --warn: #ffc857;
+    --font: ui-sans-serif, system-ui, 'Segoe UI', Inter, sans-serif;
+    --mono: ui-monospace, 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--font); overflow: hidden; }
+  a { color: #7cc4ff; }
+
+  header {
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header h1 { font-size: 15px; margin: 0; letter-spacing: .3px; }
+  header h1 b { color: var(--accent); }
+  header .meta { font: 12px/1.4 var(--mono); color: var(--dim); display: flex; gap: 14px; flex-wrap: wrap; }
+  .badge { padding: 1px 7px; border-radius: 999px; font: 11px/1.6 var(--mono); border: 1px solid var(--line); }
+  .badge.dirty { color: #101318; background: var(--warn); border-color: var(--warn); }
+  .badge.clean { color: var(--ok); border-color: #2b4a36; }
+  .badge.changed { color: #101318; background: var(--accent); border-color: var(--accent); }
+
+  main { display: flex; height: calc(100% - 47px); }
+  aside {
+    width: 340px; min-width: 340px; border-right: 1px solid var(--line); background: var(--panel);
+    overflow-y: auto; padding: 12px;
+  }
+  aside h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--dim); margin: 16px 0 8px; }
+  aside h2:first-child { margin-top: 0; }
+  input[type=search] {
+    width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--fg); font: 13px var(--font);
+  }
+  input[type=search]:focus { outline: none; border-color: var(--accent); }
+
+  .legend { display: flex; flex-direction: column; gap: 3px; }
+  .legend button {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; cursor: pointer;
+    background: none; border: 1px solid transparent; border-radius: 7px; padding: 4px 7px;
+    color: var(--fg); font: 12px var(--font);
+  }
+  .legend button:hover { background: var(--panel-2); }
+  .legend button[aria-pressed=false] { opacity: .38; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .legend .count { margin-left: auto; color: var(--dim); font: 11px var(--mono); }
+
+  .flows { display: flex; flex-direction: column; gap: 4px; }
+  .flows button {
+    text-align: left; cursor: pointer; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel-2); color: var(--fg); padding: 7px 9px; font: 12px var(--font);
+  }
+  .flows button:hover { border-color: #33415a; }
+  .flows button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px rgba(255,119,21,.35); }
+  .flows small { display: block; color: var(--dim); margin-top: 2px; }
+
+  .detail { font-size: 12.5px; }
+  .detail .title { font-size: 14px; font-weight: 600; }
+  .detail .path { font: 11.5px var(--mono); color: var(--dim); word-break: break-all; margin: 2px 0 8px; }
+  .detail section { margin-top: 10px; }
+  .detail section > b { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 4px; }
+  .detail ul { margin: 0; padding-left: 16px; }
+  .detail li { margin: 2px 0; }
+  .detail code, .mono { font: 11.5px var(--mono); color: #cbd6e6; }
+  .chip {
+    display: inline-block; margin: 2px 4px 2px 0; padding: 2px 7px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel-2); font: 11px var(--mono); cursor: pointer;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .muted { color: var(--dim); }
+  .unknown { color: var(--warn); }
+
+  .canvas-wrap { position: relative; flex: 1; overflow: hidden; }
+  svg { width: 100%; height: 100%; display: block; cursor: grab; }
+  svg.panning { cursor: grabbing; }
+  .controls { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
+  .controls button {
+    width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line);
+    background: rgba(16,21,29,.92); color: var(--fg); cursor: pointer; font-size: 14px;
+  }
+  .controls button:hover { border-color: var(--accent); }
+  .hint {
+    position: absolute; left: 12px; bottom: 10px; font: 11px var(--mono); color: var(--dim);
+    background: rgba(10,14,20,.78); padding: 4px 8px; border-radius: 7px; pointer-events: none;
+  }
+
+  .node rect.box { fill: var(--panel-2); stroke: var(--line); stroke-width: 1; }
+  .node:hover rect.box { stroke: #44546e; }
+  .node text.t { font: 600 12.5px var(--font); fill: var(--fg); }
+  .node text.p { font: 10.5px var(--mono); fill: var(--dim); }
+  .node text.k { font: 10px var(--mono); }
+  .node { cursor: pointer; }
+  .node.sel rect.box { stroke: var(--accent); stroke-width: 2; }
+  .node.up rect.box { stroke: #7cc4ff; stroke-width: 1.6; }
+  .node.down rect.box { stroke: #8be9c0; stroke-width: 1.6; }
+  .node.flow rect.box { stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 4 3; }
+  .node.hit rect.box { stroke: var(--warn); stroke-width: 1.6; }
+  .node.dim { opacity: .2; }
+  .node .chg { fill: var(--accent); }
+  .edge { fill: none; stroke: #4b5f80; stroke-width: 1.5; }
+  .edge.calls { stroke: #4f87ab; }
+  .edge.reads, .edge.writes { stroke: #9a7050; stroke-dasharray: 5 4; }
+  .edge.unknown { stroke: #6b5a2a; stroke-dasharray: 2 4; }
+  .edge.hl { stroke: var(--accent); stroke-width: 2.2; }
+  .edge.up { stroke: #7cc4ff; stroke-width: 2; }
+  .edge.down { stroke: #8be9c0; stroke-width: 2; }
+  .edge.dim { opacity: .12; }
+  .step-badge { font: 700 10px var(--mono); fill: #101318; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Карта кода · <b>stargaze</b></h1>
+  <div class="meta">
+    <span>сгенерировано 2026-08-25T19:43:17.974Z</span>
+    <span>commit <span class="mono">d4d99ac85870</span></span>
+    <span class="badge dirty">working tree грязный</span>
+    
+    <span>19 модулей · 59 связей · 5 потоков</span>
+  </div>
+</header>
+<main>
+  <aside>
+    <h2>Поиск</h2>
+    <input type="search" id="q" placeholder="модуль, файл, символ…" autocomplete="off">
+    <h2>Типы модулей</h2>
+    <div class="legend" id="legend"></div>
+    <h2>Сквозные потоки</h2>
+    <div class="flows" id="flows"></div>
+    <h2 id="detail-h">Модуль</h2>
+    <div class="detail" id="detail"><span class="muted">Кликните модуль на карте — покажу, кто его зовёт, что он тянет, какие тесты его держат и в какие потоки он входит.</span></div>
+  </aside>
+  <div class="canvas-wrap">
+    <svg id="svg"><g id="viewport"><g id="edges"></g><g id="nodes"></g></g></svg>
+    <div class="controls">
+      <button id="zin" title="Приблизить">+</button>
+      <button id="zout" title="Отдалить">−</button>
+      <button id="fit" title="Вписать">⤢</button>
+    </div>
+    <div class="hint">колесо — зум · тянуть фон — панорама · тянуть модуль — переставить · Esc — сброс</div>
+  </div>
+</main>
+<script type="application/json" id="data">{"map":{"generated_at":"2026-08-25T19:43:17.974Z","generated_from_commit":"d4d99ac858706d6bf5ea56cc723b65dc8224df9f","scope":["src/","cli/","server/","deploy/",".github/workflows/","index.html","vite.config.ts"],"nodes":[{"id":"web-app","name":"Веб-оболочка","path":"src/App.tsx","kind":"ui","tier":0,"role":"Корень SPA: вкладки Небо/Журнал/Хроника/Кошелёк, диспатч действий, тосты и оверлей уровня","external":false,"files":["index.html","src/main.tsx","src/App.tsx","src/index.css","vite.config.ts"],"entrypoints":["src/main.tsx → createRoot().render(\u003cApp/>)","npm run dev / npm run build (vite)"],"tests":[],"constraints":["base: './' — собранный dist/index.html обязан открываться двойным кликом без сервера","Без UI-библиотек и Tailwind: вся тема в src/index.css","«Сегодня» берётся из игрового пояса UTC+7 (todayInGameTz), не из локального дня браузера"],"evidence":[{"path":"src/App.tsx","symbol":"export default function App"},{"path":"src/App.tsx","symbol":"const today = todayInGameTz()"},{"path":"src/main.tsx","symbol":"createRoot(document.getElementById('root')!)"},{"path":"vite.config.ts","symbol":"base: './'"}],"changed_since_previous":false},{"id":"web-sky","name":"Небо (SVG-рендер)","path":"src/components/Sky.tsx","kind":"ui","tier":1,"role":"Обзорное небо и вид галактики: созвездия, звёзды, небулы, глифы, HUD, карточка звезды, пан/зум","external":false,"files":["src/components/Sky.tsx","src/components/Galaxy.tsx","src/components/GalaxyView.tsx","src/components/GalaxyHud.tsx","src/components/CosmosBackdrop.tsx","src/components/StarCard.tsx","src/components/BgStars.tsx","src/components/skyColors.ts","src/components/skyField.ts","src/components/skyGlyphs.ts","src/hooks/usePanZoom.ts"],"entrypoints":["\u003cSky/> из App.tsx (вкладка «Небо»)","\u003cGalaxyView/> из App.tsx (галактика навыка)"],"tests":["src/components/skyColors.test.ts","src/components/skyField.test.ts"],"constraints":["Никакого Math.random() в рендере — позиции из seeded PRNG (logic/layout)","sky-seeds 'questlog-milky'/'questlog-sky' — вечные соли PRNG, ренейм перерисует небо","hue навыков вне оранжевой зоны ≈15–35 (сольётся с брендовым акцентом #FF7715)","FPS-паспорт: покой ≥55, пан ≥30; стоимость twinkle определяется площадью repaint"],"evidence":[{"path":"src/components/Sky.tsx","symbol":"export function Sky"},{"path":"src/components/skyColors.ts","symbol":"export const rarity"},{"path":"src/components/skyGlyphs.ts","symbol":"export const SKY_GLYPHS"},{"path":"src/hooks/usePanZoom.ts","symbol":"export function usePanZoom"}],"changed_since_previous":false},{"id":"web-panels","name":"Панели: Журнал · Хроника · Кошелёк","path":"src/components/Journal.tsx","kind":"ui","tier":1,"role":"Списки квестов (с подквестами), панель навыка, дашборд повторяемых, кошелёк искр и витрина","external":false,"files":["src/components/Journal.tsx","src/components/QuestRow.tsx","src/components/SkillPanel.tsx","src/components/Chronicle.tsx","src/components/Wallet.tsx","src/components/LevelUpOverlay.tsx"],"entrypoints":["\u003cJournal/>, \u003cChronicle/>, \u003cWallet/>, \u003cSkillPanel/> из App.tsx"],"tests":[],"constraints":["Необратимое (покупка, «Забрать», отмена с ценой) — только вторым шагом с подтверждением","Русский язык UI-текстов; технические термины — в оригинале"],"evidence":[{"path":"src/components/Journal.tsx","symbol":"export function Journal"},{"path":"src/components/Wallet.tsx","symbol":"export function Wallet"},{"path":"src/components/Chronicle.tsx","symbol":"export function Chronicle"}],"changed_since_previous":false},{"id":"web-modals","name":"Диалоги и формы","path":"src/components/Modals.tsx","kind":"ui","tier":1,"role":"Формы квеста/навыка/звезды, завершение с итогом и DoD-гейтом, витрина, перенос дедлайна, импорт/экспорт","external":false,"files":["src/components/Modals.tsx"],"entrypoints":["\u003cQuestModal/>, \u003cCompleteQuestModal/>, \u003cSkillModal/>, \u003cStarModal/>, \u003cWishlistModal/>, \u003cMoveDueDateModal/>, \u003cDataModal/> из App.tsx"],"tests":[],"constraints":["Форма зеркалит заморозку условий принятого контракта — поля R/тип/дедлайн недоступны после accept","Импорт store идёт через validateStore — невалидное не применяется"],"evidence":[{"path":"src/components/Modals.tsx","symbol":"export function CompleteQuestModal"},{"path":"src/components/Modals.tsx","symbol":"export function MoveDueDateModal"},{"path":"src/components/Modals.tsx","symbol":"export function DataModal"}],"changed_since_previous":false},{"id":"web-usestore","name":"useStore (режимы local/server)","path":"src/hooks/useStore.ts","kind":"bridge","tier":1,"role":"Единая точка состояния веба: reducer + оптимистичный dispatch, пробинг API, поллинг канона, дренаж очереди","external":false,"files":["src/hooks/useStore.ts"],"entrypoints":["useStore() в App.tsx"],"tests":[],"constraints":["Поллинг 30 с, ретрай очереди 5 с, ре-пробинг сервера 10 с","importStore применяется только когда очередь реально опустела","В локальном режиме персист в localStorage; в серверном канон — на сервере"],"evidence":[{"path":"src/hooks/useStore.ts","symbol":"export function useStore"},{"path":"src/hooks/useStore.ts","symbol":"const POLL_MS = 30_000"},{"path":"src/hooks/useStore.ts","symbol":"dispatchLocal(action) // оптимистично"}],"changed_since_previous":false},{"id":"web-sync","name":"API-клиент, очередь, ключи хранения","path":"src/logic/sync.ts","kind":"bridge","tier":2,"role":"HTTP-клиент /api/*, офлайн-очередь действий (двухисточниковый дренаж), чтение legacy-ключей localStorage","external":false,"files":["src/logic/api.ts","src/logic/sync.ts","src/logic/migrate.ts"],"entrypoints":["probeServer/fetchServerStore/postAction","loadQueue/appendQueue/drainQueue","loadStoredStore"],"tests":["src/logic/sync.test.ts","src/logic/migrate.test.ts"],"constraints":["Пишем только в stargaze.queue.v2; legacy questlog.queue.v2 дренируется первым и вечно","loadStoredStore: stargaze.v3 → фолбэк questlog.v3; автомиграции v2→v3 нет","Гейт серверного режима — /api/store с валидацией, а не /api/health","4xx на действие выбрасывает его из очереди (иначе очередь застрянет навечно)"],"evidence":[{"path":"src/logic/sync.ts","symbol":"export const QUEUE_KEY = 'stargaze.queue.v2'"},{"path":"src/logic/sync.ts","symbol":"export async function drainQueue"},{"path":"src/logic/api.ts","symbol":"export async function probeServer"},{"path":"src/logic/migrate.ts","symbol":"export const LEGACY_STORE_KEY = 'questlog.v3'"}],"changed_since_previous":false},{"id":"core-store","name":"Редьюсер (ядро)","path":"src/logic/store.ts","kind":"core","tier":3,"role":"Единственный мутатор состояния: union Action на 27 типов, append-only xpLog и ledger, гейты DoD/подквестов/заморозки","external":false,"files":["src/logic/store.ts","src/data/seed.ts"],"entrypoints":["reducer(store, action)","ACTION_TYPES (контракт API)","seedStore()"],"tests":["src/logic/store.test.ts","src/logic/economy.test.ts","src/data/seed.test.ts"],"constraints":["xpLog — append-only и единственный источник правды по XP; откат = компенсирующее событие","ledger — второй append-only контур; баланс не хранится, вычисляется","updateQuest морозит условия принятого контракта (xpReward/type/createdAt/dueDate)","claimedAt/skippedDod/skippedQuestIds пишет только редьюсер — не payload","Отказ гейта в ядре = no-op (возврат того же объекта), строгая ошибка — на границе CLI/API"],"evidence":[{"path":"src/logic/store.ts","symbol":"export function reducer"},{"path":"src/logic/store.ts","symbol":"export const ACTION_TYPES"},{"path":"src/data/seed.ts","symbol":"export function seedStore"}],"changed_since_previous":false},{"id":"core-sparks","name":"Экономика искр","path":"src/logic/sparks.ts","kind":"core","tier":4,"role":"Баланс, провизии, капание за просрочку, комиссия переноса, неустойка отмены, игровой пояс UTC+7 и день расчёта","external":false,"files":["src/logic/sparks.ts"],"entrypoints":["sparksBalance","settlementDay","dayInGameTz/todayInGameTz","moveFeeFor/cancelFeeFor"],"tests":["src/logic/sparks.test.ts","src/logic/economy.test.ts"],"constraints":["Ни одного new Date(iso): день считается регэкспом + UTC-арифметикой","Ставки — константы (DRAIN_RATE 0.10, FREE_MOVES_PER_7D 3, MOVE_FEE_RATE 0.10, CANCEL_FEE_BASE 0.5)","SPARKS_EPOCH 2026-08-07 — просрочки до этого дня амнистированы","Квота переносов общая на все квесты в rolling-окне 7 дней, не по квесту"],"evidence":[{"path":"src/logic/sparks.ts","symbol":"export function sparksBalance"},{"path":"src/logic/sparks.ts","symbol":"export function settlementDay"},{"path":"src/logic/sparks.ts","symbol":"export const GAME_TZ_OFFSET_H"},{"path":"src/logic/sparks.ts","symbol":"export const SPARKS_EPOCH"}],"changed_since_previous":false},{"id":"core-stars","name":"Дерево звёзд и ранги","path":"src/logic/stars.ts","kind":"core","tier":4,"role":"Рекурсивное дерево звёзд (parentStarId), ранги D–S поперёк треков, порог «ранг взят» и статистика галактики","external":false,"files":["src/logic/stars.ts"],"entrypoints":["isRankAchieved","currentRank/rankTitle","ancestorsOf/childrenOf","galaxyStats"],"tests":["src/logic/stars.test.ts"],"constraints":["Порог ранга — ceil(0.6·n) зажжённых звёзд ранга по всему навыку (RANK_RATIO)","Ранг — статус, не запрет: гейтов на зажигание нет","Имена рангов — классы светимости (TIER_CLASS), rankTitles навыка — опциональная надстройка"],"evidence":[{"path":"src/logic/stars.ts","symbol":"export function isRankAchieved"},{"path":"src/logic/stars.ts","symbol":"export const RANK_RATIO"},{"path":"src/logic/stars.ts","symbol":"export const TIER_CLASS"}],"changed_since_previous":false},{"id":"core-progress","name":"Производные из xpLog","path":"src/logic/selectors.ts","kind":"core","tier":4,"role":"Всё вычисляемое: XP навыка/персонажа, уровни, стрики, недельная статистика, дашборд повторяемых, прогресс эпика","external":false,"files":["src/logic/selectors.ts","src/logic/xp.ts","src/logic/streak.ts","src/logic/stats.ts","src/logic/recurring.ts"],"entrypoints":["skillXpTotal/charXpTotal","skillLevel/charLevel","computeStreak","recurringDashboard","epicProgress"],"tests":["src/logic/selectors.test.ts","src/logic/xp.test.ts","src/logic/streak.test.ts","src/logic/stats.test.ts","src/logic/recurring.test.ts"],"constraints":["Формулы уровней: навык 100 + 50·(n−1), персонаж 300 + 150·(n−1) — менять только со спекой и тестами","Стрик: сегодняшний невыполненный положенный день не рвёт — рвёт только завершившийся пустым","Денормализованных счётчиков нет — всё считается из xpLog"],"evidence":[{"path":"src/logic/selectors.ts","symbol":"export function skillXpTotal"},{"path":"src/logic/xp.ts","symbol":"export function levelFromXp"},{"path":"src/logic/streak.ts","symbol":"export function computeStreak"},{"path":"src/logic/recurring.ts","symbol":"export function recurringDashboard"}],"changed_since_previous":false},{"id":"core-validate","name":"Валидация store","path":"src/logic/validate.ts","kind":"core","tier":4,"role":"Структурный контроль всего store: типы, ссылочная целостность, календарные даты, потолок награды, глубина подквестов","external":false,"files":["src/logic/validate.ts"],"entrypoints":["validateStore(x) → string[]"],"tests":["src/logic/validate.test.ts"],"constraints":["Даты календарные (isCalendarDay), xpReward ≤ XP_REWARD_MAX 1000","Глубина подквестов — один уровень","Статусных инвариантов у подквестов нет: гейт транзакционный, не структурный"],"evidence":[{"path":"src/logic/validate.ts","symbol":"export function validateStore"}],"changed_since_previous":false},{"id":"core-layout","name":"Раскладка неба","path":"src/logic/layout.ts","kind":"core","tier":3,"role":"Детерминированные позиции: созвездия на обзорном небе и скелет дерева звёзд (ствол → ветки-ступени)","external":false,"files":["src/logic/layout.ts"],"entrypoints":["constellationPlacements","layoutConstellation","hashStr/mulberry32"],"tests":["src/logic/layout.test.ts"],"constraints":["Позиции — seeded PRNG от id сущностей, никакого Math.random()","Вписывание в кадр равномерным сжатием; кламп — только страховка"],"evidence":[{"path":"src/logic/layout.ts","symbol":"export function layoutConstellation"},{"path":"src/logic/layout.ts","symbol":"export function mulberry32"}],"changed_since_previous":false},{"id":"core-model","name":"Модель данных и календарь","path":"src/types.ts","kind":"core","tier":5,"role":"Типы store v3 (Quest/Skill/StarComponent/XpEvent/LedgerEvent/WishlistItem) и календарные примитивы","external":false,"files":["src/types.ts","src/logic/dates.ts"],"entrypoints":["interface Store","dayKey/addDays/diffDays/isCalendarDay"],"tests":[],"constraints":["store v3 без миграции: ledger/wishlist — опциональные поля","dayKey формата YYYY-MM-DD; сравнение дней — строковое, без Date-арифметики в потребителях"],"evidence":[{"path":"src/types.ts","symbol":"export interface Store"},{"path":"src/types.ts","symbol":"export interface LedgerEvent"},{"path":"src/logic/dates.ts","symbol":"export function isCalendarDay"}],"changed_since_previous":false},{"id":"core-storage","name":"Файловый персистенс (node-only)","path":"src/logic/storage.ts","kind":"persistence","tier":3,"role":"Единственная точка записи канона: mkdir-лок между процессами, tmp+rename, отказ писать невалидное","external":false,"files":["src/logic/storage.ts"],"entrypoints":["withStore(path, fn)","loadStore/saveStore","acquireLock/releaseLock"],"tests":["src/logic/storage.test.ts"],"constraints":["НЕ импортировать из браузерного кода (src/components, src/hooks, src/App) — только cli/ и server/","saveStore бросает StoreValidationError вместо записи невалидного store","withStore не пишет, если fn вернула тот же объект (no-op редьюсера)"],"evidence":[{"path":"src/logic/storage.ts","symbol":"export function withStore"},{"path":"src/logic/storage.ts","symbol":"export class StoreValidationError"},{"path":"src/logic/storage.ts","symbol":"mkdirSync(lock) // атомарно"}],"changed_since_previous":false},{"id":"server","name":"HTTP-API (голова 3)","path":"server/app.ts","kind":"service","tier":2,"role":"node:http поверх того же ядра: GET /api/health, GET /api/store, POST /api/action, раздача статики","external":false,"files":["server/app.ts","server/main.ts"],"entrypoints":["createApp({storePath, publicDir})","node dist-node/server.js (env STARGAZE_STORE/PORT/PUBLIC)"],"tests":["server/app.test.ts"],"constraints":["Bind только 127.0.0.1:8643 — наружу торчит Caddy","Ровно пять гейтов дают 422 (подквесты, нехватка искр, звезда-якорь не зажжена, перенос в прошлое, archiveSkill с контрактами); прочие отказы — тихий 200","Поля payload — questId/skillId/itemId по типам Action; неверное поле = тихий no-op 200","День расчёта в гейтах — settlementDay(day, ts), как в редьюсере","env STARGAZE_* с вечным фолбэком на QUESTLOG_*"],"evidence":[{"path":"server/app.ts","symbol":"export function createApp"},{"path":"server/app.ts","symbol":"class EconomyGateError"},{"path":"server/app.ts","symbol":"if (req.method === 'POST' && url.pathname === '/api/action')"},{"path":"server/main.ts","symbol":"process.env.STARGAZE_STORE ?? process.env.QUESTLOG_STORE"}],"changed_since_previous":false},{"id":"cli","name":"CLI (голова 2)","path":"cli/app.ts","kind":"cli","tier":0,"role":"31 команда поверх ядра: статус, квесты, карточка, звёзды, кошелёк, перенос и отмена, импорт/экспорт, serve — этим ходит агент-гейм-мастер","external":false,"files":["cli/app.ts","cli/main.ts","cli/helpers.ts"],"entrypoints":["runCli(argv, io)","stargaze serve (локальная инсталляция)"],"tests":["cli/app.test.ts","cli/helpers.test.ts","cli/smoke.test.ts"],"constraints":["cancel показывает неустойку и требует --yes","complete short/mid/long требует --result; --force фиксирует пропущенное в result","Известные дефекты: resolveId матчит startsWith (точный id не выигрывает); quests --today игнорирует dueDate"],"evidence":[{"path":"cli/app.ts","symbol":"export function runCli"},{"path":"cli/app.ts","symbol":"case 'wallet':"},{"path":"cli/app.ts","symbol":"if (command === 'serve') return cmdServe(values, io)"},{"path":"cli/helpers.ts","symbol":"export function resolveId"}],"changed_since_previous":false},{"id":"store-json","name":"store.json (канон на дроплете)","path":null,"kind":"datastore","tier":5,"role":"Канон данных инсталляции: store.json (путь — env STARGAZE_STORE; у serve дефолт ~/.stargaze/store.json)","external":true,"files":[],"entrypoints":["env STARGAZE_STORE=/data/store.json","stargaze --store \u003cpath>"],"tests":[],"constraints":["Пишется только через logic/storage (лок + tmp+rename + validateStore)","Заводится через stargaze import (даёт валидацию и .bak), не cp"],"evidence":[{"path":"src/logic/storage.ts","symbol":"withStore"},{"path":"src/logic/storage.ts","symbol":"renameSync(tmp, path) // атомарная замена"}],"changed_since_previous":false},{"id":"browser-localstorage","name":"localStorage браузера","path":null,"kind":"datastore","tier":5,"role":"Хранилище локального режима и офлайн-очереди: stargaze.v3 / stargaze.queue.v2 (+ вечные legacy-ключи questlog.*)","external":true,"files":[],"entrypoints":["stargaze.v3","stargaze.queue.v2","questlog.v3 / questlog.queue.v2 (только чтение)"],"tests":[],"constraints":["questlog.v1/v2 не читаются и не удаляются — бэкапы","В серверном режиме localStorage остаётся бэкапом, канон не мержится обратно"],"evidence":[{"path":"src/logic/migrate.ts","symbol":"export const STORE_KEY = 'stargaze.v3'"},{"path":"src/logic/sync.ts","symbol":"export const LEGACY_QUEUE_KEY = 'questlog.queue.v2'"}],"changed_since_previous":false},{"id":"infra-deploy","name":"CI и дроплет (Caddy + compose)","path":"deploy/docker-compose.yml","kind":"infra","tier":0,"role":"push в master → Actions (typecheck+test+build) → rsync/scp артефактов на дроплет → docker compose up; Caddy держит HTTPS, basic auth и Origin-гейт","external":false,"files":[".github/workflows/deploy.yml",".github/workflows/ci.yml",".github/workflows/release.yml","deploy/docker-compose.yml","deploy/Caddyfile.example","deploy/stargaze-wrapper.sh"],"entrypoints":["https://\u003cдомен инсталляции> (Caddy, basic auth)","stargaze serve → http://localhost:8643"],"tests":[],"constraints":["На дроплете node-тулчейна нет — едут только CI-артефакты","Origin-гейт на POST /api/action: basic auth не защищает от CSRF","Именованные тома caddy (caddy-data/caddy-config) — сертификаты терять нельзя (ACME rate limits)"],"evidence":[{"path":".github/workflows/deploy.yml","symbol":"rsync -az --delete -e \"$SSH\" dist/"},{"path":".github/workflows/ci.yml","symbol":"pull_request:"},{"path":".github/workflows/release.yml","symbol":"tags: ['v*']"},{"path":"deploy/Caddyfile.example","symbol":"reverse_proxy {$STARGAZE_UPSTREAM:127.0.0.1:8643}"},{"path":"deploy/Caddyfile.example","symbol":"respond @badActionOrigin 403"},{"path":"deploy/docker-compose.yml","symbol":"container_name: stargaze"}],"changed_since_previous":false}],"edges":[{"from":"web-app","to":"web-usestore","type":"imports","evidence":[{"path":"src/App.tsx","symbol":"import { useStore } from './hooks/useStore'"}]},{"from":"web-app","to":"web-sky","type":"imports","evidence":[{"path":"src/App.tsx","symbol":"import { Sky } from './components/Sky'"}]},{"from":"web-app","to":"web-panels","type":"imports","evidence":[{"path":"src/App.tsx","symbol":"import { Journal } from './components/Journal'"}]},{"from":"web-app","to":"web-modals","type":"imports","evidence":[{"path":"src/App.tsx","symbol":"from './components/Modals'"}]},{"from":"web-app","to":"core-store","type":"imports","evidence":[{"path":"src/App.tsx","symbol":"import { genId } from './logic/store'"}]},{"from":"web-app","to":"core-sparks","type":"imports","evidence":[{"path":"src/App.tsx","symbol":"from './logic/sparks'"}]},{"from":"web-app","to":"core-progress","type":"imports","evidence":[{"path":"src/App.tsx","symbol":"from './logic/selectors'"}]},{"from":"web-app","to":"core-model","type":"imports","evidence":[{"path":"src/App.tsx","symbol":"from './types'"}]},{"from":"web-sky","to":"core-layout","type":"imports","evidence":[{"path":"src/components/Sky.tsx","symbol":"from '../logic/layout'"}]},{"from":"web-sky","to":"core-stars","type":"imports","evidence":[{"path":"src/components/Sky.tsx","symbol":"import { rankTitle } from '../logic/stars'"}]},{"from":"web-sky","to":"core-progress","type":"imports","evidence":[{"path":"src/components/Galaxy.tsx","symbol":"from '../logic/selectors'"}]},{"from":"web-sky","to":"core-model","type":"imports","evidence":[{"path":"src/components/skyColors.ts","symbol":"from '../types'"}]},{"from":"web-panels","to":"core-progress","type":"imports","evidence":[{"path":"src/components/Journal.tsx","symbol":"from '../logic/selectors'"}]},{"from":"web-panels","to":"core-sparks","type":"imports","evidence":[{"path":"src/components/Wallet.tsx","symbol":"from '../logic/sparks'"}]},{"from":"web-panels","to":"core-stars","type":"imports","evidence":[{"path":"src/components/SkillPanel.tsx","symbol":"from '../logic/stars'"}]},{"from":"web-panels","to":"core-model","type":"imports","evidence":[{"path":"src/components/QuestRow.tsx","symbol":"from '../logic/dates'"}]},{"from":"web-panels","to":"web-sky","type":"imports","evidence":[{"path":"src/components/QuestRow.tsx","symbol":"from './skyColors'"}]},{"from":"web-modals","to":"core-store","type":"imports","evidence":[{"path":"src/components/Modals.tsx","symbol":"from '../logic/store'"}]},{"from":"web-modals","to":"core-validate","type":"imports","evidence":[{"path":"src/components/Modals.tsx","symbol":"from '../logic/validate'"}]},{"from":"web-modals","to":"core-sparks","type":"imports","evidence":[{"path":"src/components/Modals.tsx","symbol":"from '../logic/sparks'"}]},{"from":"web-modals","to":"core-stars","type":"imports","evidence":[{"path":"src/components/Modals.tsx","symbol":"from '../logic/stars'"}]},{"from":"web-modals","to":"core-model","type":"imports","evidence":[{"path":"src/components/Modals.tsx","symbol":"from '../types'"}]},{"from":"web-modals","to":"web-sky","type":"imports","evidence":[{"path":"src/components/Modals.tsx","symbol":"from './skyGlyphs'"}]},{"from":"web-usestore","to":"core-store","type":"calls","evidence":[{"path":"src/hooks/useStore.ts","symbol":"useReducer(reducer, undefined, load)"}]},{"from":"web-usestore","to":"web-sync","type":"calls","evidence":[{"path":"src/hooks/useStore.ts","symbol":"await drainQueue(localStorage, postAction)"}]},{"from":"web-usestore","to":"browser-localstorage","type":"writes","evidence":[{"path":"src/hooks/useStore.ts","symbol":"localStorage.setItem(STORE_KEY, JSON.stringify(store))"}]},{"from":"web-usestore","to":"browser-localstorage","type":"reads","evidence":[{"path":"src/hooks/useStore.ts","symbol":"loadStoredStore(localStorage)"}]},{"from":"web-sync","to":"server","type":"calls","evidence":[{"path":"src/logic/api.ts","symbol":"fetch('/api/action', { method: 'POST', body: JSON.stringify(action) })"}]},{"from":"web-sync","to":"core-store","type":"imports","evidence":[{"path":"src/logic/api.ts","symbol":"import type { Action } from './store'"}]},{"from":"web-sync","to":"core-validate","type":"imports","evidence":[{"path":"src/logic/api.ts","symbol":"import { validateStore } from './validate'"}]},{"from":"web-sync","to":"browser-localstorage","type":"writes","evidence":[{"path":"src/logic/sync.ts","symbol":"kv.setItem(key, JSON.stringify(queue))"}]},{"from":"core-store","to":"core-sparks","type":"imports","evidence":[{"path":"src/logic/store.ts","symbol":"from './sparks'"}]},{"from":"core-store","to":"core-stars","type":"imports","evidence":[{"path":"src/logic/store.ts","symbol":"from './stars'"}]},{"from":"core-store","to":"core-progress","type":"imports","evidence":[{"path":"src/logic/store.ts","symbol":"from './selectors'"}]},{"from":"core-store","to":"core-model","type":"imports","evidence":[{"path":"src/logic/store.ts","symbol":"from './dates'"}]},{"from":"core-sparks","to":"core-model","type":"imports","evidence":[{"path":"src/logic/sparks.ts","symbol":"from './dates'"}]},{"from":"core-stars","to":"core-model","type":"imports","evidence":[{"path":"src/logic/stars.ts","symbol":"from '../types'"}]},{"from":"core-progress","to":"core-sparks","type":"imports","evidence":[{"path":"src/logic/recurring.ts","symbol":"from './sparks'"}]},{"from":"core-progress","to":"core-model","type":"imports","evidence":[{"path":"src/logic/selectors.ts","symbol":"from './dates'"}]},{"from":"core-validate","to":"core-sparks","type":"imports","evidence":[{"path":"src/logic/validate.ts","symbol":"from './sparks'"}]},{"from":"core-validate","to":"core-model","type":"imports","evidence":[{"path":"src/logic/validate.ts","symbol":"from './dates'"}]},{"from":"core-layout","to":"core-model","type":"imports","evidence":[{"path":"src/logic/layout.ts","symbol":"from '../types'"}]},{"from":"core-storage","to":"core-validate","type":"imports","evidence":[{"path":"src/logic/storage.ts","symbol":"import { validateStore } from './validate'"}]},{"from":"core-storage","to":"core-model","type":"imports","evidence":[{"path":"src/logic/storage.ts","symbol":"import type { Store } from '../types'"}]},{"from":"core-storage","to":"store-json","type":"reads","evidence":[{"path":"src/logic/storage.ts","symbol":"readFileSync(path, 'utf8')"}]},{"from":"core-storage","to":"store-json","type":"writes","evidence":[{"path":"src/logic/storage.ts","symbol":"renameSync(tmp, path)"}]},{"from":"server","to":"core-store","type":"calls","evidence":[{"path":"server/app.ts","symbol":"return reducer(s, action)"}]},{"from":"server","to":"core-storage","type":"calls","evidence":[{"path":"server/app.ts","symbol":"withStore(storePath, (s) =>"}]},{"from":"server","to":"core-sparks","type":"calls","evidence":[{"path":"server/app.ts","symbol":"sparksBalance(s, settlementDay(action.day, action.ts))"}]},{"from":"cli","to":"core-store","type":"imports","evidence":[{"path":"cli/app.ts","symbol":"import { genId, reducer, type Action } from '../src/logic/store'"}]},{"from":"cli","to":"core-storage","type":"imports","evidence":[{"path":"cli/app.ts","symbol":"from '../src/logic/storage'"}]},{"from":"cli","to":"core-validate","type":"imports","evidence":[{"path":"cli/app.ts","symbol":"import { validateStore } from '../src/logic/validate'"}]},{"from":"cli","to":"core-sparks","type":"imports","evidence":[{"path":"cli/app.ts","symbol":"from '../src/logic/sparks'"}]},{"from":"cli","to":"core-stars","type":"imports","evidence":[{"path":"cli/app.ts","symbol":"from '../src/logic/stars'"}]},{"from":"cli","to":"core-progress","type":"imports","evidence":[{"path":"cli/app.ts","symbol":"from '../src/logic/selectors'"}]},{"from":"cli","to":"core-model","type":"imports","evidence":[{"path":"cli/app.ts","symbol":"from '../src/types'"}]},{"from":"infra-deploy","to":"server","type":"writes","evidence":[{"path":".github/workflows/deploy.yml","symbol":"scp -i ~/.ssh/id_ed25519 dist-node/server.js"}]},{"from":"infra-deploy","to":"web-app","type":"writes","evidence":[{"path":".github/workflows/deploy.yml","symbol":"rsync -az --delete -e \"$SSH\" dist/"}]},{"from":"infra-deploy","to":"cli","type":"writes","evidence":[{"path":".github/workflows/deploy.yml","symbol":"scp -i ~/.ssh/id_ed25519 dist-node/cli.js"}]}],"flows":[{"id":"flow-web-complete","name":"Сдача квеста из веба (серверный режим)","trigger":"Игрок жмёт «Выполнить» в Журнале при живом /api/store","steps":[{"node":"web-panels","action":"Кнопка в QuestRow → onComplete","evidence":{"path":"src/components/QuestRow.tsx","symbol":"export function QuestRow"}},{"node":"web-modals","action":"CompleteQuestModal: итог, DoD-гейт, --force при незакрытых пунктах","evidence":{"path":"src/components/Modals.tsx","symbol":"export function CompleteQuestModal"}},{"node":"web-app","action":"dispatch({type: \"completeQuest\", …}) + тост и оверлей уровня","evidence":{"path":"src/App.tsx","symbol":"export default function App"}},{"node":"web-usestore","action":"Оптимистичный reducer локально + appendQueue","evidence":{"path":"src/hooks/useStore.ts","symbol":"appendQueue(localStorage, action)"}},{"node":"core-store","action":"xpLog += событие, ledger += earn/drain по лестнице","evidence":{"path":"src/logic/store.ts","symbol":"export function reducer"}},{"node":"web-sync","action":"drainQueue → POST /api/action по одному действию","evidence":{"path":"src/logic/sync.ts","symbol":"export async function drainQueue"}},{"node":"server","action":"Гейты (подквесты, экономика) → 422 либо reducer под локом","evidence":{"path":"server/app.ts","symbol":"throw new ChildrenGateError"}},{"node":"core-storage","action":"withStore: лок → load → reducer → validate → tmp+rename","evidence":{"path":"src/logic/storage.ts","symbol":"export function withStore"}},{"node":"store-json","action":"Канон обновлён","evidence":{"path":"Dockerfile","symbol":"STARGAZE_STORE=/data/store.json"}},{"node":"web-usestore","action":"Ответ-канон → importStore, если очередь опустела","evidence":{"path":"src/hooks/useStore.ts","symbol":"dispatchLocal({ type: 'importStore', store: last })"}}],"outcome":"Квест done, XP и искры начислены в канон; UI не ждал сеть, при падении сервера действие осталось в очереди"},{"id":"flow-local-mode","name":"Локальный режим (API недоступен)","trigger":"Открытие dist/index.html двойным кликом или недоступный /api/store","steps":[{"node":"web-usestore","action":"probeServer() вернул false → mode=local, фоновый ре-пробинг раз в 10 с","evidence":{"path":"src/hooks/useStore.ts","symbol":"if (!(await probeServer()) || cancelled) return"}},{"node":"web-sync","action":"probeServer: file:// или невалидный store → false","evidence":{"path":"src/logic/api.ts","symbol":"window.location.protocol === 'file:'"}},{"node":"core-store","action":"Действия применяются только локально","evidence":{"path":"src/logic/store.ts","symbol":"export function reducer"}},{"node":"browser-localstorage","action":"Персист в stargaze.v3 на каждое изменение","evidence":{"path":"src/hooks/useStore.ts","symbol":"localStorage.setItem(STORE_KEY, JSON.stringify(store))"}},{"node":"web-sync","action":"При старте store читается из stargaze.v3 → фолбэк questlog.v3","evidence":{"path":"src/logic/migrate.ts","symbol":"export function loadStoredStore"}}],"outcome":"Автономная копия в браузере; при подъёме API очередь доигрывается, канон замещает локальную версию"},{"id":"flow-cli-agent","name":"Агент-гейм-мастер правит канон через CLI","trigger":"stargaze complete \u003cid> --result \"…\" (или propose-quest, move, cancel)","steps":[{"node":"cli","action":"runCli разбирает argv, резолвит id, считает неустойку/комиссию до записи","evidence":{"path":"cli/app.ts","symbol":"export function runCli"}},{"node":"core-sparks","action":"Капание, комиссия переноса, неустойка отмены на день расчёта","evidence":{"path":"src/logic/sparks.ts","symbol":"export function cancelFeeFor"}},{"node":"core-store","action":"reducer применяет действие атомарно","evidence":{"path":"src/logic/store.ts","symbol":"export function reducer"}},{"node":"core-storage","action":"withStore под mkdir-локом — сериализация с сервером","evidence":{"path":"src/logic/storage.ts","symbol":"acquireLock(path, opts)"}},{"node":"store-json","action":"Канон обновлён на дроплете","evidence":{"path":"src/logic/storage.ts","symbol":"saveStore"}},{"node":"web-usestore","action":"Открытая вкладка подхватывает изменение поллингом 30 с","evidence":{"path":"src/hooks/useStore.ts","symbol":"const POLL_MS = 30_000"}},{"node":"web-app","action":"UI перерисовывается новым каноном","evidence":{"path":"src/App.tsx","symbol":"const [store, dispatch, mode] = useStore()"}}],"outcome":"Правки агента и веба идут в один файл без гонок; веб узнаёт о них без перезагрузки"},{"id":"flow-sky-render","name":"Отрисовка неба","trigger":"Открытие вкладки «Небо» или клик по галактике навыка","steps":[{"node":"web-app","action":"Передаёт store в \u003cSky/> / \u003cGalaxyView/>","evidence":{"path":"src/App.tsx","symbol":"import { GalaxyView } from './components/GalaxyView'"}},{"node":"core-layout","action":"constellationPlacements + layoutConstellation: seeded PRNG, детерминированные позиции","evidence":{"path":"src/logic/layout.ts","symbol":"export function constellationPlacements"}},{"node":"core-stars","action":"Ранги, порог «ранг взят», статистика галактики","evidence":{"path":"src/logic/stars.ts","symbol":"export function galaxyStats"}},{"node":"core-progress","action":"XP и уровень навыка для HUD","evidence":{"path":"src/logic/selectors.ts","symbol":"export function skillXpTotal"}},{"node":"web-sky","action":"SVG: небулы по hue, ореол редкости по tier, глифы, twinkle","evidence":{"path":"src/components/skyColors.ts","symbol":"export const rarityVar"}}],"outcome":"Небо, идентичное между перезапусками и головами: одни и те же id дают одни и те же координаты"},{"id":"flow-sparks-purchase","name":"Покупка из витрины за искры","trigger":"Кнопка «Купить» в Кошельке (small-позиция с ценой)","steps":[{"node":"web-panels","action":"Wallet: баланс, провизии, витрина; покупка вторым шагом","evidence":{"path":"src/components/Wallet.tsx","symbol":"export function Wallet"}},{"node":"core-sparks","action":"sparksBalance = Σ ledger − провизии на день расчёта","evidence":{"path":"src/logic/sparks.ts","symbol":"export function provisionTotal"}},{"node":"web-usestore","action":"dispatch purchaseItem с opId — ключ идемпотентности","evidence":{"path":"src/hooks/useStore.ts","symbol":"appendQueue(localStorage, action)"}},{"node":"web-sync","action":"POST /api/action; 4xx выбрасывает действие из очереди","evidence":{"path":"src/logic/api.ts","symbol":"if (r.status >= 400 && r.status \u003c 500) return await fetchServerStore()"}},{"node":"server","action":"Гейт баланса → 422 «не хватает искр», store не изменён","evidence":{"path":"server/app.ts","symbol":"throw new EconomyGateError(`не хватает искр"}},{"node":"core-store","action":"При успехе ledger += spend с opId (повтор по opId — no-op)","evidence":{"path":"src/logic/store.ts","symbol":"case 'purchaseItem'"}},{"node":"core-storage","action":"Запись канона под локом","evidence":{"path":"src/logic/storage.ts","symbol":"export function saveStore"}}],"outcome":"Списание ровно один раз даже при передрайве очереди; отказ — честный 422, а не тихий 200"}]},"lock":{"commit":"d4d99ac858706d6bf5ea56cc723b65dc8224df9f","working_tree_dirty":true,"dirty_files":["ocs/codemap/codemap.html","docs/codemap/codemap.json","docs/codemap/codemap.lock","docs/codemap/model.mjs"],"generated_at":"2026-08-25T19:43:17.974Z","scanned_scope":["src/","cli/","server/","deploy/",".github/workflows/","index.html","vite.config.ts"],"excluded_directories":["node_modules/","dist/","dist-node/","coverage/",".git/",".superpowers/","docs/","package.json","package-lock.json","tsconfig.json","tsconfig.node.json"],"scanned_files":77,"fingerprint_algorithm":"sha256(sorted(\"\u003cpath>\u0000\" + sha256(file bytes; текст нормализован к LF)))","modules":{"web-app":{"path":"src/App.tsx","external":false,"files":["index.html","src/App.tsx","src/index.css","src/main.tsx","vite.config.ts"],"fingerprint":"dbbcd90e2b2209fb82817614ddc52d14c43180c23f377b3b564b3390a8ff85f6"},"web-sky":{"path":"src/components/Sky.tsx","external":false,"files":["src/components/BgStars.tsx","src/components/CosmosBackdrop.tsx","src/components/Galaxy.tsx","src/components/GalaxyHud.tsx","src/components/GalaxyView.tsx","src/components/Sky.tsx","src/components/StarCard.tsx","src/components/skyColors.test.ts","src/components/skyColors.ts","src/components/skyField.test.ts","src/components/skyField.ts","src/components/skyGlyphs.ts","src/hooks/usePanZoom.ts"],"fingerprint":"6ece1cf4ef3e0588b953d053170143984f86c9511823d2493a85454ecee8c259"},"web-panels":{"path":"src/components/Journal.tsx","external":false,"files":["src/components/Chronicle.tsx","src/components/Journal.tsx","src/components/LevelUpOverlay.tsx","src/components/QuestRow.tsx","src/components/SkillPanel.tsx","src/components/Wallet.tsx"],"fingerprint":"eef8263c683cf7f53d407fa20e245da3a6e110591cbfd6107339399cdd074bae"},"web-modals":{"path":"src/components/Modals.tsx","external":false,"files":["src/components/Modals.tsx"],"fingerprint":"c44a93c67ea890e899ddc9a0086e1245ddef9b75dedb55da22253d82c4f04ac4"},"web-usestore":{"path":"src/hooks/useStore.ts","external":false,"files":["src/hooks/useStore.ts"],"fingerprint":"dcf61c5f0eabb0fc57b14c850125e36d5235a81f9e37bba7ee1b079b8e697c8e"},"web-sync":{"path":"src/logic/sync.ts","external":false,"files":["src/logic/api.ts","src/logic/migrate.test.ts","src/logic/migrate.ts","src/logic/sync.test.ts","src/logic/sync.ts"],"fingerprint":"5d0ef30e65a9d9d83a80b3cd4253d270a8140a11ddca186179529211c81ffe63"},"core-store":{"path":"src/logic/store.ts","external":false,"files":["src/data/seed.test.ts","src/data/seed.ts","src/logic/economy.test.ts","src/logic/store.test.ts","src/logic/store.ts"],"fingerprint":"a757e78f985209ae0bebf902b009d1fde9642251e2f1679021938c7897f97654"},"core-sparks":{"path":"src/logic/sparks.ts","external":false,"files":["src/logic/economy.test.ts","src/logic/sparks.test.ts","src/logic/sparks.ts"],"fingerprint":"2ea12ccbd4780d80f90725515f4bc146556bfbfa85cead9efc7f9d6f97601a93"},"core-stars":{"path":"src/logic/stars.ts","external":false,"files":["src/logic/stars.test.ts","src/logic/stars.ts"],"fingerprint":"13992da85cb597525720e4667fb0d780c9f449e219121eff14d492c1ad8ab88b"},"core-progress":{"path":"src/logic/selectors.ts","external":false,"files":["src/logic/recurring.test.ts","src/logic/recurring.ts","src/logic/selectors.test.ts","src/logic/selectors.ts","src/logic/stats.test.ts","src/logic/stats.ts","src/logic/streak.test.ts","src/logic/streak.ts","src/logic/xp.test.ts","src/logic/xp.ts"],"fingerprint":"026d6a7c999d7d127b8cfbd157274288af508aa62b61d9678478f9a7286e05ac"},"core-validate":{"path":"src/logic/validate.ts","external":false,"files":["src/logic/validate.test.ts","src/logic/validate.ts"],"fingerprint":"710ad257c9921f631e7f9108b473f623fd87a96c5291b368533df4c8fd9cf7d7"},"core-layout":{"path":"src/logic/layout.ts","external":false,"files":["src/logic/layout.test.ts","src/logic/layout.ts"],"fingerprint":"2e1ac2decdf2a336a67dcef94a21a9c9eb364ddd8c3afd0c8f8405bfaf9928f1"},"core-model":{"path":"src/types.ts","external":false,"files":["src/logic/dates.ts","src/types.ts"],"fingerprint":"8a7cb753a5df6f60ddbdd55f70fbb9ba2e56b5f322df9550c220ab84631439fc"},"core-storage":{"path":"src/logic/storage.ts","external":false,"files":["src/logic/storage.test.ts","src/logic/storage.ts"],"fingerprint":"87a9938bcc88393962f81558126e71feeea7bd4c7d67f0f222e1383f72c1638b"},"server":{"path":"server/app.ts","external":false,"files":["server/app.test.ts","server/app.ts","server/main.ts"],"fingerprint":"602ef3ef0f70b000b6f320b21fe730f3cdc5d9370ab55adb7fb538c5d2729c2e"},"cli":{"path":"cli/app.ts","external":false,"files":["cli/app.test.ts","cli/app.ts","cli/helpers.test.ts","cli/helpers.ts","cli/main.ts","cli/smoke.test.ts"],"fingerprint":"769e6986eccc8d8f377fb4367aec65e2da9274c9601819d40126f37c9e3cb6c2"},"store-json":{"path":null,"external":true,"files":[],"fingerprint":null},"browser-localstorage":{"path":null,"external":true,"files":[],"fingerprint":null},"infra-deploy":{"path":"deploy/docker-compose.yml","external":false,"files":[".github/workflows/ci.yml",".github/workflows/deploy.yml",".github/workflows/release.yml","deploy/Caddyfile.example","deploy/docker-compose.yml","deploy/stargaze-wrapper.sh"],"fingerprint":"290be15cf15e51318270adbdb721ae5d80579c19aae8a2044e34c7fcd7874759"}},"previous":{"commit":"d4d99ac858706d6bf5ea56cc723b65dc8224df9f","generated_at":"2026-08-25T19:43:08.402Z","changed_modules":[],"new_modules":[],"removed_modules":[]},"unknowns":["web-app: прямых тестов нет","web-panels: прямых тестов нет","web-modals: прямых тестов нет","web-usestore: прямых тестов нет","core-model: прямых тестов нет","store-json: внешняя система — файлов в репозитории нет, доказательства косвенные (src/logic/storage.ts, src/logic/storage.ts)","browser-localstorage: внешняя система — файлов в репозитории нет, доказательства косвенные (src/logic/migrate.ts, src/logic/sync.ts)","infra-deploy: прямых тестов нет"]},"kinds":{"ui":{"label":"UI (React)","color":"#7cc4ff"},"bridge":{"label":"Состояние и синхронизация","color":"#8be9c0"},"core":{"label":"Ядро (чистая логика)","color":"#ffcf6b"},"persistence":{"label":"Персистенс","color":"#f0a3c8"},"service":{"label":"HTTP-сервис","color":"#c9a3ff"},"cli":{"label":"CLI","color":"#ff9d6b"},"datastore":{"label":"Хранилище (внешнее)","color":"#9aa7b8"},"infra":{"label":"Инфраструктура","color":"#6bd4d4"},"tooling":{"label":"Скрипты","color":"#b8c96b"}}}</script>
+<script>
+(() => {
+  const DATA = JSON.parse(document.getElementById('data').textContent)
+  const { map, lock, kinds } = DATA
+  const nodes = map.nodes.map(n => ({ ...n }))
+  const edges = map.edges.map(e => ({ ...e }))
+  const flows = map.flows
+  const byId = new Map(nodes.map(n => [n.id, n]))
+  const changed = new Set(lock.previous?.changed_modules ?? [])
+
+  // ——— раскладка слоями: продольная ось = направление зависимости
+  const outs = new Map(nodes.map(n => [n.id, []]))
+  const ins = new Map(nodes.map(n => [n.id, []]))
+  for (const e of edges) {
+    if (!outs.has(e.from) || !ins.has(e.to)) continue
+    outs.get(e.from).push(e.to)
+    ins.get(e.to).push(e.from)
+  }
+  // Ярус берём из модели (архитектурный уровень); если не задан — longest-path.
+  const layer = new Map(nodes.map(n => [n.id, Number.isInteger(n.tier) ? n.tier : 0]))
+  if (nodes.some(n => !Number.isInteger(n.tier))) {
+    for (let pass = 0; pass < nodes.length; pass++) {
+      let moved = false
+      for (const e of edges) {
+        const a = layer.get(e.from), b = layer.get(e.to)
+        if (a === undefined || b === undefined) continue
+        if (Number.isInteger(byId.get(e.to).tier)) continue
+        if (b < a + 1) { layer.set(e.to, a + 1); moved = true }
+      }
+      if (!moved) break
+    }
+  }
+  const layers = []
+  for (const n of nodes) {
+    const L = layer.get(n.id)
+    ;(layers[L] ||= []).push(n.id)
+  }
+  // барицентр: несколько проходов вниз/вверх — режем пересечения рёбер
+  const pos = new Map()
+  layers.forEach(l => l.forEach((id, i) => pos.set(id, i)))
+  const bary = (id, adj) => {
+    const xs = adj.get(id).map(x => pos.get(x)).filter(v => v !== undefined)
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : pos.get(id)
+  }
+  for (let it = 0; it < 12; it++) {
+    const down = it % 2 === 0
+    const order = down ? layers.map((_, i) => i) : layers.map((_, i) => layers.length - 1 - i)
+    for (const li of order) {
+      const l = layers[li]
+      if (!l) continue
+      const adj = down ? ins : outs
+      l.sort((a, b) => bary(a, adj) - bary(b, adj) || a.localeCompare(b))
+      l.forEach((id, i) => pos.set(id, i))
+    }
+  }
+  // Слои разворачиваем слева направо: экраны широкие, а зависимость читается
+  // как течение — вход в систему слева, листья ядра справа.
+  const NW = 244, NH = 64, GX = 40, GY = 84
+  const widest = Math.max(...layers.map(l => (l ? l.length : 0)))
+  const totalW = widest * (NW + GX)
+  layers.forEach((l, li) => {
+    if (!l) return
+    const rowW = l.length * (NW + GX)
+    l.forEach((id, i) => {
+      const n = byId.get(id)
+      n.x = (totalW - rowW) / 2 + i * (NW + GX)
+      n.y = li * (NH + GY)
+    })
+  })
+
+  // ——— отрисовка
+  const svg = document.getElementById('svg')
+  const vp = document.getElementById('viewport')
+  const gE = document.getElementById('edges')
+  const gN = document.getElementById('nodes')
+  const NS = 'http://www.w3.org/2000/svg'
+  const el = (t, a = {}) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e }
+
+  const defs = el('defs')
+  for (const [id, color] of [['a-def', '#4b5f80'], ['a-hl', '#ff7715'], ['a-up', '#7cc4ff'], ['a-down', '#8be9c0']]) {
+    const m = el('marker', { id, viewBox: '0 0 8 8', refX: '7', refY: '4', markerWidth: '7', markerHeight: '7', orient: 'auto-start-reverse' })
+    m.appendChild(el('path', { d: 'M0,0 L8,4 L0,8 z', fill: color }))
+    defs.appendChild(m)
+  }
+  vp.appendChild(defs)
+
+  const edgeEls = edges.map(e => {
+    const p = el('path', { class: 'edge ' + e.type + (e.evidence === 'unknown' ? ' unknown' : ''), 'marker-end': 'url(#a-def)' })
+    p.dataset.from = e.from; p.dataset.to = e.to
+    gE.appendChild(p)
+    return p
+  })
+
+  const nodeEls = new Map()
+  for (const n of nodes) {
+    const g = el('g', { class: 'node' })
+    g.dataset.id = n.id
+    const color = (kinds[n.kind] || {}).color || '#8a97a8'
+    g.appendChild(el('rect', { class: 'box', width: NW, height: NH, rx: 10 }))
+    g.appendChild(el('rect', { width: 4, height: NH, rx: 2, fill: color }))
+    const t = el('text', { class: 't', x: 14, y: 23 }); t.textContent = n.name
+    const p = el('text', { class: 'p', x: 14, y: 39 }); p.textContent = n.path || '(внешняя система)'
+    const k = el('text', { class: 'k', x: 14, y: 53, fill: color }); k.textContent = (kinds[n.kind] || {}).label || n.kind
+    g.append(t, p, k)
+    if (changed.has(n.id)) {
+      g.appendChild(el('circle', { class: 'chg', cx: NW - 12, cy: 12, r: 4 }))
+      const ttl = el('title'); ttl.textContent = 'изменился с прошлой генерации карты'
+      g.appendChild(ttl)
+    }
+    gN.appendChild(g)
+    nodeEls.set(n.id, g)
+  }
+
+  const draw = () => {
+    for (const [id, g] of nodeEls) {
+      const n = byId.get(id)
+      g.setAttribute('transform', 'translate(' + n.x + ',' + n.y + ')')
+    }
+    edges.forEach((e, i) => {
+      const a = byId.get(e.from), b = byId.get(e.to)
+      if (!a || !b) return
+      let d
+      if (Math.abs(b.y - a.y) < NH) {
+        // связь внутри яруса — ведём сбоку, чтобы не путать с течением вниз
+        const left = a.x < b.x
+        const x1 = left ? a.x + NW : a.x, x2 = left ? b.x : b.x + NW
+        const y1 = a.y + NH / 2, y2 = b.y + NH / 2
+        const dx = Math.max(30, Math.abs(x2 - x1) / 2) * (left ? 1 : -1)
+        d = 'M' + x1 + ',' + y1 + ' C' + (x1 + dx) + ',' + y1 + ' ' + (x2 - dx) + ',' + y2 + ' ' + x2 + ',' + y2
+      } else {
+        const down = b.y > a.y
+        const y1 = down ? a.y + NH : a.y, y2 = down ? b.y : b.y + NH
+        const x1 = a.x + NW / 2, x2 = b.x + NW / 2
+        const dy = Math.max(30, Math.abs(y2 - y1) / 2) * (down ? 1 : -1)
+        d = 'M' + x1 + ',' + y1 + ' C' + x1 + ',' + (y1 + dy) + ' ' + x2 + ',' + (y2 - dy) + ' ' + x2 + ',' + y2
+      }
+      edgeEls[i].setAttribute('d', d)
+    })
+  }
+  draw()
+
+  // ——— зум и панорама
+  let view = { x: 40, y: 30, k: 0.85 }
+  const apply = () => vp.setAttribute('transform', 'translate(' + view.x + ',' + view.y + ') scale(' + view.k + ')')
+  const fit = () => {
+    const bb = { x1: Math.min(...nodes.map(n => n.x)), y1: Math.min(...nodes.map(n => n.y)),
+                 x2: Math.max(...nodes.map(n => n.x + NW)), y2: Math.max(...nodes.map(n => n.y + NH)) }
+    const r = svg.getBoundingClientRect()
+    const k = Math.min((r.width - 80) / (bb.x2 - bb.x1), (r.height - 80) / (bb.y2 - bb.y1), 1.15)
+    view = { k, x: (r.width - (bb.x2 - bb.x1) * k) / 2 - bb.x1 * k, y: (r.height - (bb.y2 - bb.y1) * k) / 2 - bb.y1 * k }
+    apply()
+  }
+  apply()
+  requestAnimationFrame(fit)
+  window.addEventListener('resize', fit)
+  document.getElementById('zin').onclick = () => { view.k *= 1.2; apply() }
+  document.getElementById('zout').onclick = () => { view.k /= 1.2; apply() }
+  document.getElementById('fit').onclick = fit
+  svg.addEventListener('wheel', ev => {
+    ev.preventDefault()
+    const r = svg.getBoundingClientRect()
+    const mx = ev.clientX - r.left, my = ev.clientY - r.top
+    const f = ev.deltaY < 0 ? 1.12 : 1 / 1.12
+    view.x = mx - (mx - view.x) * f; view.y = my - (my - view.y) * f; view.k *= f
+    apply()
+  }, { passive: false })
+
+  let drag = null
+  svg.addEventListener('mousedown', ev => {
+    const g = ev.target.closest('.node')
+    if (g) drag = { type: 'node', id: g.dataset.id, sx: ev.clientX, sy: ev.clientY, ox: byId.get(g.dataset.id).x, oy: byId.get(g.dataset.id).y, moved: false }
+    else { drag = { type: 'pan', sx: ev.clientX, sy: ev.clientY, ox: view.x, oy: view.y }; svg.classList.add('panning') }
+  })
+  window.addEventListener('mousemove', ev => {
+    if (!drag) return
+    const dx = ev.clientX - drag.sx, dy = ev.clientY - drag.sy
+    if (drag.type === 'pan') { view.x = drag.ox + dx; view.y = drag.oy + dy; apply() }
+    else {
+      if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true
+      const n = byId.get(drag.id); n.x = drag.ox + dx / view.k; n.y = drag.oy + dy / view.k; draw()
+    }
+  })
+  window.addEventListener('mouseup', ev => {
+    if (drag && drag.type === 'node' && !drag.moved) select(drag.id)
+    else if (drag && drag.type === 'pan' && Math.abs(ev.clientX - drag.sx) + Math.abs(ev.clientY - drag.sy) < 3) select(null)
+    svg.classList.remove('panning')
+    drag = null
+  })
+
+  // ——— состояние выделения
+  let selected = null, activeFlow = null, query = ''
+  const hidden = new Set()
+
+  const kindCounts = {}
+  nodes.forEach(n => { kindCounts[n.kind] = (kindCounts[n.kind] || 0) + 1 })
+  const legend = document.getElementById('legend')
+  for (const k in kinds) {
+    if (!kindCounts[k]) continue
+    const b = document.createElement('button')
+    b.setAttribute('aria-pressed', 'true')
+    b.innerHTML = '<span class="dot" style="background:' + kinds[k].color + '"></span>' + kinds[k].label + '<span class="count">' + kindCounts[k] + '</span>'
+    b.onclick = () => {
+      if (hidden.has(k)) hidden.delete(k); else hidden.add(k)
+      b.setAttribute('aria-pressed', String(!hidden.has(k)))
+      render()
+    }
+    legend.appendChild(b)
+  }
+
+  const flowsBox = document.getElementById('flows')
+  flows.forEach(f => {
+    const b = document.createElement('button')
+    b.innerHTML = f.name + '<small>' + f.trigger + '</small>'
+    b.onclick = () => { activeFlow = activeFlow === f.id ? null : f.id; selected = null; render(); showFlow(); scrollToDetail() }
+    b.dataset.id = f.id
+    flowsBox.appendChild(b)
+  })
+
+  const q = document.getElementById('q')
+  q.oninput = () => { query = q.value.trim().toLowerCase(); render() }
+  window.addEventListener('keydown', e => { if (e.key === 'Escape') { selected = null; activeFlow = null; query = ''; q.value = ''; render(); showDetail(null) } })
+
+  const matches = n => {
+    if (!query) return false
+    const hay = [n.id, n.name, n.path || '', n.role, ...(n.files || []), ...(n.tests || []), ...(n.entrypoints || [])].join(' ').toLowerCase()
+    return hay.includes(query)
+  }
+
+  function render() {
+    const flow = flows.find(f => f.id === activeFlow)
+    const flowNodes = flow ? flow.steps.map(s => s.node) : []
+    const up = new Set(), down = new Set()
+    if (selected) {
+      edges.forEach(e => { if (e.to === selected) up.add(e.from); if (e.from === selected) down.add(e.to) })
+    }
+    for (const [id, g] of nodeEls) {
+      const n = byId.get(id)
+      const off = hidden.has(n.kind)
+      g.style.display = off ? 'none' : ''
+      g.classList.toggle('sel', id === selected)
+      g.classList.toggle('up', up.has(id))
+      g.classList.toggle('down', down.has(id))
+      g.classList.toggle('flow', flowNodes.includes(id))
+      g.classList.toggle('hit', matches(n))
+      const inFocus = !selected || id === selected || up.has(id) || down.has(id)
+      const inFlow = !flow || flowNodes.includes(id)
+      const inQuery = !query || matches(n)
+      g.classList.toggle('dim', !(inFocus && inFlow && inQuery))
+      const old = g.querySelector('.step-wrap')
+      if (old) old.remove()
+      if (flow) {
+        const idx = flow.steps.map((s, i) => [s.node, i]).filter(([nid]) => nid === id).map(([, i]) => i + 1)
+        if (idx.length) {
+          const w = el('g', { class: 'step-wrap' })
+          w.appendChild(el('circle', { cx: 0, cy: 12, r: 9, fill: '#ff7715' }))
+          const t = el('text', { class: 'step-badge', x: 0, y: 15.5, 'text-anchor': 'middle' })
+          t.textContent = idx.join(',')
+          w.appendChild(t)
+          g.appendChild(w)
+        }
+      }
+    }
+    edges.forEach((e, i) => {
+      const p = edgeEls[i]
+      const a = byId.get(e.from), b = byId.get(e.to)
+      const off = hidden.has(a.kind) || hidden.has(b.kind)
+      p.style.display = off ? 'none' : ''
+      const isUp = selected && e.to === selected
+      const isDown = selected && e.from === selected
+      const inFlowPair = flow && flow.steps.some((s, k) => k > 0 && flow.steps[k - 1].node === e.from && s.node === e.to)
+      p.classList.toggle('up', !!isUp)
+      p.classList.toggle('down', !!isDown)
+      p.classList.toggle('hl', !!inFlowPair)
+      p.setAttribute('marker-end', isUp ? 'url(#a-up)' : isDown ? 'url(#a-down)' : inFlowPair ? 'url(#a-hl)' : 'url(#a-def)')
+      p.classList.toggle('dim', (selected && !isUp && !isDown) || (flow && !inFlowPair))
+    })
+    for (const b of flowsBox.children) b.classList.toggle('on', b.dataset.id === activeFlow)
+  }
+
+  const list = (arr, cls = '') => arr && arr.length
+    ? '<ul>' + arr.map(x => '<li class="' + cls + '">' + String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</li>').join('') + '</ul>'
+    : '<span class="muted">—</span>'
+
+  const scrollToDetail = () => {
+    const aside = document.querySelector('aside')
+    aside.scrollTo({ top: document.getElementById('detail-h').offsetTop - 12, behavior: 'smooth' })
+  }
+
+  function showDetail(id) {
+    const d = document.getElementById('detail')
+    const h = document.getElementById('detail-h')
+    if (!id) { h.textContent = 'Модуль'; d.innerHTML = '<span class="muted">Кликните модуль на карте.</span>'; return }
+    const n = byId.get(id)
+    const callers = edges.filter(e => e.to === id)
+    const deps = edges.filter(e => e.from === id)
+    const inFlows = flows.filter(f => f.steps.some(s => s.node === id))
+    h.textContent = 'Модуль'
+    const chip = (e, dir) => '<span class="chip" data-goto="' + (dir === 'in' ? e.from : e.to) + '">' +
+      (dir === 'in' ? byId.get(e.from).name : byId.get(e.to).name) + ' · ' + e.type + '</span>'
+    d.innerHTML =
+      '<div class="title">' + n.name + '</div>' +
+      '<div class="path">' + (n.path || '(внешняя система, файлов в репозитории нет)') + '</div>' +
+      '<div>' + n.role + '</div>' +
+      (changed.has(n.id) ? '<div style="color:var(--accent);margin-top:6px">● изменился с прошлой генерации карты</div>' : '') +
+      '<section><b>Кто зовёт (' + callers.length + ')</b>' + (callers.length ? callers.map(e => chip(e, 'in')).join('') : '<span class="muted">никто — это вход в систему</span>') + '</section>' +
+      '<section><b>На что опирается (' + deps.length + ')</b>' + (deps.length ? deps.map(e => chip(e, 'out')).join('') : '<span class="muted">ни на что — это лист</span>') + '</section>' +
+      '<section><b>Тесты</b>' + (n.tests && n.tests.length ? list(n.tests, 'mono') : '<span class="unknown">нет прямых тестов</span>') + '</section>' +
+      '<section><b>Файлы (' + (n.files || []).length + ')</b>' + list(n.files, 'mono') + '</section>' +
+      '<section><b>Точки входа</b>' + list(n.entrypoints, 'mono') + '</section>' +
+      '<section><b>Инварианты</b>' + list(n.constraints) + '</section>' +
+      '<section><b>Потоки</b>' + (inFlows.length ? inFlows.map(f => '<span class="chip" data-flow="' + f.id + '">' + f.name + '</span>').join('') : '<span class="muted">—</span>') + '</section>' +
+      '<section><b>Доказательства</b>' + list((n.evidence || []).map(e => e.path + ' :: ' + e.symbol), 'mono') + '</section>'
+    d.querySelectorAll('[data-goto]').forEach(c => c.onclick = () => select(c.dataset.goto))
+    d.querySelectorAll('[data-flow]').forEach(c => c.onclick = () => { activeFlow = c.dataset.flow; selected = null; render(); showFlow() })
+  }
+
+  function showFlow() {
+    const f = flows.find(x => x.id === activeFlow)
+    const d = document.getElementById('detail')
+    const h = document.getElementById('detail-h')
+    if (!f) { showDetail(selected); return }
+    h.textContent = 'Поток'
+    d.innerHTML =
+      '<div class="title">' + f.name + '</div>' +
+      '<section><b>Триггер</b>' + f.trigger + '</section>' +
+      '<section><b>Шаги</b><ul>' + f.steps.map((s, i) =>
+        '<li><b>' + (i + 1) + '. ' + byId.get(s.node).name + '</b><br>' + s.action +
+        (s.evidence ? '<br><code>' + s.evidence.path + ' :: ' + String(s.evidence.symbol).replace(/</g, '&lt;') + '</code>' : '<br><span class="unknown">unknown</span>') + '</li>'
+      ).join('') + '</ul></section>' +
+      '<section><b>Итог</b>' + f.outcome + '</section>'
+  }
+
+  function select(id) {
+    selected = id
+    if (id) activeFlow = null
+    render()
+    if (activeFlow) showFlow(); else showDetail(id)
+    scrollToDetail()
+  }
+
+  render()
+})()
+</script>
+</body>
+</html>

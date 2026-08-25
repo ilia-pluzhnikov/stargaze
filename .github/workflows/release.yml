@@ -1,0 +1,44 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: собрать образ
+        run: |
+          IMAGE="ghcr.io/${{ github.repository }}"
+          VERSION="${GITHUB_REF_NAME#v}"
+          docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+
+      - name: смоук контейнера
+        run: |
+          docker run -d --name smoke -p 8643:8643 "ghcr.io/${{ github.repository }}:latest"
+          ok=""
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8643/api/health >/dev/null 2>&1 && ok=1 && break
+            sleep 1
+          done
+          if [ -z "$ok" ]; then docker logs smoke; exit 1; fi
+          curl -fsS http://127.0.0.1:8643/api/store | grep -q '"version":3'
+          docker rm -f smoke
+
+      - name: опубликовать в ghcr
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push --all-tags "ghcr.io/${{ github.repository }}"

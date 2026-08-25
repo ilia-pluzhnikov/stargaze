@@ -1,0 +1,38 @@
+# Пример self-hosted стека для VPS: Stargaze + Caddy (HTTPS, basic auth).
+# Значения переменных — в файле caddy.env рядом (см. DEPLOY.md).
+# Для чисто локального запуска compose не нужен: docker run из README.
+services:
+  stargaze:
+    image: ghcr.io/ilia-pluzhnikov/stargaze:latest
+    container_name: stargaze
+    restart: unless-stopped
+    volumes:
+      - stargaze-data:/data
+
+  caddy:
+    image: caddy:2.10
+    container_name: stargaze-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      STARGAZE_DOMAIN: "${STARGAZE_DOMAIN:-}"
+      STARGAZE_ACME_EMAIL: "${STARGAZE_ACME_EMAIL:-}"
+      STARGAZE_BASIC_USER: "${STARGAZE_BASIC_USER:-}"
+      STARGAZE_PASSWORD_HASH: "${STARGAZE_PASSWORD_HASH:-}"
+      STARGAZE_UPSTREAM: "stargaze:8643" # контейнеры в одной docker-сети
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # сертификаты: терять нельзя (ACME rate limits)
+      - caddy-config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  stargaze-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,1776 @@
+{
+  "generated_at": "2026-08-25T19:43:17.974Z",
+  "generated_from_commit": "d4d99ac858706d6bf5ea56cc723b65dc8224df9f",
+  "scope": [
+    "src/",
+    "cli/",
+    "server/",
+    "deploy/",
+    ".github/workflows/",
+    "index.html",
+    "vite.config.ts"
+  ],
+  "nodes": [
+    {
+      "id": "web-app",
+      "name": "Веб-оболочка",
+      "path": "src/App.tsx",
+      "kind": "ui",
+      "tier": 0,
+      "role": "Корень SPA: вкладки Небо/Журнал/Хроника/Кошелёк, диспатч действий, тосты и оверлей уровня",
+      "external": false,
+      "files": [
+        "index.html",
+        "src/main.tsx",
+        "src/App.tsx",
+        "src/index.css",
+        "vite.config.ts"
+      ],
+      "entrypoints": [
+        "src/main.tsx → createRoot().render(<App/>)",
+        "npm run dev / npm run build (vite)"
+      ],
+      "tests": [],
+      "constraints": [
+        "base: './' — собранный dist/index.html обязан открываться двойным кликом без сервера",
+        "Без UI-библиотек и Tailwind: вся тема в src/index.css",
+        "«Сегодня» берётся из игрового пояса UTC+7 (todayInGameTz), не из локального дня браузера"
+      ],
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "export default function App"
+        },
+        {
+          "path": "src/App.tsx",
+          "symbol": "const today = todayInGameTz()"
+        },
+        {
+          "path": "src/main.tsx",
+          "symbol": "createRoot(document.getElementById('root')!)"
+        },
+        {
+          "path": "vite.config.ts",
+          "symbol": "base: './'"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "web-sky",
+      "name": "Небо (SVG-рендер)",
+      "path": "src/components/Sky.tsx",
+      "kind": "ui",
+      "tier": 1,
+      "role": "Обзорное небо и вид галактики: созвездия, звёзды, небулы, глифы, HUD, карточка звезды, пан/зум",
+      "external": false,
+      "files": [
+        "src/components/Sky.tsx",
+        "src/components/Galaxy.tsx",
+        "src/components/GalaxyView.tsx",
+        "src/components/GalaxyHud.tsx",
+        "src/components/CosmosBackdrop.tsx",
+        "src/components/StarCard.tsx",
+        "src/components/BgStars.tsx",
+        "src/components/skyColors.ts",
+        "src/components/skyField.ts",
+        "src/components/skyGlyphs.ts",
+        "src/hooks/usePanZoom.ts"
+      ],
+      "entrypoints": [
+        "<Sky/> из App.tsx (вкладка «Небо»)",
+        "<GalaxyView/> из App.tsx (галактика навыка)"
+      ],
+      "tests": [
+        "src/components/skyColors.test.ts",
+        "src/components/skyField.test.ts"
+      ],
+      "constraints": [
+        "Никакого Math.random() в рендере — позиции из seeded PRNG (logic/layout)",
+        "sky-seeds 'questlog-milky'/'questlog-sky' — вечные соли PRNG, ренейм перерисует небо",
+        "hue навыков вне оранжевой зоны ≈15–35 (сольётся с брендовым акцентом #FF7715)",
+        "FPS-паспорт: покой ≥55, пан ≥30; стоимость twinkle определяется площадью repaint"
+      ],
+      "evidence": [
+        {
+          "path": "src/components/Sky.tsx",
+          "symbol": "export function Sky"
+        },
+        {
+          "path": "src/components/skyColors.ts",
+          "symbol": "export const rarity"
+        },
+        {
+          "path": "src/components/skyGlyphs.ts",
+          "symbol": "export const SKY_GLYPHS"
+        },
+        {
+          "path": "src/hooks/usePanZoom.ts",
+          "symbol": "export function usePanZoom"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "web-panels",
+      "name": "Панели: Журнал · Хроника · Кошелёк",
+      "path": "src/components/Journal.tsx",
+      "kind": "ui",
+      "tier": 1,
+      "role": "Списки квестов (с подквестами), панель навыка, дашборд повторяемых, кошелёк искр и витрина",
+      "external": false,
+      "files": [
+        "src/components/Journal.tsx",
+        "src/components/QuestRow.tsx",
+        "src/components/SkillPanel.tsx",
+        "src/components/Chronicle.tsx",
+        "src/components/Wallet.tsx",
+        "src/components/LevelUpOverlay.tsx"
+      ],
+      "entrypoints": [
+        "<Journal/>, <Chronicle/>, <Wallet/>, <SkillPanel/> из App.tsx"
+      ],
+      "tests": [],
+      "constraints": [
+        "Необратимое (покупка, «Забрать», отмена с ценой) — только вторым шагом с подтверждением",
+        "Русский язык UI-текстов; технические термины — в оригинале"
+      ],
+      "evidence": [
+        {
+          "path": "src/components/Journal.tsx",
+          "symbol": "export function Journal"
+        },
+        {
+          "path": "src/components/Wallet.tsx",
+          "symbol": "export function Wallet"
+        },
+        {
+          "path": "src/components/Chronicle.tsx",
+          "symbol": "export function Chronicle"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "web-modals",
+      "name": "Диалоги и формы",
+      "path": "src/components/Modals.tsx",
+      "kind": "ui",
+      "tier": 1,
+      "role": "Формы квеста/навыка/звезды, завершение с итогом и DoD-гейтом, витрина, перенос дедлайна, импорт/экспорт",
+      "external": false,
+      "files": [
+        "src/components/Modals.tsx"
+      ],
+      "entrypoints": [
+        "<QuestModal/>, <CompleteQuestModal/>, <SkillModal/>, <StarModal/>, <WishlistModal/>, <MoveDueDateModal/>, <DataModal/> из App.tsx"
+      ],
+      "tests": [],
+      "constraints": [
+        "Форма зеркалит заморозку условий принятого контракта — поля R/тип/дедлайн недоступны после accept",
+        "Импорт store идёт через validateStore — невалидное не применяется"
+      ],
+      "evidence": [
+        {
+          "path": "src/components/Modals.tsx",
+          "symbol": "export function CompleteQuestModal"
+        },
+        {
+          "path": "src/components/Modals.tsx",
+          "symbol": "export function MoveDueDateModal"
+        },
+        {
+          "path": "src/components/Modals.tsx",
+          "symbol": "export function DataModal"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "web-usestore",
+      "name": "useStore (режимы local/server)",
+      "path": "src/hooks/useStore.ts",
+      "kind": "bridge",
+      "tier": 1,
+      "role": "Единая точка состояния веба: reducer + оптимистичный dispatch, пробинг API, поллинг канона, дренаж очереди",
+      "external": false,
+      "files": [
+        "src/hooks/useStore.ts"
+      ],
+      "entrypoints": [
+        "useStore() в App.tsx"
+      ],
+      "tests": [],
+      "constraints": [
+        "Поллинг 30 с, ретрай очереди 5 с, ре-пробинг сервера 10 с",
+        "importStore применяется только когда очередь реально опустела",
+        "В локальном режиме персист в localStorage; в серверном канон — на сервере"
+      ],
+      "evidence": [
+        {
+          "path": "src/hooks/useStore.ts",
+          "symbol": "export function useStore"
+        },
+        {
+          "path": "src/hooks/useStore.ts",
+          "symbol": "const POLL_MS = 30_000"
+        },
+        {
+          "path": "src/hooks/useStore.ts",
+          "symbol": "dispatchLocal(action) // оптимистично"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "web-sync",
+      "name": "API-клиент, очередь, ключи хранения",
+      "path": "src/logic/sync.ts",
+      "kind": "bridge",
+      "tier": 2,
+      "role": "HTTP-клиент /api/*, офлайн-очередь действий (двухисточниковый дренаж), чтение legacy-ключей localStorage",
+      "external": false,
+      "files": [
+        "src/logic/api.ts",
+        "src/logic/sync.ts",
+        "src/logic/migrate.ts"
+      ],
+      "entrypoints": [
+        "probeServer/fetchServerStore/postAction",
+        "loadQueue/appendQueue/drainQueue",
+        "loadStoredStore"
+      ],
+      "tests": [
+        "src/logic/sync.test.ts",
+        "src/logic/migrate.test.ts"
+      ],
+      "constraints": [
+        "Пишем только в stargaze.queue.v2; legacy questlog.queue.v2 дренируется первым и вечно",
+        "loadStoredStore: stargaze.v3 → фолбэк questlog.v3; автомиграции v2→v3 нет",
+        "Гейт серверного режима — /api/store с валидацией, а не /api/health",
+        "4xx на действие выбрасывает его из очереди (иначе очередь застрянет навечно)"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/sync.ts",
+          "symbol": "export const QUEUE_KEY = 'stargaze.queue.v2'"
+        },
+        {
+          "path": "src/logic/sync.ts",
+          "symbol": "export async function drainQueue"
+        },
+        {
+          "path": "src/logic/api.ts",
+          "symbol": "export async function probeServer"
+        },
+        {
+          "path": "src/logic/migrate.ts",
+          "symbol": "export const LEGACY_STORE_KEY = 'questlog.v3'"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "core-store",
+      "name": "Редьюсер (ядро)",
+      "path": "src/logic/store.ts",
+      "kind": "core",
+      "tier": 3,
+      "role": "Единственный мутатор состояния: union Action на 27 типов, append-only xpLog и ledger, гейты DoD/подквестов/заморозки",
+      "external": false,
+      "files": [
+        "src/logic/store.ts",
+        "src/data/seed.ts"
+      ],
+      "entrypoints": [
+        "reducer(store, action)",
+        "ACTION_TYPES (контракт API)",
+        "seedStore()"
+      ],
+      "tests": [
+        "src/logic/store.test.ts",
+        "src/logic/economy.test.ts",
+        "src/data/seed.test.ts"
+      ],
+      "constraints": [
+        "xpLog — append-only и единственный источник правды по XP; откат = компенсирующее событие",
+        "ledger — второй append-only контур; баланс не хранится, вычисляется",
+        "updateQuest морозит условия принятого контракта (xpReward/type/createdAt/dueDate)",
+        "claimedAt/skippedDod/skippedQuestIds пишет только редьюсер — не payload",
+        "Отказ гейта в ядре = no-op (возврат того же объекта), строгая ошибка — на границе CLI/API"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/store.ts",
+          "symbol": "export function reducer"
+        },
+        {
+          "path": "src/logic/store.ts",
+          "symbol": "export const ACTION_TYPES"
+        },
+        {
+          "path": "src/data/seed.ts",
+          "symbol": "export function seedStore"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "core-sparks",
+      "name": "Экономика искр",
+      "path": "src/logic/sparks.ts",
+      "kind": "core",
+      "tier": 4,
+      "role": "Баланс, провизии, капание за просрочку, комиссия переноса, неустойка отмены, игровой пояс UTC+7 и день расчёта",
+      "external": false,
+      "files": [
+        "src/logic/sparks.ts"
+      ],
+      "entrypoints": [
+        "sparksBalance",
+        "settlementDay",
+        "dayInGameTz/todayInGameTz",
+        "moveFeeFor/cancelFeeFor"
+      ],
+      "tests": [
+        "src/logic/sparks.test.ts",
+        "src/logic/economy.test.ts"
+      ],
+      "constraints": [
+        "Ни одного new Date(iso): день считается регэкспом + UTC-арифметикой",
+        "Ставки — константы (DRAIN_RATE 0.10, FREE_MOVES_PER_7D 3, MOVE_FEE_RATE 0.10, CANCEL_FEE_BASE 0.5)",
+        "SPARKS_EPOCH 2026-08-07 — просрочки до этого дня амнистированы",
+        "Квота переносов общая на все квесты в rolling-окне 7 дней, не по квесту"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/sparks.ts",
+          "symbol": "export function sparksBalance"
+        },
+        {
+          "path": "src/logic/sparks.ts",
+          "symbol": "export function settlementDay"
+        },
+        {
+          "path": "src/logic/sparks.ts",
+          "symbol": "export const GAME_TZ_OFFSET_H"
+        },
+        {
+          "path": "src/logic/sparks.ts",
+          "symbol": "export const SPARKS_EPOCH"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "core-stars",
+      "name": "Дерево звёзд и ранги",
+      "path": "src/logic/stars.ts",
+      "kind": "core",
+      "tier": 4,
+      "role": "Рекурсивное дерево звёзд (parentStarId), ранги D–S поперёк треков, порог «ранг взят» и статистика галактики",
+      "external": false,
+      "files": [
+        "src/logic/stars.ts"
+      ],
+      "entrypoints": [
+        "isRankAchieved",
+        "currentRank/rankTitle",
+        "ancestorsOf/childrenOf",
+        "galaxyStats"
+      ],
+      "tests": [
+        "src/logic/stars.test.ts"
+      ],
+      "constraints": [
+        "Порог ранга — ceil(0.6·n) зажжённых звёзд ранга по всему навыку (RANK_RATIO)",
+        "Ранг — статус, не запрет: гейтов на зажигание нет",
+        "Имена рангов — классы светимости (TIER_CLASS), rankTitles навыка — опциональная надстройка"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/stars.ts",
+          "symbol": "export function isRankAchieved"
+        },
+        {
+          "path": "src/logic/stars.ts",
+          "symbol": "export const RANK_RATIO"
+        },
+        {
+          "path": "src/logic/stars.ts",
+          "symbol": "export const TIER_CLASS"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "core-progress",
+      "name": "Производные из xpLog",
+      "path": "src/logic/selectors.ts",
+      "kind": "core",
+      "tier": 4,
+      "role": "Всё вычисляемое: XP навыка/персонажа, уровни, стрики, недельная статистика, дашборд повторяемых, прогресс эпика",
+      "external": false,
+      "files": [
+        "src/logic/selectors.ts",
+        "src/logic/xp.ts",
+        "src/logic/streak.ts",
+        "src/logic/stats.ts",
+        "src/logic/recurring.ts"
+      ],
+      "entrypoints": [
+        "skillXpTotal/charXpTotal",
+        "skillLevel/charLevel",
+        "computeStreak",
+        "recurringDashboard",
+        "epicProgress"
+      ],
+      "tests": [
+        "src/logic/selectors.test.ts",
+        "src/logic/xp.test.ts",
+        "src/logic/streak.test.ts",
+        "src/logic/stats.test.ts",
+        "src/logic/recurring.test.ts"
+      ],
+      "constraints": [
+        "Формулы уровней: навык 100 + 50·(n−1), персонаж 300 + 150·(n−1) — менять только со спекой и тестами",
+        "Стрик: сегодняшний невыполненный положенный день не рвёт — рвёт только завершившийся пустым",
+        "Денормализованных счётчиков нет — всё считается из xpLog"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/selectors.ts",
+          "symbol": "export function skillXpTotal"
+        },
+        {
+          "path": "src/logic/xp.ts",
+          "symbol": "export function levelFromXp"
+        },
+        {
+          "path": "src/logic/streak.ts",
+          "symbol": "export function computeStreak"
+        },
+        {
+          "path": "src/logic/recurring.ts",
+          "symbol": "export function recurringDashboard"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "core-validate",
+      "name": "Валидация store",
+      "path": "src/logic/validate.ts",
+      "kind": "core",
+      "tier": 4,
+      "role": "Структурный контроль всего store: типы, ссылочная целостность, календарные даты, потолок награды, глубина подквестов",
+      "external": false,
+      "files": [
+        "src/logic/validate.ts"
+      ],
+      "entrypoints": [
+        "validateStore(x) → string[]"
+      ],
+      "tests": [
+        "src/logic/validate.test.ts"
+      ],
+      "constraints": [
+        "Даты календарные (isCalendarDay), xpReward ≤ XP_REWARD_MAX 1000",
+        "Глубина подквестов — один уровень",
+        "Статусных инвариантов у подквестов нет: гейт транзакционный, не структурный"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/validate.ts",
+          "symbol": "export function validateStore"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "core-layout",
+      "name": "Раскладка неба",
+      "path": "src/logic/layout.ts",
+      "kind": "core",
+      "tier": 3,
+      "role": "Детерминированные позиции: созвездия на обзорном небе и скелет дерева звёзд (ствол → ветки-ступени)",
+      "external": false,
+      "files": [
+        "src/logic/layout.ts"
+      ],
+      "entrypoints": [
+        "constellationPlacements",
+        "layoutConstellation",
+        "hashStr/mulberry32"
+      ],
+      "tests": [
+        "src/logic/layout.test.ts"
+      ],
+      "constraints": [
+        "Позиции — seeded PRNG от id сущностей, никакого Math.random()",
+        "Вписывание в кадр равномерным сжатием; кламп — только страховка"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/layout.ts",
+          "symbol": "export function layoutConstellation"
+        },
+        {
+          "path": "src/logic/layout.ts",
+          "symbol": "export function mulberry32"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "core-model",
+      "name": "Модель данных и календарь",
+      "path": "src/types.ts",
+      "kind": "core",
+      "tier": 5,
+      "role": "Типы store v3 (Quest/Skill/StarComponent/XpEvent/LedgerEvent/WishlistItem) и календарные примитивы",
+      "external": false,
+      "files": [
+        "src/types.ts",
+        "src/logic/dates.ts"
+      ],
+      "entrypoints": [
+        "interface Store",
+        "dayKey/addDays/diffDays/isCalendarDay"
+      ],
+      "tests": [],
+      "constraints": [
+        "store v3 без миграции: ledger/wishlist — опциональные поля",
+        "dayKey формата YYYY-MM-DD; сравнение дней — строковое, без Date-арифметики в потребителях"
+      ],
+      "evidence": [
+        {
+          "path": "src/types.ts",
+          "symbol": "export interface Store"
+        },
+        {
+          "path": "src/types.ts",
+          "symbol": "export interface LedgerEvent"
+        },
+        {
+          "path": "src/logic/dates.ts",
+          "symbol": "export function isCalendarDay"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "core-storage",
+      "name": "Файловый персистенс (node-only)",
+      "path": "src/logic/storage.ts",
+      "kind": "persistence",
+      "tier": 3,
+      "role": "Единственная точка записи канона: mkdir-лок между процессами, tmp+rename, отказ писать невалидное",
+      "external": false,
+      "files": [
+        "src/logic/storage.ts"
+      ],
+      "entrypoints": [
+        "withStore(path, fn)",
+        "loadStore/saveStore",
+        "acquireLock/releaseLock"
+      ],
+      "tests": [
+        "src/logic/storage.test.ts"
+      ],
+      "constraints": [
+        "НЕ импортировать из браузерного кода (src/components, src/hooks, src/App) — только cli/ и server/",
+        "saveStore бросает StoreValidationError вместо записи невалидного store",
+        "withStore не пишет, если fn вернула тот же объект (no-op редьюсера)"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "export function withStore"
+        },
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "export class StoreValidationError"
+        },
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "mkdirSync(lock) // атомарно"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "server",
+      "name": "HTTP-API (голова 3)",
+      "path": "server/app.ts",
+      "kind": "service",
+      "tier": 2,
+      "role": "node:http поверх того же ядра: GET /api/health, GET /api/store, POST /api/action, раздача статики",
+      "external": false,
+      "files": [
+        "server/app.ts",
+        "server/main.ts"
+      ],
+      "entrypoints": [
+        "createApp({storePath, publicDir})",
+        "node dist-node/server.js (env STARGAZE_STORE/PORT/PUBLIC)"
+      ],
+      "tests": [
+        "server/app.test.ts"
+      ],
+      "constraints": [
+        "Bind только 127.0.0.1:8643 — наружу торчит Caddy",
+        "Ровно пять гейтов дают 422 (подквесты, нехватка искр, звезда-якорь не зажжена, перенос в прошлое, archiveSkill с контрактами); прочие отказы — тихий 200",
+        "Поля payload — questId/skillId/itemId по типам Action; неверное поле = тихий no-op 200",
+        "День расчёта в гейтах — settlementDay(day, ts), как в редьюсере",
+        "env STARGAZE_* с вечным фолбэком на QUESTLOG_*"
+      ],
+      "evidence": [
+        {
+          "path": "server/app.ts",
+          "symbol": "export function createApp"
+        },
+        {
+          "path": "server/app.ts",
+          "symbol": "class EconomyGateError"
+        },
+        {
+          "path": "server/app.ts",
+          "symbol": "if (req.method === 'POST' && url.pathname === '/api/action')"
+        },
+        {
+          "path": "server/main.ts",
+          "symbol": "process.env.STARGAZE_STORE ?? process.env.QUESTLOG_STORE"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "cli",
+      "name": "CLI (голова 2)",
+      "path": "cli/app.ts",
+      "kind": "cli",
+      "tier": 0,
+      "role": "31 команда поверх ядра: статус, квесты, карточка, звёзды, кошелёк, перенос и отмена, импорт/экспорт, serve — этим ходит агент-гейм-мастер",
+      "external": false,
+      "files": [
+        "cli/app.ts",
+        "cli/main.ts",
+        "cli/helpers.ts"
+      ],
+      "entrypoints": [
+        "runCli(argv, io)",
+        "stargaze serve (локальная инсталляция)"
+      ],
+      "tests": [
+        "cli/app.test.ts",
+        "cli/helpers.test.ts",
+        "cli/smoke.test.ts"
+      ],
+      "constraints": [
+        "cancel показывает неустойку и требует --yes",
+        "complete short/mid/long требует --result; --force фиксирует пропущенное в result",
+        "Известные дефекты: resolveId матчит startsWith (точный id не выигрывает); quests --today игнорирует dueDate"
+      ],
+      "evidence": [
+        {
+          "path": "cli/app.ts",
+          "symbol": "export function runCli"
+        },
+        {
+          "path": "cli/app.ts",
+          "symbol": "case 'wallet':"
+        },
+        {
+          "path": "cli/app.ts",
+          "symbol": "if (command === 'serve') return cmdServe(values, io)"
+        },
+        {
+          "path": "cli/helpers.ts",
+          "symbol": "export function resolveId"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "store-json",
+      "name": "store.json (канон на дроплете)",
+      "path": null,
+      "kind": "datastore",
+      "tier": 5,
+      "role": "Канон данных инсталляции: store.json (путь — env STARGAZE_STORE; у serve дефолт ~/.stargaze/store.json)",
+      "external": true,
+      "files": [],
+      "entrypoints": [
+        "env STARGAZE_STORE=/data/store.json",
+        "stargaze --store <path>"
+      ],
+      "tests": [],
+      "constraints": [
+        "Пишется только через logic/storage (лок + tmp+rename + validateStore)",
+        "Заводится через stargaze import (даёт валидацию и .bak), не cp"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "withStore"
+        },
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "renameSync(tmp, path) // атомарная замена"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "browser-localstorage",
+      "name": "localStorage браузера",
+      "path": null,
+      "kind": "datastore",
+      "tier": 5,
+      "role": "Хранилище локального режима и офлайн-очереди: stargaze.v3 / stargaze.queue.v2 (+ вечные legacy-ключи questlog.*)",
+      "external": true,
+      "files": [],
+      "entrypoints": [
+        "stargaze.v3",
+        "stargaze.queue.v2",
+        "questlog.v3 / questlog.queue.v2 (только чтение)"
+      ],
+      "tests": [],
+      "constraints": [
+        "questlog.v1/v2 не читаются и не удаляются — бэкапы",
+        "В серверном режиме localStorage остаётся бэкапом, канон не мержится обратно"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/migrate.ts",
+          "symbol": "export const STORE_KEY = 'stargaze.v3'"
+        },
+        {
+          "path": "src/logic/sync.ts",
+          "symbol": "export const LEGACY_QUEUE_KEY = 'questlog.queue.v2'"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "infra-deploy",
+      "name": "CI и дроплет (Caddy + compose)",
+      "path": "deploy/docker-compose.yml",
+      "kind": "infra",
+      "tier": 0,
+      "role": "push в master → Actions (typecheck+test+build) → rsync/scp артефактов на дроплет → docker compose up; Caddy держит HTTPS, basic auth и Origin-гейт",
+      "external": false,
+      "files": [
+        ".github/workflows/deploy.yml",
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        "deploy/docker-compose.yml",
+        "deploy/Caddyfile.example",
+        "deploy/stargaze-wrapper.sh"
+      ],
+      "entrypoints": [
+        "https://<домен инсталляции> (Caddy, basic auth)",
+        "stargaze serve → http://localhost:8643"
+      ],
+      "tests": [],
+      "constraints": [
+        "На дроплете node-тулчейна нет — едут только CI-артефакты",
+        "Origin-гейт на POST /api/action: basic auth не защищает от CSRF",
+        "Именованные тома caddy (caddy-data/caddy-config) — сертификаты терять нельзя (ACME rate limits)"
+      ],
+      "evidence": [
+        {
+          "path": ".github/workflows/deploy.yml",
+          "symbol": "rsync -az --delete -e \"$SSH\" dist/"
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "symbol": "pull_request:"
+        },
+        {
+          "path": ".github/workflows/release.yml",
+          "symbol": "tags: ['v*']"
+        },
+        {
+          "path": "deploy/Caddyfile.example",
+          "symbol": "reverse_proxy {$STARGAZE_UPSTREAM:127.0.0.1:8643}"
+        },
+        {
+          "path": "deploy/Caddyfile.example",
+          "symbol": "respond @badActionOrigin 403"
+        },
+        {
+          "path": "deploy/docker-compose.yml",
+          "symbol": "container_name: stargaze"
+        }
+      ],
+      "changed_since_previous": false
+    }
+  ],
+  "edges": [
+    {
+      "from": "web-app",
+      "to": "web-usestore",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "import { useStore } from './hooks/useStore'"
+        }
+      ]
+    },
+    {
+      "from": "web-app",
+      "to": "web-sky",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "import { Sky } from './components/Sky'"
+        }
+      ]
+    },
+    {
+      "from": "web-app",
+      "to": "web-panels",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "import { Journal } from './components/Journal'"
+        }
+      ]
+    },
+    {
+      "from": "web-app",
+      "to": "web-modals",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "from './components/Modals'"
+        }
+      ]
+    },
+    {
+      "from": "web-app",
+      "to": "core-store",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "import { genId } from './logic/store'"
+        }
+      ]
+    },
+    {
+      "from": "web-app",
+      "to": "core-sparks",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "from './logic/sparks'"
+        }
+      ]
+    },
+    {
+      "from": "web-app",
+      "to": "core-progress",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "from './logic/selectors'"
+        }
+      ]
+    },
+    {
+      "from": "web-app",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "from './types'"
+        }
+      ]
+    },
+    {
+      "from": "web-sky",
+      "to": "core-layout",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Sky.tsx",
+          "symbol": "from '../logic/layout'"
+        }
+      ]
+    },
+    {
+      "from": "web-sky",
+      "to": "core-stars",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Sky.tsx",
+          "symbol": "import { rankTitle } from '../logic/stars'"
+        }
+      ]
+    },
+    {
+      "from": "web-sky",
+      "to": "core-progress",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Galaxy.tsx",
+          "symbol": "from '../logic/selectors'"
+        }
+      ]
+    },
+    {
+      "from": "web-sky",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/skyColors.ts",
+          "symbol": "from '../types'"
+        }
+      ]
+    },
+    {
+      "from": "web-panels",
+      "to": "core-progress",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Journal.tsx",
+          "symbol": "from '../logic/selectors'"
+        }
+      ]
+    },
+    {
+      "from": "web-panels",
+      "to": "core-sparks",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Wallet.tsx",
+          "symbol": "from '../logic/sparks'"
+        }
+      ]
+    },
+    {
+      "from": "web-panels",
+      "to": "core-stars",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/SkillPanel.tsx",
+          "symbol": "from '../logic/stars'"
+        }
+      ]
+    },
+    {
+      "from": "web-panels",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/QuestRow.tsx",
+          "symbol": "from '../logic/dates'"
+        }
+      ]
+    },
+    {
+      "from": "web-panels",
+      "to": "web-sky",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/QuestRow.tsx",
+          "symbol": "from './skyColors'"
+        }
+      ]
+    },
+    {
+      "from": "web-modals",
+      "to": "core-store",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Modals.tsx",
+          "symbol": "from '../logic/store'"
+        }
+      ]
+    },
+    {
+      "from": "web-modals",
+      "to": "core-validate",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Modals.tsx",
+          "symbol": "from '../logic/validate'"
+        }
+      ]
+    },
+    {
+      "from": "web-modals",
+      "to": "core-sparks",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Modals.tsx",
+          "symbol": "from '../logic/sparks'"
+        }
+      ]
+    },
+    {
+      "from": "web-modals",
+      "to": "core-stars",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Modals.tsx",
+          "symbol": "from '../logic/stars'"
+        }
+      ]
+    },
+    {
+      "from": "web-modals",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Modals.tsx",
+          "symbol": "from '../types'"
+        }
+      ]
+    },
+    {
+      "from": "web-modals",
+      "to": "web-sky",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Modals.tsx",
+          "symbol": "from './skyGlyphs'"
+        }
+      ]
+    },
+    {
+      "from": "web-usestore",
+      "to": "core-store",
+      "type": "calls",
+      "evidence": [
+        {
+          "path": "src/hooks/useStore.ts",
+          "symbol": "useReducer(reducer, undefined, load)"
+        }
+      ]
+    },
+    {
+      "from": "web-usestore",
+      "to": "web-sync",
+      "type": "calls",
+      "evidence": [
+        {
+          "path": "src/hooks/useStore.ts",
+          "symbol": "await drainQueue(localStorage, postAction)"
+        }
+      ]
+    },
+    {
+      "from": "web-usestore",
+      "to": "browser-localstorage",
+      "type": "writes",
+      "evidence": [
+        {
+          "path": "src/hooks/useStore.ts",
+          "symbol": "localStorage.setItem(STORE_KEY, JSON.stringify(store))"
+        }
+      ]
+    },
+    {
+      "from": "web-usestore",
+      "to": "browser-localstorage",
+      "type": "reads",
+      "evidence": [
+        {
+          "path": "src/hooks/useStore.ts",
+          "symbol": "loadStoredStore(localStorage)"
+        }
+      ]
+    },
+    {
+      "from": "web-sync",
+      "to": "server",
+      "type": "calls",
+      "evidence": [
+        {
+          "path": "src/logic/api.ts",
+          "symbol": "fetch('/api/action', { method: 'POST', body: JSON.stringify(action) })"
+        }
+      ]
+    },
+    {
+      "from": "web-sync",
+      "to": "core-store",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/api.ts",
+          "symbol": "import type { Action } from './store'"
+        }
+      ]
+    },
+    {
+      "from": "web-sync",
+      "to": "core-validate",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/api.ts",
+          "symbol": "import { validateStore } from './validate'"
+        }
+      ]
+    },
+    {
+      "from": "web-sync",
+      "to": "browser-localstorage",
+      "type": "writes",
+      "evidence": [
+        {
+          "path": "src/logic/sync.ts",
+          "symbol": "kv.setItem(key, JSON.stringify(queue))"
+        }
+      ]
+    },
+    {
+      "from": "core-store",
+      "to": "core-sparks",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/store.ts",
+          "symbol": "from './sparks'"
+        }
+      ]
+    },
+    {
+      "from": "core-store",
+      "to": "core-stars",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/store.ts",
+          "symbol": "from './stars'"
+        }
+      ]
+    },
+    {
+      "from": "core-store",
+      "to": "core-progress",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/store.ts",
+          "symbol": "from './selectors'"
+        }
+      ]
+    },
+    {
+      "from": "core-store",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/store.ts",
+          "symbol": "from './dates'"
+        }
+      ]
+    },
+    {
+      "from": "core-sparks",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/sparks.ts",
+          "symbol": "from './dates'"
+        }
+      ]
+    },
+    {
+      "from": "core-stars",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/stars.ts",
+          "symbol": "from '../types'"
+        }
+      ]
+    },
+    {
+      "from": "core-progress",
+      "to": "core-sparks",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/recurring.ts",
+          "symbol": "from './sparks'"
+        }
+      ]
+    },
+    {
+      "from": "core-progress",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/selectors.ts",
+          "symbol": "from './dates'"
+        }
+      ]
+    },
+    {
+      "from": "core-validate",
+      "to": "core-sparks",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/validate.ts",
+          "symbol": "from './sparks'"
+        }
+      ]
+    },
+    {
+      "from": "core-validate",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/validate.ts",
+          "symbol": "from './dates'"
+        }
+      ]
+    },
+    {
+      "from": "core-layout",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/layout.ts",
+          "symbol": "from '../types'"
+        }
+      ]
+    },
+    {
+      "from": "core-storage",
+      "to": "core-validate",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "import { validateStore } from './validate'"
+        }
+      ]
+    },
+    {
+      "from": "core-storage",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "import type { Store } from '../types'"
+        }
+      ]
+    },
+    {
+      "from": "core-storage",
+      "to": "store-json",
+      "type": "reads",
+      "evidence": [
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "readFileSync(path, 'utf8')"
+        }
+      ]
+    },
+    {
+      "from": "core-storage",
+      "to": "store-json",
+      "type": "writes",
+      "evidence": [
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "renameSync(tmp, path)"
+        }
+      ]
+    },
+    {
+      "from": "server",
+      "to": "core-store",
+      "type": "calls",
+      "evidence": [
+        {
+          "path": "server/app.ts",
+          "symbol": "return reducer(s, action)"
+        }
+      ]
+    },
+    {
+      "from": "server",
+      "to": "core-storage",
+      "type": "calls",
+      "evidence": [
+        {
+          "path": "server/app.ts",
+          "symbol": "withStore(storePath, (s) =>"
+        }
+      ]
+    },
+    {
+      "from": "server",
+      "to": "core-sparks",
+      "type": "calls",
+      "evidence": [
+        {
+          "path": "server/app.ts",
+          "symbol": "sparksBalance(s, settlementDay(action.day, action.ts))"
+        }
+      ]
+    },
+    {
+      "from": "cli",
+      "to": "core-store",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "cli/app.ts",
+          "symbol": "import { genId, reducer, type Action } from '../src/logic/store'"
+        }
+      ]
+    },
+    {
+      "from": "cli",
+      "to": "core-storage",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "cli/app.ts",
+          "symbol": "from '../src/logic/storage'"
+        }
+      ]
+    },
+    {
+      "from": "cli",
+      "to": "core-validate",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "cli/app.ts",
+          "symbol": "import { validateStore } from '../src/logic/validate'"
+        }
+      ]
+    },
+    {
+      "from": "cli",
+      "to": "core-sparks",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "cli/app.ts",
+          "symbol": "from '../src/logic/sparks'"
+        }
+      ]
+    },
+    {
+      "from": "cli",
+      "to": "core-stars",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "cli/app.ts",
+          "symbol": "from '../src/logic/stars'"
+        }
+      ]
+    },
+    {
+      "from": "cli",
+      "to": "core-progress",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "cli/app.ts",
+          "symbol": "from '../src/logic/selectors'"
+        }
+      ]
+    },
+    {
+      "from": "cli",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "cli/app.ts",
+          "symbol": "from '../src/types'"
+        }
+      ]
+    },
+    {
+      "from": "infra-deploy",
+      "to": "server",
+      "type": "writes",
+      "evidence": [
+        {
+          "path": ".github/workflows/deploy.yml",
+          "symbol": "scp -i ~/.ssh/id_ed25519 dist-node/server.js"
+        }
+      ]
+    },
+    {
+      "from": "infra-deploy",
+      "to": "web-app",
+      "type": "writes",
+      "evidence": [
+        {
+          "path": ".github/workflows/deploy.yml",
+          "symbol": "rsync -az --delete -e \"$SSH\" dist/"
+        }
+      ]
+    },
+    {
+      "from": "infra-deploy",
+      "to": "cli",
+      "type": "writes",
+      "evidence": [
+        {
+          "path": ".github/workflows/deploy.yml",
+          "symbol": "scp -i ~/.ssh/id_ed25519 dist-node/cli.js"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "flow-web-complete",
+      "name": "Сдача квеста из веба (серверный режим)",
+      "trigger": "Игрок жмёт «Выполнить» в Журнале при живом /api/store",
+      "steps": [
+        {
+          "node": "web-panels",
+          "action": "Кнопка в QuestRow → onComplete",
+          "evidence": {
+            "path": "src/components/QuestRow.tsx",
+            "symbol": "export function QuestRow"
+          }
+        },
+        {
+          "node": "web-modals",
+          "action": "CompleteQuestModal: итог, DoD-гейт, --force при незакрытых пунктах",
+          "evidence": {
+            "path": "src/components/Modals.tsx",
+            "symbol": "export function CompleteQuestModal"
+          }
+        },
+        {
+          "node": "web-app",
+          "action": "dispatch({type: \"completeQuest\", …}) + тост и оверлей уровня",
+          "evidence": {
+            "path": "src/App.tsx",
+            "symbol": "export default function App"
+          }
+        },
+        {
+          "node": "web-usestore",
+          "action": "Оптимистичный reducer локально + appendQueue",
+          "evidence": {
+            "path": "src/hooks/useStore.ts",
+            "symbol": "appendQueue(localStorage, action)"
+          }
+        },
+        {
+          "node": "core-store",
+          "action": "xpLog += событие, ledger += earn/drain по лестнице",
+          "evidence": {
+            "path": "src/logic/store.ts",
+            "symbol": "export function reducer"
+          }
+        },
+        {
+          "node": "web-sync",
+          "action": "drainQueue → POST /api/action по одному действию",
+          "evidence": {
+            "path": "src/logic/sync.ts",
+            "symbol": "export async function drainQueue"
+          }
+        },
+        {
+          "node": "server",
+          "action": "Гейты (подквесты, экономика) → 422 либо reducer под локом",
+          "evidence": {
+            "path": "server/app.ts",
+            "symbol": "throw new ChildrenGateError"
+          }
+        },
+        {
+          "node": "core-storage",
+          "action": "withStore: лок → load → reducer → validate → tmp+rename",
+          "evidence": {
+            "path": "src/logic/storage.ts",
+            "symbol": "export function withStore"
+          }
+        },
+        {
+          "node": "store-json",
+          "action": "Канон обновлён",
+          "evidence": {
+            "path": "Dockerfile",
+            "symbol": "STARGAZE_STORE=/data/store.json"
+          }
+        },
+        {
+          "node": "web-usestore",
+          "action": "Ответ-канон → importStore, если очередь опустела",
+          "evidence": {
+            "path": "src/hooks/useStore.ts",
+            "symbol": "dispatchLocal({ type: 'importStore', store: last })"
+          }
+        }
+      ],
+      "outcome": "Квест done, XP и искры начислены в канон; UI не ждал сеть, при падении сервера действие осталось в очереди"
+    },
+    {
+      "id": "flow-local-mode",
+      "name": "Локальный режим (API недоступен)",
+      "trigger": "Открытие dist/index.html двойным кликом или недоступный /api/store",
+      "steps": [
+        {
+          "node": "web-usestore",
+          "action": "probeServer() вернул false → mode=local, фоновый ре-пробинг раз в 10 с",
+          "evidence": {
+            "path": "src/hooks/useStore.ts",
+            "symbol": "if (!(await probeServer()) || cancelled) return"
+          }
+        },
+        {
+          "node": "web-sync",
+          "action": "probeServer: file:// или невалидный store → false",
+          "evidence": {
+            "path": "src/logic/api.ts",
+            "symbol": "window.location.protocol === 'file:'"
+          }
+        },
+        {
+          "node": "core-store",
+          "action": "Действия применяются только локально",
+          "evidence": {
+            "path": "src/logic/store.ts",
+            "symbol": "export function reducer"
+          }
+        },
+        {
+          "node": "browser-localstorage",
+          "action": "Персист в stargaze.v3 на каждое изменение",
+          "evidence": {
+            "path": "src/hooks/useStore.ts",
+            "symbol": "localStorage.setItem(STORE_KEY, JSON.stringify(store))"
+          }
+        },
+        {
+          "node": "web-sync",
+          "action": "При старте store читается из stargaze.v3 → фолбэк questlog.v3",
+          "evidence": {
+            "path": "src/logic/migrate.ts",
+            "symbol": "export function loadStoredStore"
+          }
+        }
+      ],
+      "outcome": "Автономная копия в браузере; при подъёме API очередь доигрывается, канон замещает локальную версию"
+    },
+    {
+      "id": "flow-cli-agent",
+      "name": "Агент-гейм-мастер правит канон через CLI",
+      "trigger": "stargaze complete <id> --result \"…\" (или propose-quest, move, cancel)",
+      "steps": [
+        {
+          "node": "cli",
+          "action": "runCli разбирает argv, резолвит id, считает неустойку/комиссию до записи",
+          "evidence": {
+            "path": "cli/app.ts",
+            "symbol": "export function runCli"
+          }
+        },
+        {
+          "node": "core-sparks",
+          "action": "Капание, комиссия переноса, неустойка отмены на день расчёта",
+          "evidence": {
+            "path": "src/logic/sparks.ts",
+            "symbol": "export function cancelFeeFor"
+          }
+        },
+        {
+          "node": "core-store",
+          "action": "reducer применяет действие атомарно",
+          "evidence": {
+            "path": "src/logic/store.ts",
+            "symbol": "export function reducer"
+          }
+        },
+        {
+          "node": "core-storage",
+          "action": "withStore под mkdir-локом — сериализация с сервером",
+          "evidence": {
+            "path": "src/logic/storage.ts",
+            "symbol": "acquireLock(path, opts)"
+          }
+        },
+        {
+          "node": "store-json",
+          "action": "Канон обновлён на дроплете",
+          "evidence": {
+            "path": "src/logic/storage.ts",
+            "symbol": "saveStore"
+          }
+        },
+        {
+          "node": "web-usestore",
+          "action": "Открытая вкладка подхватывает изменение поллингом 30 с",
+          "evidence": {
+            "path": "src/hooks/useStore.ts",
+            "symbol": "const POLL_MS = 30_000"
+          }
+        },
+        {
+          "node": "web-app",
+          "action": "UI перерисовывается новым каноном",
+          "evidence": {
+            "path": "src/App.tsx",
+            "symbol": "const [store, dispatch, mode] = useStore()"
+          }
+        }
+      ],
+      "outcome": "Правки агента и веба идут в один файл без гонок; веб узнаёт о них без перезагрузки"
+    },
+    {
+      "id": "flow-sky-render",
+      "name": "Отрисовка неба",
+      "trigger": "Открытие вкладки «Небо» или клик по галактике навыка",
+      "steps": [
+        {
+          "node": "web-app",
+          "action": "Передаёт store в <Sky/> / <GalaxyView/>",
+          "evidence": {
+            "path": "src/App.tsx",
+            "symbol": "import { GalaxyView } from './components/GalaxyView'"
+          }
+        },
+        {
+          "node": "core-layout",
+          "action": "constellationPlacements + layoutConstellation: seeded PRNG, детерминированные позиции",
+          "evidence": {
+            "path": "src/logic/layout.ts",
+            "symbol": "export function constellationPlacements"
+          }
+        },
+        {
+          "node": "core-stars",
+          "action": "Ранги, порог «ранг взят», статистика галактики",
+          "evidence": {
+            "path": "src/logic/stars.ts",
+            "symbol": "export function galaxyStats"
+          }
+        },
+        {
+          "node": "core-progress",
+          "action": "XP и уровень навыка для HUD",
+          "evidence": {
+            "path": "src/logic/selectors.ts",
+            "symbol": "export function skillXpTotal"
+          }
+        },
+        {
+          "node": "web-sky",
+          "action": "SVG: небулы по hue, ореол редкости по tier, глифы, twinkle",
+          "evidence": {
+            "path": "src/components/skyColors.ts",
+            "symbol": "export const rarityVar"
+          }
+        }
+      ],
+      "outcome": "Небо, идентичное между перезапусками и головами: одни и те же id дают одни и те же координаты"
+    },
+    {
+      "id": "flow-sparks-purchase",
+      "name": "Покупка из витрины за искры",
+      "trigger": "Кнопка «Купить» в Кошельке (small-позиция с ценой)",
+      "steps": [
+        {
+          "node": "web-panels",
+          "action": "Wallet: баланс, провизии, витрина; покупка вторым шагом",
+          "evidence": {
+            "path": "src/components/Wallet.tsx",
+            "symbol": "export function Wallet"
+          }
+        },
+        {
+          "node": "core-sparks",
+          "action": "sparksBalance = Σ ledger − провизии на день расчёта",
+          "evidence": {
+            "path": "src/logic/sparks.ts",
+            "symbol": "export function provisionTotal"
+          }
+        },
+        {
+          "node": "web-usestore",
+          "action": "dispatch purchaseItem с opId — ключ идемпотентности",
+          "evidence": {
+            "path": "src/hooks/useStore.ts",
+            "symbol": "appendQueue(localStorage, action)"
+          }
+        },
+        {
+          "node": "web-sync",
+          "action": "POST /api/action; 4xx выбрасывает действие из очереди",
+          "evidence": {
+            "path": "src/logic/api.ts",
+            "symbol": "if (r.status >= 400 && r.status < 500) return await fetchServerStore()"
+          }
+        },
+        {
+          "node": "server",
+          "action": "Гейт баланса → 422 «не хватает искр», store не изменён",
+          "evidence": {
+            "path": "server/app.ts",
+            "symbol": "throw new EconomyGateError(`не хватает искр"
+          }
+        },
+        {
+          "node": "core-store",
+          "action": "При успехе ledger += spend с opId (повтор по opId — no-op)",
+          "evidence": {
+            "path": "src/logic/store.ts",
+            "symbol": "case 'purchaseItem'"
+          }
+        },
+        {
+          "node": "core-storage",
+          "action": "Запись канона под локом",
+          "evidence": {
+            "path": "src/logic/storage.ts",
+            "symbol": "export function saveStore"
+          }
+        }
+      ],
+      "outcome": "Списание ровно один раз даже при передрайве очереди; отказ — честный 422, а не тихий 200"
+    }
+  ]
+}

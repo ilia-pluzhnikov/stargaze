@@ -1,0 +1,42 @@
+{
+	admin off
+	email {$STARGAZE_ACME_EMAIL}
+}
+
+# Точка расширения: соседние сайты этого же Caddy кладут свои site-блоки
+# в conf.d (монтируется отдельным compose-override). Если каталог не
+# смонтирован, glob ни с чем не совпадёт — для Caddy это не ошибка.
+import /etc/caddy/conf.d/*.caddy
+
+{$STARGAZE_DOMAIN} {
+	# Basic auth сам по себе не защищает от CSRF: браузер прикладывает
+	# сохранённые credentials и к cross-site POST. Origin-гейт режет их
+	# до приложения; same-origin fetch SPA всегда шлёт свой Origin.
+	@badActionOrigin {
+		method POST
+		path /api/action
+		not header Origin https://{$STARGAZE_DOMAIN}
+	}
+	respond @badActionOrigin 403
+
+	basic_auth {
+		{$STARGAZE_BASIC_USER} {$STARGAZE_PASSWORD_HASH}
+	}
+
+	log
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+	}
+
+	# host-network инсталляция — 127.0.0.1:8643 (дефолт);
+	# docker-сеть из compose-примера — STARGAZE_UPSTREAM=stargaze:8643
+	reverse_proxy {$STARGAZE_UPSTREAM:127.0.0.1:8643} {
+		# node 22 закрывает idle-соединение через 5 с, Caddy держит до 2 мин —
+		# редкий 502 на POST; keep-alive на локальном upstream не нужен
+		transport http {
+			keepalive off
+		}
+	}
+}

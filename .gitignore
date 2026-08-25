@@ -1,0 +1,29 @@
+node_modules/
+dist/
+dist-node/
+.env
+.env.*
+*.local
+.DS_Store
+Thumbs.db
+
+# codex artifacts
+codex-last.txt
+codex-last.json
+codex-prompt.txt
+codex-out.jsonl
+
+# сгенерированные store для импорта (собираются из docs/explorations/*.md)
+scripts/strategy2026/store.json
+scripts/strategy2026/store-mock.json
+
+# рабочие артефакты superpowers-процесса: diff-пакеты ревью (копии уже слитых
+# коммитов), отчёты субагентов, brainstorm-страницы, pid/port серверов.
+# Итоги переезжают в спеки/планы (docs/superpowers/) и BACKLOG.md — в историю
+# едут они, а не черновики.
+.superpowers/
+
+# книги-референсы: лежат локально, в историю git не едут (тяжёлые бинарники)
+docs/references/*.fb2
+docs/references/*.epub
+docs/references/*.pdf

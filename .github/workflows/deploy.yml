@@ -1,0 +1,54 @@
+name: deploy
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run build:cli
+      - run: npm run build:server
+
+      - name: настроить ssh
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.HERMES_DO_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.HERMES_DO_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: выгрузить артефакты
+        run: |
+          HOST="root@${{ secrets.HERMES_DO_HOST }}"
+          SSH="ssh -i ~/.ssh/id_ed25519"
+          $SSH "$HOST" "mkdir -p /root/stargaze/public /root/.hermes/agent/workspace/stargaze/bin"
+          rsync -az --delete -e "$SSH" dist/ "$HOST:/root/stargaze/public/"
+          scp -i ~/.ssh/id_ed25519 dist-node/server.js "$HOST:/root/stargaze/server.js"
+          # Caddyfile.example параметризован через {$VAR} — значения Caddy сам
+          # берёт из caddy.env на сервере; пример и есть боевой конфиг.
+          # docker-compose.yml и алиас questlog деплой не возит: это статичные
+          # якоря инсталляции на сервере.
+          scp -i ~/.ssh/id_ed25519 deploy/Caddyfile.example "$HOST:/root/stargaze/Caddyfile"
+          scp -i ~/.ssh/id_ed25519 dist-node/cli.js "$HOST:/root/.hermes/agent/workspace/stargaze/bin/cli.js"
+          scp -i ~/.ssh/id_ed25519 deploy/stargaze-wrapper.sh "$HOST:/usr/local/bin/stargaze"
+
+      - name: перезапустить сервис
+        run: |
+          HOST="root@${{ secrets.HERMES_DO_HOST }}"
+          ssh -i ~/.ssh/id_ed25519 "$HOST" "
+            chown -R 10000:10000 /root/.hermes/agent/workspace/stargaze &&
+            chmod +x /usr/local/bin/stargaze &&
+            cd /root/stargaze && docker compose --env-file caddy.env up -d --force-recreate --remove-orphans
+          "
