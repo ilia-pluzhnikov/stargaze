@@ -103,7 +103,7 @@ export function runCli(argv: string[], io: Io): number {
     // Игровой пояс, а не todayKey(): CLI живёт на дроплете в UTC, и локальный день
     // машины с 00:00 до 07:00 по Бангкоку отстаёт на сутки. Отсюда идёт day и в
     // ledger (провизия, неустойка, квота переносов), и в xpLog — с todayKey()
-    // консоль писала бы вчерашний день, расходясь с вебом и с реальным днём Ильи.
+    // консоль писала бы вчерашний день, расходясь с вебом и с фактическим игровым днём.
     const ctx: Ctx = { storePath, json: values.json, io, today: dayInGameTz(new Date().toISOString()) }
 
     switch (command) {
