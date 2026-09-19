@@ -29,6 +29,16 @@ export function formatDayShort(key: string): string {
   return `${d}.${m}`
 }
 
+/** Короткие имена дней недели по индексу dowOf: 0=вс..6=сб. */
+export const DOW_SHORT: readonly string[] = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб']
+const MONTH_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
+
+/** «пт 18 сен» — день с днём недели: тосты и тултипы Хроники, где отмечают задним числом. */
+export function formatDayWithDow(key: string): string {
+  const [, m, d] = key.split('-').map(Number)
+  return `${DOW_SHORT[dowOf(key)]} ${d} ${MONTH_SHORT[m - 1]}`
+}
+
 /** Полных дней между day-ключами: diffDays('2026-08-10','2026-08-07') = 3. UTC-арифметика, DST не влияет. */
 export function diffDays(a: string, b: string): number {
   const [ya, ma, da] = a.split('-').map(Number)

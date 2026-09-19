@@ -4,6 +4,7 @@ import { useStore } from './hooks/useStore'
 import { genId } from './logic/store'
 import { cancelFeeFor, sparksBalance, todayInGameTz } from './logic/sparks'
 import { recurringDashboard } from './logic/recurring'
+import { addDays, formatDayWithDow } from './logic/dates'
 import { charLevel, skillLevel } from './logic/xp'
 import { charXpTotal, questDoneOnDay, skillXpTotal } from './logic/selectors'
 import { Sky } from './components/Sky'
@@ -49,7 +50,7 @@ export default function App() {
   const [levelUps, setLevelUps] = useState<LevelUp[]>([])
 
   // Игровой пояс, а не календарный день браузера: «сегодня» уходит и в ledger, и в
-  // xpLog, и в расписание — в поездке локальный день разошёлся бы с CLI и сервером
+  // xpLog — в поездке локальный день разошёлся бы с CLI и сервером
   const today = todayInGameTz()
   const charInfo = charLevel(charXpTotal(store.xpLog))
   const balance = sparksBalance(store, today)
@@ -93,7 +94,14 @@ export default function App() {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2100)
   }
 
-  const applyComplete = (quest: Quest, result?: QuestResult, force?: boolean) => {
+  /** Хвост тоста для отметки задним числом: сегодня — пусто, иначе « · пт 18 сен», старше вчера — с пометкой. */
+  const habitDayNote = (day: string, sparksNote: boolean) => {
+    if (day === today) return ''
+    const stale = sparksNote && day < addDays(today, -1)
+    return ` · ${formatDayWithDow(day)}${stale ? ' (без искр)' : ''}`
+  }
+
+  const applyComplete = (quest: Quest, result?: QuestResult, force?: boolean, day: string = today) => {
     const ups: LevelUp[] = []
     if (quest.skillId) {
       const skill = store.skills.find((s) => s.id === quest.skillId)
@@ -106,8 +114,8 @@ export default function App() {
     const beforeChar = charLevel(charXpTotal(store.xpLog)).level
     const afterChar = charLevel(charXpTotal(store.xpLog) + quest.xpReward).level
     if (afterChar > beforeChar) ups.push({ kind: 'char', name: store.character.name, level: afterChar })
-    dispatch({ type: 'completeQuest', questId: quest.id, day: today, ts: new Date().toISOString(), result, force })
-    pushToast(`+${quest.xpReward} XP · ${quest.title}`)
+    dispatch({ type: 'completeQuest', questId: quest.id, day, ts: new Date().toISOString(), result, force })
+    pushToast(`+${quest.xpReward} XP · ${quest.title}${habitDayNote(day, true)}`)
     if (ups.length) setLevelUps((q) => [...q, ...ups])
   }
 
@@ -132,6 +140,21 @@ export default function App() {
   const uncompleteQuest = (quest: Quest) => {
     dispatch({ type: 'uncompleteQuest', questId: quest.id, day: today, ts: new Date().toISOString() })
     pushToast(`Откат · ${quest.title}`)
+  }
+
+  /** Клик по клетке Хроники: отметка или откат привычки за конкретный день (не позже сегодня). */
+  const toggleHabitDay = (questId: string, day: string, completed: boolean) => {
+    const quest = store.quests.find((q) => q.id === questId && q.status === 'active' && q.type === 'repeating')
+    if (!quest || day > today) return
+    const marked = questDoneOnDay(store.xpLog, quest.id, day)
+    if (completed) {
+      if (!marked) return
+      dispatch({ type: 'uncompleteQuest', questId: quest.id, day, ts: new Date().toISOString() })
+      pushToast(`Откат · ${quest.title}${habitDayNote(day, false)}`)
+      return
+    }
+    if (marked) return
+    applyComplete(quest, undefined, undefined, day)
   }
 
   const acceptQuest = (quest: Quest) => {
@@ -299,11 +322,10 @@ export default function App() {
           dashboard={chronicleData.dashboard}
           rows={chronicleData.rows}
           sleepingRows={chronicleData.sleepingRows}
-          onToggleToday={(questId, completed) => {
-            const quest = store.quests.find((candidate) => candidate.id === questId && candidate.status === 'active')
-            if (!quest) return
-            if (completed) uncompleteQuest(quest)
-            else completeQuest(quest)
+          onToggleDay={toggleHabitDay}
+          onEditQuest={(questId) => {
+            const quest = store.quests.find((candidate) => candidate.id === questId)
+            if (quest) setQuestModal({ quest })
           }}
         />
       )}
