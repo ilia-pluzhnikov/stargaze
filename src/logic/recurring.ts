@@ -1,32 +1,25 @@
 import type { Quest, XpEvent } from '../types'
-import { addDays, dowOf, isCalendarDay } from './dates'
+import { addDays, dowOf } from './dates'
 import { completedDaysForQuest } from './selectors'
-import { dayInGameTz } from './sparks'
-import { computeStreak, isScheduled } from './streak'
 
 export interface RecurringDayHistory {
   day: string
-  scheduled: boolean
   completed: boolean
 }
 
 export interface RecurringWeekCount {
   weekStart: string
   weekEnd: string
-  /** Все дни с net XP > 0, включая редкие отметки вне текущего расписания. */
+  /** Дней с net XP > 0 за неделю. */
   completed: number
-  /** Сколько положенных дней попало в окно. */
-  scheduled: number
-  /** Сколько положенных дней закрыто. */
-  scheduledCompleted: number
 }
 
 export interface RecurringQuestHistory {
   questId: string
   days: RecurringDayHistory[]
   weeks: RecurringWeekCount[]
-  currentStreak: number
-  bestStreak: number
+  /** Отметок за всё окно. */
+  total: number
 }
 
 export interface RecurringDashboard {
@@ -36,29 +29,14 @@ export interface RecurringDashboard {
   days: string[]
   quests: RecurringQuestHistory[]
   weeks: RecurringWeekCount[]
-  todayScheduled: number
+  /** Сколько привычек отмечено сегодня. */
   todayCompleted: number
-  todayOpenQuestIds: string[]
-}
-
-/** Положен ли повторяющийся квест в этот день по текущему daysOfWeek. */
-export function isRecurringQuestScheduled(quest: Quest, day: string): boolean {
-  return quest.type === 'repeating' && isScheduled(quest, day)
 }
 
 /** Понедельник ISO-недели, содержащей day. */
 export function isoWeekStart(day: string): string {
   const dow = dowOf(day)
   return addDays(day, dow === 0 ? -6 : 1 - dow)
-}
-
-/** День создания в игровом поясе — той же меркой, что `day` в xpLog и `today`
- * Хроники. По локальному дню машины нижняя граница окна съезжала на сутки
- * относительно отметок и резала bestStreak / завышала scheduled.
- * Нераспознанный createdAt по-прежнему даёт null = «без нижней границы». */
-function questCreatedDay(quest: Quest): string | null {
-  const day = dayInGameTz(quest.createdAt)
-  return isCalendarDay(day) ? day : null
 }
 
 function dayRange(startDay: string, endDay: string): string[] {
@@ -72,25 +50,18 @@ function weeksFromDays(days: RecurringDayHistory[]): RecurringWeekCount[] {
   const weeks = new Map<string, RecurringWeekCount>()
   for (const entry of days) {
     const start = isoWeekStart(entry.day)
-    const week = weeks.get(start) ?? {
-      weekStart: start,
-      weekEnd: entry.day,
-      completed: 0,
-      scheduled: 0,
-      scheduledCompleted: 0,
-    }
+    const week = weeks.get(start) ?? { weekStart: start, weekEnd: entry.day, completed: 0 }
     week.weekEnd = entry.day
     if (entry.completed) week.completed++
-    if (entry.scheduled) {
-      week.scheduled++
-      if (entry.completed) week.scheduledCompleted++
-    }
     weeks.set(start, week)
   }
   return [...weeks.values()]
 }
 
-/** История отметок одного квеста за включительное окно дат. */
+/**
+ * История отметок одного квеста за включительное окно дат. Нижней границы по дню
+ * создания нет: клетка до создания привычки — обычная пустая клетка, её можно отметить.
+ */
 export function recurringQuestDays(
   xpLog: XpEvent[],
   quest: Quest,
@@ -98,52 +69,10 @@ export function recurringQuestDays(
   endDay: string,
 ): RecurringDayHistory[] {
   const completedDays = completedDaysForQuest(xpLog, quest.id)
-  const createdDay = questCreatedDay(quest)
-  return dayRange(startDay, endDay).map((day) => ({
-    day,
-    scheduled: (!createdDay || day >= createdDay) && isRecurringQuestScheduled(quest, day),
-    completed: completedDays.has(day),
-  }))
+  return dayRange(startDay, endDay).map((day) => ({ day, completed: completedDays.has(day) }))
 }
 
-/** Текущий (с сегодняшней льготой) и лучший исторический стрик. */
-export function recurringQuestStreaks(
-  xpLog: XpEvent[],
-  quest: Quest,
-  today: string,
-): { current: number; best: number } {
-  if (quest.type !== 'repeating') return { current: 0, best: 0 }
-  const completedDays = completedDaysForQuest(xpLog, quest.id)
-  const createdDay = questCreatedDay(quest)
-  const eligibleDays = [...completedDays]
-    .filter((day) => day <= today && (!createdDay || day >= createdDay) && isRecurringQuestScheduled(quest, day))
-    .sort()
-
-  let best = 0
-  let run = 0
-  let previous: string | null = null
-  for (const day of eligibleDays) {
-    let followsPrevious = false
-    if (previous) {
-      for (let offset = 1; offset <= 7; offset++) {
-        const candidate = addDays(previous, offset)
-        if (!isRecurringQuestScheduled(quest, candidate)) continue
-        followsPrevious = candidate === day
-        break
-      }
-    }
-    run = followsPrevious ? run + 1 : 1
-    best = Math.max(best, run)
-    previous = day
-  }
-
-  return {
-    current: computeStreak(quest, completedDays, today),
-    best,
-  }
-}
-
-/** Число отметок и положенных дней по ISO-неделям для одного квеста. */
+/** Число отметок по ISO-неделям для одного квеста. */
 export function recurringQuestWeeks(
   xpLog: XpEvent[],
   quest: Quest,
@@ -154,9 +83,9 @@ export function recurringQuestWeeks(
 }
 
 /**
- * Полная модель Хроники. Статусы active/archived и архивность навыка намеренно
- * остаются ответственностью вызывающего кода: так спящие привычки можно считать
- * отдельно и не смешивать с операционной сводкой.
+ * Полная модель Хроники: плотность отметок без расписания, норм и стриков.
+ * Статусы active/archived и архивность навыка намеренно остаются ответственностью
+ * вызывающего кода: так спящие привычки считаются отдельно от активных.
  */
 export function recurringDashboard(
   xpLog: XpEvent[],
@@ -167,53 +96,28 @@ export function recurringDashboard(
   const weeks = Math.max(1, Math.floor(windowWeeks))
   const startDay = addDays(isoWeekStart(today), -(weeks - 1) * 7)
   const endDay = today
-  const repeating = quests.filter((quest) => quest.type === 'repeating')
-  const histories = repeating.map((quest) => {
-    const days = recurringQuestDays(xpLog, quest, startDay, endDay)
-    const streaks = recurringQuestStreaks(xpLog, quest, today)
-    return {
-      questId: quest.id,
-      days,
-      weeks: weeksFromDays(days),
-      currentStreak: streaks.current,
-      bestStreak: streaks.best,
-    }
-  })
+  const histories = quests
+    .filter((quest) => quest.type === 'repeating')
+    .map((quest) => {
+      const days = recurringQuestDays(xpLog, quest, startDay, endDay)
+      return {
+        questId: quest.id,
+        days,
+        weeks: weeksFromDays(days),
+        total: days.filter((entry) => entry.completed).length,
+      }
+    })
 
   const days = dayRange(startDay, endDay)
-  const aggregateWeeks = weeksFromDays(days.map((day) => ({ day, scheduled: false, completed: false })))
+  const aggregateWeeks = weeksFromDays(days.map((day) => ({ day, completed: false })))
   const aggregateByStart = new Map(aggregateWeeks.map((week) => [week.weekStart, week]))
-  for (const history of histories) {
+  for (const history of histories)
     for (const source of history.weeks) {
       const target = aggregateByStart.get(source.weekStart)
-      if (!target) continue
-      target.completed += source.completed
-      target.scheduled += source.scheduled
-      target.scheduledCompleted += source.scheduledCompleted
+      if (target) target.completed += source.completed
     }
-  }
 
-  let todayScheduled = 0
-  let todayCompleted = 0
-  const todayOpenQuestIds: string[] = []
-  for (const history of histories) {
-    const entry = history.days[history.days.length - 1]
-    if (!entry?.scheduled) continue
-    todayScheduled++
-    if (entry.completed) todayCompleted++
-    else todayOpenQuestIds.push(history.questId)
-  }
+  const todayCompleted = histories.filter((history) => history.days[history.days.length - 1]?.completed).length
 
-  return {
-    today,
-    startDay,
-    endDay,
-    days,
-    quests: histories,
-    weeks: aggregateWeeks,
-    todayScheduled,
-    todayCompleted,
-    todayOpenQuestIds,
-  }
+  return { today, startDay, endDay, days, quests: histories, weeks: aggregateWeeks, todayCompleted }
 }
-
