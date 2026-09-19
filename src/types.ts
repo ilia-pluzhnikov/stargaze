@@ -177,5 +177,3 @@ export const LEDGER_KIND_LABEL: Record<LedgerKind, string> = {
   adjust: 'корректировка',
   reversal: 'откат',
 }
-
-export const DOW_LABELS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']

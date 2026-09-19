@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Quest, Skill, StarComponent, Store } from '../types'
-import { completedDaysForQuest, lastCompletionDay, questDoneOnDay, skillXpTotal } from '../logic/selectors'
+import { lastCompletionDay, questDoneOnDay, skillXpTotal } from '../logic/selectors'
 import { provisionForQuest } from '../logic/sparks'
 import { currentRank, galaxySummary, rankTitle } from '../logic/stars'
-import { computeStreak } from '../logic/streak'
 import { skillLevel } from '../logic/xp'
 import { QuestRow } from './QuestRow'
 
@@ -57,8 +56,6 @@ export function SkillPanel({
 
   const isDoneNow = (q: Quest) =>
     q.type === 'repeating' ? questDoneOnDay(store.xpLog, q.id, today) : q.status === 'done'
-  const streakOf = (q: Quest) =>
-    q.type === 'repeating' ? computeStreak(q, completedDaysForQuest(store.xpLog, q.id), today) : 0
 
   return (
     <>
@@ -103,7 +100,6 @@ export function SkillPanel({
               quest={q}
               skill={null}
               done={isDoneNow(q)}
-              streak={streakOf(q)}
               star={starOf(q)}
               provision={provisionForQuest(q, today)}
               expanded={expandedId === q.id}
@@ -119,7 +115,6 @@ export function SkillPanel({
               quest={q}
               skill={null}
               done
-              streak={0}
               doneDay={lastCompletionDay(store.xpLog, q.id)}
               star={starOf(q)}
               provision={provisionForQuest(q, today)}

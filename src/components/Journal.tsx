@@ -4,29 +4,25 @@ import { QUEST_TYPE_LABEL } from '../types'
 import {
   charXpTotal,
   compareDueUrgency,
-  completedDaysForQuest,
   epicProgress,
   isDueToday,
   isDueWithin,
   lastCompletionDay,
   questChildren,
-  questDoneOnDay,
   skillXpTotal,
   weekActivity,
 } from '../logic/selectors'
 import { provisionForQuest } from '../logic/sparks'
-import { computeStreak } from '../logic/streak'
 import { charLevel, skillLevel } from '../logic/xp'
 import { QuestRow } from './QuestRow'
 
-type Filter = 'today' | 'due7' | 'all' | 'repeating'
+type Filter = 'today' | 'due7' | 'all'
 
 // Табы говорят языком сроков, а не внутренних типов (short/mid/long наружу ничего не значат)
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'today', label: 'Сегодня' },
   { key: 'due7', label: '7 дней' },
   { key: 'all', label: 'Все' },
-  { key: 'repeating', label: 'Повторяющиеся' },
 ]
 
 interface Props {
@@ -50,8 +46,7 @@ export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, o
   const matches = (q: Quest): boolean => {
     if (filter === 'all') return true
     if (filter === 'today') return isDueToday(q, today)
-    if (filter === 'due7') return isDueWithin(q, today, 7)
-    return q.type === filter
+    return isDueWithin(q, today, 7)
   }
 
   const skillOf = (q: Quest) => (q.skillId ? (store.skills.find((s) => s.id === q.skillId) ?? null) : null)
@@ -62,15 +57,12 @@ export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, o
     const p = store.quests.find((x) => x.id === q.parentQuestId)
     return p ? { id: p.id, title: p.title } : null
   }
-  const isDoneNow = (q: Quest) =>
-    q.type === 'repeating' ? questDoneOnDay(store.xpLog, q.id, today) : q.status === 'done'
-  const streakOf = (q: Quest) =>
-    q.type === 'repeating' ? computeStreak(q, completedDaysForQuest(store.xpLog, q.id), today) : 0
 
+  // Журнал — только контракты: привычки живут в Хронике. Предложенные привычки остаются
+  // в блоке гейм-мастера: принял — появилась в Хронике.
+  const contracts = store.quests.filter((q) => q.type !== 'repeating')
   const proposed = store.quests.filter((q) => q.status === 'proposed')
-  const active = store.quests
-    .filter((q) => q.status === 'active' && matches(q))
-    .sort((a, b) => Number(isDoneNow(a)) - Number(isDoneNow(b)) || compareDueUrgency(a, b))
+  const active = contracts.filter((q) => q.status === 'active' && matches(q)).sort(compareDueUrgency)
   // порядок active-списка: дети идут сразу под своим родителем (по createdAt), с отступом.
   // Семантика фильтров не меняется — тот же набор квестов; ребёнок с родителем вне
   // выборки рендерится верхним уровнем с пометкой «⤴ эпик».
@@ -82,7 +74,7 @@ export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, o
     for (const c of active.filter((x) => x.parentQuestId === q.id).sort(byCreated)) activeRows.push({ q: c, child: true })
   }
 
-  const done = store.quests
+  const done = contracts
     .filter((q) => q.status === 'done' && matches(q))
     .sort((a, b) => (lastCompletionDay(store.xpLog, b.id) ?? '').localeCompare(lastCompletionDay(store.xpLog, a.id) ?? ''))
 
@@ -144,8 +136,7 @@ export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, o
               key={q.id}
               quest={q}
               skill={skillOf(q)}
-              done={isDoneNow(q)}
-              streak={streakOf(q)}
+              done={false}
               star={starOf(q)}
               child={child}
               parentRef={parentRefOf(q)}
@@ -156,7 +147,7 @@ export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, o
               expanded={expandedId === q.id}
               onToggleExpand={() => setExpandedId((cur) => (cur === q.id ? null : q.id))}
               onTickDod={(i) => onTickDod(q, i)}
-              onToggle={() => (isDoneNow(q) ? onUncomplete(q) : onComplete(q))}
+              onToggle={() => onComplete(q)}
               onEdit={() => onEditQuest(q)}
             />
           ))}
@@ -173,7 +164,6 @@ export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, o
                     quest={q}
                     skill={skillOf(q)}
                     done
-                    streak={0}
                     doneDay={lastCompletionDay(store.xpLog, q.id)}
                     star={starOf(q)}
                     parentRef={parentRefOf(q)}

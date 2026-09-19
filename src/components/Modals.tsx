@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Quest, QuestDodItem, QuestResource, QuestResult, QuestType, Skill, StarComponent, Store, Tier, WishlistItem } from '../types'
-import { DOW_LABELS, QUEST_TYPE_LABEL, TIERS, WISHLIST_EMOJI_MAX } from '../types'
+import { QUEST_TYPE_LABEL, TIERS, WISHLIST_EMOJI_MAX } from '../types'
 import { genId } from '../logic/store'
 import { isCalendarDay, todayKey } from '../logic/dates'
 import { FREE_MOVES_PER_7D, moveFeeFor, movesUsedIn7d, provisionForQuest } from '../logic/sparks'
@@ -27,7 +27,6 @@ interface QuestModalProps {
   onClose: () => void
 }
 
-const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0] // Пн..Вс
 
 export function QuestModal({
   initial,
@@ -49,7 +48,6 @@ export function QuestModal({
   const [skillId, setSkillId] = useState<string>(initial?.skillId ?? defaultSkillId ?? '')
   const [starId, setStarId] = useState(initial?.starId ?? '')
   const [xp, setXp] = useState(String(initial?.xpReward ?? 25))
-  const [days, setDays] = useState<number[]>(initial?.daysOfWeek ?? [])
   const [due, setDue] = useState(initial?.dueDate ?? '')
   const [why, setWhy] = useState(initial?.why ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
@@ -81,9 +79,6 @@ export function QuestModal({
   const starOptions = skillStars(stars, skillId)
     .slice()
     .sort((a, b) => Number(!!a.litAt) - Number(!!b.litAt))
-
-  const toggleDay = (d: number) =>
-    setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]))
 
   const setResource = (i: number, patch: Partial<QuestResource>) =>
     setResources((cur) => cur.map((r, j) => (j === i ? { ...r, ...patch } : r)))
@@ -119,7 +114,6 @@ export function QuestModal({
       // repeating не может быть подквестом: при смене типа связь снимается — это отражено скрытием селекта
       parentQuestId: type !== 'repeating' && parentQuestId ? parentQuestId : undefined,
       xpReward: xpN,
-      daysOfWeek: type === 'repeating' && days.length > 0 && days.length < 7 ? [...days].sort() : undefined,
       dueDate: type !== 'repeating' && due ? due : undefined,
       status: initial?.status ?? 'active',
       // невидимые в форме поля правки не теряют: итог живёт на done-квесте
@@ -201,16 +195,7 @@ export function QuestModal({
           </div>
         )}
         {type === 'repeating' ? (
-          <div className="field">
-            <label>Дни недели (пусто = каждый день)</label>
-            <div className="dow">
-              {DOW_ORDER.map((d) => (
-                <button key={d} className={days.includes(d) ? 'on' : ''} onClick={() => toggleDay(d)}>
-                  {DOW_LABELS[d]}
-                </button>
-              ))}
-            </div>
-          </div>
+          <div className="hint">Привычка без расписания: отмечай в Хронике в любой день. Искры — за сегодня и вчера.</div>
         ) : (
           <div className="field">
             <label>Дедлайн</label>

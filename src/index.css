@@ -275,7 +275,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
 .const-name { transition: fill 0.15s ease; }
 .sky-name { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 3px; font-weight: 600; }
 
-.streak-tag { font-size: 11px; fill: var(--peach); }
 
 /* ── HUD-бар (Skyrim) ───────────────────────────── */
 .hud {
@@ -321,7 +320,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   font-family: var(--font-mono);
   font-feature-settings: 'tnum' 1, 'zero' 1;
 }
-.hud-meta .fire { color: var(--peach); }
 .hud-actions {
   display: flex;
   align-items: center;
@@ -442,7 +440,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
 .quest-row .q-title { font-size: 14px; }
 .quest-row.done .q-title { text-decoration: line-through; color: var(--faint); }
 .quest-row .q-meta { color: var(--faint); font-size: 11.5px; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.quest-row .q-meta .fire { color: var(--peach); }
 .quest-row .q-xp {
   color: var(--gold);
   font-family: var(--font-mono);
@@ -997,20 +994,6 @@ button.chronicle-quest-title:focus-visible { outline: 2px solid var(--accent); o
 .field-row .field { flex: 1; }
 /* «Перенести…» рядом с замороженным дедлайном — кнопка по содержимому, а не во всю строку */
 .field-row > .add-btn { margin-top: 0; width: auto; flex: 0 0 auto; padding: 6px 12px; }
-.dow { display: flex; gap: 5px; }
-.dow button {
-  flex: 1;
-  padding: 6px 0;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--faint);
-  font-size: 11.5px;
-}
-.dow button.on {
-  color: var(--accent);
-  border-color: rgba(255, 119, 21, 0.5);
-  background: rgba(255, 119, 21, 0.1);
-}
 .modal-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
 .modal-actions button {
   border: 1px solid var(--line);
