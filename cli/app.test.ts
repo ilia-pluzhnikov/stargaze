@@ -1053,11 +1053,76 @@ describe('quests --today и status уважают dueDate', () => {
 
   it('status: будущий short не в положенных, просроченный контракт — в положенных', () => {
     const p = tmpStore()
-    const y = () => Number(run(['status'], p).out.match(/Сегодня: \d+ \/ (\d+)/)![1])
+    const y = () => Number(run(['status'], p).out.match(/контрактов на сегодня: (\d+)/)![1])
     const base = y()
     run(['add-quest', '--title', 'Будущий', '--type', 'short', '--xp', '5', '--due', addDays(gameToday(), 5)], p)
     expect(y()).toBe(base)
     run(['add-quest', '--title', 'Горящий', '--type', 'long', '--xp', '50', '--due', addDays(gameToday(), -3)], p)
     expect(y()).toBe(base + 1)
+  })
+})
+
+describe('привычки без расписания (CLI)', () => {
+  const gameToday = () => dayInGameTz(new Date().toISOString())
+  const habit = (p: string) => loadStore(p).quests.find((q) => q.type === 'repeating' && q.status === 'active')!
+
+  it('add-quest --days → код 2 с текстом про удаление, квест не добавлен', () => {
+    const p = tmpStore()
+    const before = loadStore(p).quests.length
+    const r = run(['add-quest', '--title', 'Зал', '--type', 'repeating', '--xp', '20', '--days', '2,4,6'], p)
+    expect(r.code).toBe(2)
+    expect(r.err).toMatch(/--days удалён в 0\.3/)
+    expect(loadStore(p).quests).toHaveLength(before)
+  })
+
+  it('propose-quest --days → код 2', () => {
+    const r = run(['propose-quest', '--title', 'Зал', '--type', 'repeating', '--xp', '20', '--note', 'н', '--days', '1'], tmpStore())
+    expect(r.code).toBe(2)
+    expect(r.err).toMatch(/--days удалён в 0\.3/)
+  })
+
+  it('status --json: нет skills[].streak, есть today.habitsDone', () => {
+    const p = tmpStore()
+    const before = JSON.parse(run(['status', '--json'], p).out)
+    expect(Object.keys(before.today).sort()).toEqual(['due', 'habitsDone'])
+    expect(before.today.habitsDone).toBe(0)
+    expect(before.skills.every((sk: object) => !('streak' in sk))).toBe(true)
+    expect(run(['complete', habit(p).id], p).code).toBe(0)
+    const after = JSON.parse(run(['status', '--json'], p).out)
+    expect(after.today.habitsDone).toBe(1)
+    expect(after.today.due).toBe(before.today.due) // привычка в «контракты на сегодня» не входит
+  })
+
+  it('status (текст): строка про привычки и контракты, колонки «стрик» нет', () => {
+    const r = run(['status'], tmpStore())
+    expect(r.out).toMatch(/Привычек отмечено сегодня: 0 · контрактов на сегодня: \d+/)
+    expect(r.out).not.toMatch(/стрик/)
+  })
+
+  it('quests --today — только контракты', () => {
+    const p = tmpStore()
+    run(['add-quest', '--title', 'Горит', '--type', 'short', '--xp', '5', '--due', gameToday()], p)
+    const list = JSON.parse(run(['quests', '--today', '--json'], p).out) as { type: string }[]
+    expect(list.length).toBeGreaterThan(0)
+    expect(list.every((q) => q.type !== 'repeating')).toBe(true)
+  })
+
+  it('complete привычки с --day в будущем → код 2, событий нет', () => {
+    const p = tmpStore()
+    const q = habit(p)
+    const r = run(['complete', q.id, '--day', addDays(gameToday(), 1)], p)
+    expect(r.code).toBe(2)
+    expect(r.err).toMatch(/нельзя отметить наперёд/)
+    expect(loadStore(p).xpLog.filter((e) => e.questId === q.id)).toHaveLength(0)
+  })
+
+  it('complete привычки задним числом: XP есть, искр нет', () => {
+    const p = tmpStore()
+    const q = habit(p)
+    const day = addDays(gameToday(), -3)
+    expect(run(['complete', q.id, '--day', day], p).code).toBe(0)
+    const s = loadStore(p)
+    expect(s.xpLog.filter((e) => e.questId === q.id && e.day === day)).toHaveLength(1)
+    expect((s.ledger ?? []).filter((e) => e.questId === q.id)).toHaveLength(0)
   })
 })
