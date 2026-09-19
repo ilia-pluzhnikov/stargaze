@@ -1,6 +1,7 @@
 import type { Character, LedgerEvent, Quest, QuestDueDateMove, QuestResult, Skill, StarComponent, Store, WishlistItem, XpEvent } from '../types'
 import { WISHLIST_EMOJI_MAX } from '../types'
 import { isCalendarDay } from './dates'
+import { migrateStore } from './migrate'
 import { netForQuest, netForQuestOnDay } from './selectors'
 import { cancelFeeFor, dayInGameTz, earnWindowOk, FREE_MOVES_PER_7D, moveFeeFor, movesUsedIn7d, provisionForQuest, purchasedDays, settlementDay, sparksBalance } from './sparks'
 import { ancestorsOf } from './stars'
@@ -354,7 +355,9 @@ export function reducer(store: Store, action: Action): Store {
     case 'setCharacter':
       return { ...store, character: action.character }
     case 'importStore':
-      return action.store
+      // миграция живёт в ядре: бэкап v3 импортируется одинаково из веба, API и CLI;
+      // валидность результата проверяет точка записи (storage) или вызывающая голова
+      return migrateStore(action.store) as Store
     case 'resetToSeed':
       return seedStore()
     case 'moveDueDate': {

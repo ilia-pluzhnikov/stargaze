@@ -115,6 +115,28 @@ describe('cli каркас', () => {
     expect(run(['import', dump], p).code).toBe(1)
     expect(loadStore(p)).toEqual(before)
   })
+  const v3Dump = (): string => {
+    const dump = join(mkdtempSync(join(tmpdir(), 'ql-cli-')), 'dump-v3.json')
+    const seed = seedStore()
+    writeFileSync(dump, JSON.stringify({
+      ...seed,
+      version: 3,
+      quests: seed.quests.map((q) => (q.id === 'q_sketch' ? { ...q, daysOfWeek: [1, 3, 5] } : q)),
+    }), 'utf8')
+    return dump
+  }
+  it('import v3-файла: мигрируется и ложится на диск как v4', () => {
+    const p = tmpStore()
+    expect(run(['import', v3Dump()], p).code).toBe(0)
+    const onDisk = JSON.parse(readFileSync(p, 'utf8')) as { version: number; quests: object[] }
+    expect(onDisk.version).toBe(4)
+    expect(onDisk.quests.some((q) => 'daysOfWeek' in q)).toBe(false)
+  })
+  it('validate v3-файла — код 0 с пометкой про миграцию', () => {
+    const r = run(['validate'], v3Dump())
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/мигрируется в v4/)
+  })
   it('validate --json на битом store — код 1 и JSON { ok: false, errors: [...] }', () => {
     const p = tmpStore()
     writeFileSync(p, 'invalid json{]', 'utf8')
@@ -678,7 +700,7 @@ describe('CLI: экономика искр', () => {
   // Фикстура пишется напрямую (не через seedStore): дедлайн в будущем ⇒ провизия 0
   // на любой машине, поэтому тесты не зависят ни от пояса, ни от текущей даты.
   const fixture = (): Store => ({
-    version: 3,
+    version: 4,
     character: { name: 'И', avatar: '🧙' },
     skills: [],
     stars: [],
@@ -940,7 +962,7 @@ describe('вишлист без цены (CLI)', () => {
     const p = join(mkdtempSync(join(tmpdir(), 'sparks-cli-')), 'store.json')
     const gameToday = () => dayInGameTz(new Date().toISOString())
     writeFileSync(p, JSON.stringify({
-      version: 3,
+      version: 4,
       character: { name: 'И', avatar: '🧙' },
       skills: [],
       stars: [],

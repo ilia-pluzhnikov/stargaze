@@ -84,7 +84,7 @@ describe('смоук stargaze serve', () => {
   it('первый запуск создаёт демо-store на диске', async () => {
     expect(existsSync(serveStore)).toBe(true)
     const s = (await (await fetch(`${BASE}/api/store`)).json()) as { version: number; stars: unknown[] }
-    expect(s.version).toBe(3)
+    expect(s.version).toBe(4)
     expect(s.stars.length).toBeGreaterThan(0)
   })
 

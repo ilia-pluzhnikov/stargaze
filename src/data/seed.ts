@@ -44,7 +44,7 @@ export function seedStore(): Store {
   }
 
   return {
-    version: 3,
+    version: 4,
     character: { name: 'Странник', avatar: '🧭' },
     skills: [
       skill('sk_health', '💪', 'Здоровье', 145, 'Тело — опора, а не ограничение'),
@@ -86,7 +86,7 @@ export function seedStore(): Store {
     ],
     quests: [
       quest('q_walk', 'Прогулка 30 минут', 'repeating', 'sk_health', 15),
-      quest('q_sketch', 'Этюд или набросок', 'repeating', 'sk_craft', 20, { daysOfWeek: [1, 3, 5] }),
+      quest('q_sketch', 'Этюд или набросок', 'repeating', 'sk_craft', 20),
       quest('q_run5k', 'Пробежать 5 км без остановки', 'short', 'sk_health', 60, {
         starId: 'st_h4',
         dueDate: inDays(14),

@@ -35,7 +35,7 @@ jobs:
             sleep 1
           done
           if [ -z "$ok" ]; then docker logs smoke; exit 1; fi
-          curl -fsS http://127.0.0.1:8643/api/store | grep -q '"version":3'
+          curl -fsS http://127.0.0.1:8643/api/store | grep -q '"version":4'
           docker rm -f smoke
 
       - name: опубликовать в ghcr

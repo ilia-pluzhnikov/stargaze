@@ -4,10 +4,11 @@ import { validateStore } from '../logic/validate'
 import { dayInGameTz } from '../logic/sparks'
 
 describe('демо-сид', () => {
-  it('версия 3 и валиден по validateStore', () => {
+  it('версия 4, валиден по validateStore, расписаний нет', () => {
     const s = seedStore()
-    expect(s.version).toBe(3)
+    expect(s.version).toBe(4)
     expect(validateStore(s)).toEqual([])
+    expect(s.quests.some((q) => 'daysOfWeek' in q)).toBe(false)
   })
 
   it('живое небо: 2–3 галактики с деревьями по 8–15 звёзд, есть зажжённые', () => {

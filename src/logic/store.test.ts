@@ -3,7 +3,7 @@ import type { Quest, QuestResult, Skill, StarComponent, Store, Tier } from '../t
 import { reducer, type Action } from './store'
 
 const base = (): Store => ({
-  version: 3,
+  version: 4,
   character: { name: 'И', avatar: 'X' },
   skills: [{ id: 's1', emoji: '✨', name: 'Тайский', wantStatement: '', hue: 200, archived: false, createdAt: 'T0' }],
   stars: [],
@@ -125,7 +125,7 @@ describe('звёзды', () => {
 
 describe('proposed-квесты', () => {
   const base = (): Store => ({
-    version: 3,
+    version: 4,
     character: { name: 'Тест', avatar: '🧙' },
     skills: [{ id: 'sk1', emoji: '🇹🇭', name: 'Тайский', wantStatement: '', hue: 30, archived: false, createdAt: '2026-07-01T00:00:00.000Z' }],
     stars: [],
@@ -230,7 +230,7 @@ describe('карточка квеста: завершение с result', () => 
     xpReward: 50, status: 'active', createdAt: '2026-07-22T00:00:00.000Z',
   })
   const base = (): Store => ({
-    version: 3,
+    version: 4,
     character: { name: 'И', avatar: 'X' },
     skills: [],
     stars: [],
@@ -301,7 +301,7 @@ describe('карточка квеста: DoD-гейт и история итог
     definitionOfDone: [{ text: 'Пункт А', done: true }, { text: 'Пункт Б' }, { text: 'Пункт В' }],
   })
   const base = (q: Quest = dodQuest()): Store => ({
-    version: 3, character: { name: 'И', avatar: 'X' }, skills: [], stars: [], quests: [q], xpLog: [],
+    version: 4, character: { name: 'И', avatar: 'X' }, skills: [], stars: [], quests: [q], xpLog: [],
   })
   const complete = (s: Store, result?: QuestResult, force?: boolean) =>
     reducer(s, { type: 'completeQuest', questId: 'q1', day: '2026-07-22', ts: 'T1', result, force })
@@ -444,5 +444,24 @@ describe('подквесты (эпик с детьми)', () => {
     expect(reducer(s, { type: 'archiveQuest', questId: 'p', day: '2026-07-29', ts: 'T1' })).toBe(s)
     const s2 = reducer(s, { type: 'archiveQuest', questId: 'c', day: '2026-07-29', ts: 'T1' })
     expect(reducer(s2, { type: 'archiveQuest', questId: 'p', day: '2026-07-29', ts: 'T1' }).quests.find((q) => q.id === 'p')?.status).toBe('archived')
+  })
+})
+
+describe('importStore', () => {
+  it('v3-payload мигрируется в v4: расписание снимается в ядре, а не в головах', () => {
+    const v3 = {
+      ...base(),
+      version: 3,
+      quests: [{ ...quest('h1', null), daysOfWeek: [2, 4, 6] }],
+    } as unknown as Store
+    const next = reducer(base(), { type: 'importStore', store: v3 })
+    expect(next.version).toBe(4)
+    expect(next.quests).toHaveLength(1)
+    expect('daysOfWeek' in next.quests[0]).toBe(false)
+  })
+
+  it('v4-payload возвращается тем же объектом', () => {
+    const incoming = { ...base(), character: { name: 'Новый', avatar: 'Y' } }
+    expect(reducer(base(), { type: 'importStore', store: incoming })).toBe(incoming)
   })
 })

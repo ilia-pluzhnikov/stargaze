@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, readdirSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { seedStore } from '../data/seed'
@@ -8,6 +8,26 @@ import { acquireLock, loadStore, releaseLock, saveStore, withStore } from './sto
 const tmp = () => join(mkdtempSync(join(tmpdir(), 'ql-')), 'store.json')
 
 describe('storage', () => {
+  /** Файл формата 0.2: сид с version 3 и расписанием у q_sketch. */
+  const v3File = (): { p: string; raw: string } => {
+    const p = tmp()
+    const seed = seedStore()
+    const raw = JSON.stringify({
+      ...seed,
+      version: 3,
+      quests: seed.quests.map((q) => (q.id === 'q_sketch' ? { ...q, daysOfWeek: [1, 3, 5] } : q)),
+    })
+    writeFileSync(p, raw, 'utf8')
+    return { p, raw }
+  }
+
+  it('load: v3-файл → v4 в памяти, диск не тронут', () => {
+    const { p, raw } = v3File()
+    const s = loadStore(p)
+    expect(s.version).toBe(4)
+    expect(s.quests.some((q) => 'daysOfWeek' in q)).toBe(false)
+    expect(readFileSync(p, 'utf8')).toBe(raw)
+  })
   it('roundtrip save → load', () => {
     const p = tmp()
     const s = seedStore()

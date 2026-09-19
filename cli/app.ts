@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { acquireLock, loadStore, releaseLock, saveStore, withStore } from '../src/logic/storage'
 import { validateStore } from '../src/logic/validate'
+import { migrateStore } from '../src/logic/migrate'
 import { charXpTotal, epicProgress, isDueToday, questChildren, questDoneOnDay, skillXpTotal } from '../src/logic/selectors'
 import { charLevel, skillLevel } from '../src/logic/xp'
 import { currentRank, galaxySummary, isRankAchieved, rankStars, rankTitle, skillTiers } from '../src/logic/stars'
@@ -411,11 +412,14 @@ function cmdValidate(ctx: Ctx): number {
     }
     return 1
   }
-  const errors = validateStore(parsed)
+  // validate отвечает на вопрос «загрузится ли этот файл»: старый формат проходит миграцию
+  const current = migrateStore(parsed)
+  const errors = validateStore(current)
+  const note = current !== parsed ? ' (старый формат: мигрируется в v4 при первой записи)' : ''
   if (ctx.json) {
     ctx.io.out(JSON.stringify({ ok: errors.length === 0, errors }, null, 2))
   } else if (errors.length === 0) {
-    ctx.io.out('store валиден ✓')
+    ctx.io.out(`store валиден ✓${note}`)
   } else {
     ctx.io.err(`найдено проблем: ${errors.length}`)
     for (const e of errors) ctx.io.err(`  · ${e}`)
@@ -449,10 +453,11 @@ function cmdImport(ctx: Ctx, file?: string): number {
     }
     throw new CliError(`не удалось прочитать файл импорта: ${file} (${reason})`, 1)
   }
-  // только валидный v3 JSON — без автомиграции, как веб (resolveStoredStore)
-  const errors = validateStore(parsed)
+  // экспорт v3 мигрируется автоматически — как в вебе и в API (migrateStore в ядре)
+  const current = migrateStore(parsed)
+  const errors = validateStore(current)
   if (errors.length) throw new CliError(`импортируемый store невалиден:\n  ${errors.join('\n  ')}`)
-  const store = parsed as Store
+  const store = current as Store
   acquireLock(ctx.storePath)
   try {
     if (existsSync(ctx.storePath)) {

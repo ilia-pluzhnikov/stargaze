@@ -10,7 +10,7 @@ const tsAt = (day: string) => `${day}T05:00:00.000Z`
 
 function mkStore(over: Partial<Store> = {}): Store {
   return {
-    version: 3, character: { name: 'Тест', avatar: '🧙' },
+    version: 4, character: { name: 'Тест', avatar: '🧙' },
     skills: [], stars: [], quests: [], xpLog: [], ...over,
   }
 }

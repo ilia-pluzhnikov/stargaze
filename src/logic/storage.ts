@@ -3,6 +3,7 @@
 import { mkdirSync, readFileSync, renameSync, rmdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { Store } from '../types'
+import { migrateStore } from './migrate'
 import { validateStore } from './validate'
 
 export interface LockOpts {
@@ -75,10 +76,12 @@ export function releaseLock(storePath: string): void {
 
 export function loadStore(path: string): Store {
   const raw = readFileSync(path, 'utf8') // отсутствие файла = ошибка, не тихий seed
-  const parsed = JSON.parse(raw) as unknown
-  const errors = validateStore(parsed)
+  // чтение без побочных эффектов: старый формат мигрируется в памяти, файл не трогаем —
+  // на диск v4 ляжет при первой обычной записи
+  const current = migrateStore(JSON.parse(raw) as unknown)
+  const errors = validateStore(current)
   if (errors.length) throw new Error(`store невалиден (${path}):\n  ${errors.join('\n  ')}`)
-  return parsed as Store
+  return current as Store
 }
 
 export function saveStore(path: string, store: Store): void {

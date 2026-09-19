@@ -4,6 +4,7 @@ import { QUEST_TYPE_LABEL, TIERS, WISHLIST_EMOJI_MAX } from '../types'
 import { genId } from '../logic/store'
 import { isCalendarDay, todayKey } from '../logic/dates'
 import { FREE_MOVES_PER_7D, moveFeeFor, movesUsedIn7d, provisionForQuest } from '../logic/sparks'
+import { migrateStore } from '../logic/migrate'
 import { validateStore } from '../logic/validate'
 import { childrenOf, skillStars, TIER_CLASS } from '../logic/stars'
 import { rarityVar, sky } from './skyColors'
@@ -681,9 +682,9 @@ export function DataModal({ store, onImport, onReset, onClose }: DataModalProps)
 
   const doImport = async (file: File) => {
     try {
-      const parsed: unknown = JSON.parse(await file.text())
+      const parsed = migrateStore(JSON.parse(await file.text()) as unknown)
       if (validateStore(parsed).length > 0) {
-        setErr('Файл не похож на валидный экспорт Stargaze (v3). Автомиграции старых версий нет.')
+        setErr('Файл не похож на валидный экспорт Stargaze (v4; экспорт v3 мигрируется автоматически).')
         return
       }
       onImport(parsed as Store)

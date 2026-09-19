@@ -168,7 +168,7 @@ describe('sparks: анти-бэкфилл-окно', () => {
 
 function mkStore(over: Partial<Store> = {}): Store {
   return {
-    version: 3, character: { name: 'Тест', avatar: '🧙' },
+    version: 4, character: { name: 'Тест', avatar: '🧙' },
     skills: [], stars: [], quests: [], xpLog: [], ...over,
   }
 }

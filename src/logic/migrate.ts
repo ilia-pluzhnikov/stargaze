@@ -35,24 +35,28 @@ export function migrateStore(raw: unknown): unknown {
   return current
 }
 
-// Ключи localStorage после ренейма 2026-07: пишем только в новый,
-// legacy-ключ читается вечно (фолбэк) и никогда не удаляется —
-// как и questlog.v1/v2 (бэкапы прежних версий store).
-export const STORE_KEY = 'stargaze.v3'
+// Ключи localStorage. Пишем только в STORE_KEY; прежние ключи читаются вечно (фолбэк)
+// и никогда не удаляются — как и questlog.v1/v2: это бэкапы прежних версий store.
+export const STORE_KEY = 'stargaze.v4'
+export const V3_STORE_KEY = 'stargaze.v3'
 export const LEGACY_STORE_KEY = 'questlog.v3'
 
-/** Чтение из localStorage: только v3, без автомиграции. Битое/чужой версии — null. */
-export function resolveStoredStore(rawV3: string | null): Store | null {
-  if (!rawV3) return null
+/** Значение из localStorage: parse → migrateStore → validateStore. Битое или немигрируемое — null. */
+export function resolveStoredStore(raw: string | null): Store | null {
+  if (!raw) return null
   try {
-    const parsed = JSON.parse(rawV3) as unknown
-    return validateStore(parsed).length === 0 ? (parsed as Store) : null
+    const current = migrateStore(JSON.parse(raw) as unknown)
+    return validateStore(current).length === 0 ? (current as Store) : null
   } catch {
     return null
   }
 }
 
-/** Store из KV: primary stargaze.v3, иначе legacy questlog.v3. */
+/** Store из KV: stargaze.v4 → stargaze.v3 → questlog.v3, первое валидное после миграции. */
 export function loadStoredStore(kv: { getItem(k: string): string | null }): Store | null {
-  return resolveStoredStore(kv.getItem(STORE_KEY)) ?? resolveStoredStore(kv.getItem(LEGACY_STORE_KEY))
+  for (const key of [STORE_KEY, V3_STORE_KEY, LEGACY_STORE_KEY]) {
+    const store = resolveStoredStore(kv.getItem(key))
+    if (store) return store
+  }
+  return null
 }
