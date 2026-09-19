@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { seedStore } from '../src/data/seed'
@@ -55,6 +55,24 @@ describe('api', () => {
     expect(s.version).toBe(4)
     expect(s.quests.every((q) => !('daysOfWeek' in q))).toBe(true)
     expect(readFileSync(storePath, 'utf8')).toBe(raw)
+  })
+  it('первая запись через API поверх v3-файла создаёт store.json.v3.bak', async () => {
+    const { base, storePath } = await start({ store: false })
+    const seed = seedStore()
+    const raw = JSON.stringify({
+      ...seed,
+      version: 3,
+      quests: seed.quests.map((q) => (q.id === 'q_sketch' ? { ...q, daysOfWeek: [1, 3, 5] } : q)),
+    })
+    writeFileSync(storePath, raw, 'utf8')
+    expect(existsSync(`${storePath}.v3.bak`)).toBe(false)
+    const r = await fetch(`${base}/api/action`, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'setCharacter', character: { name: 'Новый', avatar: '🧭' } }),
+    })
+    expect(r.status).toBe(200)
+    expect(readFileSync(`${storePath}.v3.bak`, 'utf8')).toBe(raw)
+    expect((JSON.parse(readFileSync(storePath, 'utf8')) as Store).version).toBe(4)
   })
   it('addQuest с daysOfWeek → 422 от валидатора, файл не меняется', async () => {
     const { base, storePath } = await start()

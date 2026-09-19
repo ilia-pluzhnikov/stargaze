@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { seedStore } from '../data/seed'
@@ -27,6 +27,44 @@ describe('storage', () => {
     expect(s.version).toBe(4)
     expect(s.quests.some((q) => 'daysOfWeek' in q)).toBe(false)
     expect(readFileSync(p, 'utf8')).toBe(raw)
+  })
+  const rename = (name: string) => (s: ReturnType<typeof seedStore>) => ({ ...s, character: { ...s.character, name } })
+
+  it('первая запись поверх v3 кладёт рядом .v3.bak с исходным содержимым', () => {
+    const { p, raw } = v3File()
+    withStore(p, rename('Новый'))
+    expect(readFileSync(`${p}.v3.bak`, 'utf8')).toBe(raw)
+    expect((JSON.parse(readFileSync(p, 'utf8')) as { version: number }).version).toBe(4)
+  })
+  it('вторая запись бэкап не перезаписывает', () => {
+    const { p, raw } = v3File()
+    withStore(p, rename('Первый'))
+    withStore(p, rename('Второй'))
+    expect(readFileSync(`${p}.v3.bak`, 'utf8')).toBe(raw)
+  })
+  it('уже лежащий бэкап не перезаписывается и при новой миграции', () => {
+    const { p } = v3File()
+    writeFileSync(`${p}.v3.bak`, 'старый бэкап', 'utf8')
+    withStore(p, rename('Новый'))
+    expect(readFileSync(`${p}.v3.bak`, 'utf8')).toBe('старый бэкап')
+  })
+  it('no-op на v3-файле не пишет ни файл, ни бэкап', () => {
+    const { p, raw } = v3File()
+    withStore(p, (s) => s)
+    expect(readFileSync(p, 'utf8')).toBe(raw)
+    expect(existsSync(`${p}.v3.bak`)).toBe(false)
+  })
+  it('отказ записи невалидного поверх v3 следов не оставляет', () => {
+    const { p, raw } = v3File()
+    expect(() => withStore(p, (s) => ({ ...s, version: 99 }) as never)).toThrow(/version/)
+    expect(readFileSync(p, 'utf8')).toBe(raw)
+    expect(existsSync(`${p}.v3.bak`)).toBe(false)
+  })
+  it('запись поверх v4 бэкапа не порождает и tmp-файлов не оставляет', () => {
+    const p = tmp()
+    saveStore(p, seedStore())
+    withStore(p, rename('Новый'))
+    expect(readdirSync(join(p, '..')).filter((f) => f.includes('bak') || f.includes('tmp'))).toEqual([])
   })
   it('roundtrip save → load', () => {
     const p = tmp()
