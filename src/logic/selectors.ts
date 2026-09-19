@@ -1,6 +1,5 @@
 import type { Quest, XpEvent } from '../types'
 import { addDays, dowOf } from './dates'
-import { isScheduled } from './streak'
 
 /** Суммарный XP по квесту за день (учитывает откаты). */
 export function netForQuestOnDay(xpLog: XpEvent[], questId: string, day: string): number {
@@ -20,7 +19,7 @@ export function netForQuest(xpLog: XpEvent[], questId: string): number {
   return net
 }
 
-/** Дни, в которые квест реально выполнен (net > 0) — вход для стриков. */
+/** Дни, в которые квест реально выполнен (net > 0) — вход для Хроники. */
 export function completedDaysForQuest(xpLog: XpEvent[], questId: string): Set<string> {
   const byDay = new Map<string, number>()
   for (const e of xpLog) {
@@ -69,12 +68,13 @@ export function weekActivity(xpLog: XpEvent[], today: string): { day: string; ac
 }
 
 /**
- * «Положен сегодня»: повторяющийся — по расписанию; контракт с дедлайном —
- * сегодня или просрочен (просроченный капает — прятать нельзя); short без
- * срока — тоже сегодня (бессрочная мелочь). mid/long без срока — нет.
+ * «Положен сегодня» — понятие контрактов: с дедлайном — сегодня или просрочен
+ * (просроченный капает — прятать нельзя); short без срока — тоже сегодня
+ * (бессрочная мелочь); mid/long без срока — нет. У привычек расписания нет,
+ * «положенными» они не бывают: их место — Хроника.
  */
 export function isDueToday(quest: Quest, today: string): boolean {
-  if (quest.type === 'repeating') return isScheduled(quest, today)
+  if (quest.type === 'repeating') return false
   if (quest.dueDate) return quest.dueDate <= today
   return quest.type === 'short'
 }
