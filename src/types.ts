@@ -162,6 +162,10 @@ export interface Store {
   wishlist?: WishlistItem[]
 }
 
+/** Срез store, из которого рисуется небо. У проекции прошлого (`logic/timeline`) нет `ledger` —
+ * по ошибке посчитать по ней баланс искр нельзя. Обычный `Store` присваивается без приведения. */
+export type SkyStore = Pick<Store, 'skills' | 'stars' | 'quests' | 'xpLog'>
+
 export const QUEST_TYPE_LABEL: Record<QuestType, string> = {
   repeating: 'Повторяющийся',
   short: 'Краткосрочный',
