@@ -676,27 +676,12 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
-.chronicle-legend {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  margin-bottom: 10px;
-  color: var(--dim);
+.chronicle-hint {
+  margin: 0 0 10px;
+  color: var(--faint);
   font-size: 11px;
 }
-.chronicle-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.chronicle-legend i {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.02);
-}
-.chronicle-legend i.done { border-color: #70B8FF; background: rgba(112, 184, 255, 0.7); }
-.chronicle-legend small { margin-left: auto; color: var(--faint); }
-.chronicle-legend small.warn { color: var(--danger); }
+.chronicle-hint.warn { color: var(--danger); }
 .chronicle-scroll {
   overflow-x: auto;
   overscroll-behavior-inline: contain;
@@ -1457,5 +1442,4 @@ button.chronicle-quest-title:focus-visible { outline: 2px solid var(--accent); o
   .chronicle { padding: 20px 10px 50px; }
   .chronicle-heading { align-items: stretch; flex-direction: column; gap: 14px; }
   .chronicle-today-summary { min-width: 0; width: 100%; }
-  .chronicle-legend small { width: 100%; margin-left: 0; }
 }
