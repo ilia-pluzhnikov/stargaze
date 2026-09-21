@@ -1,12 +1,11 @@
 {
-  "commit": "75c55a56e18af027b77bb81b9742d58729a670a8",
+  "commit": "5fb9f340b19ba22304870bde9799eee1398f3f27",
   "working_tree_dirty": true,
   "dirty_files": [
     "HANGELOG.md",
-    "src/components/Chronicle.tsx",
     "src/index.css"
   ],
-  "generated_at": "2026-09-21T12:02:39.546Z",
+  "generated_at": "2026-09-21T12:29:50.323Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -42,7 +41,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "a8a452766a4b2a29d92dfcae01277436bacf036e12b5f2434a64e1bec5bbf6ef"
+      "fingerprint": "0173ea40ad552bfd49637c732b78b52accf09f2c96563064509326328743bd18"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -238,11 +237,10 @@
     }
   },
   "previous": {
-    "commit": "a63c075f2a3ad6fd05ca2622ab52d2ba89a975bb",
-    "generated_at": "2026-09-19T09:49:57.103Z",
+    "commit": "75c55a56e18af027b77bb81b9742d58729a670a8",
+    "generated_at": "2026-09-21T12:02:39.546Z",
     "changed_modules": [
-      "web-app",
-      "web-panels"
+      "web-app"
     ],
     "new_modules": [],
     "removed_modules": []
