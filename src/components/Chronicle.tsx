@@ -227,15 +227,11 @@ export function Chronicle({ dashboard, rows, sleepingRows, onToggleDay, onEditQu
           </div>
         </header>
 
-        <div className="chronicle-legend" aria-label="Легенда">
-          <span><i className="done" /> отмечено</span>
-          <span><i /> пусто</span>
-          <small className={armed ? 'warn' : undefined}>
-            {armed
-              ? 'Нажми ещё раз, чтобы снять отметку: повторная отметка искр уже не даст'
-              : 'Нажми на любую клетку. Искры — только за сегодня и вчера'}
-          </small>
-        </div>
+        <p className={`chronicle-hint${armed ? ' warn' : ''}`} aria-live="polite">
+          {armed
+            ? 'Нажми ещё раз, чтобы снять отметку: повторная отметка искр уже не даст'
+            : 'Нажми на любую клетку. Искры — только за сегодня и вчера'}
+        </p>
 
         {rows.length > 0 ? (
           <ChronicleGrid

@@ -1,18 +1,12 @@
 {
-  "commit": "a63c075f2a3ad6fd05ca2622ab52d2ba89a975bb",
+  "commit": "75c55a56e18af027b77bb81b9742d58729a670a8",
   "working_tree_dirty": true,
   "dirty_files": [
-    "CHANGELOG.md",
-    "CLAUDE.md",
-    "docs/codemap/README.md",
-    "docs/codemap/codemap.html",
-    "docs/codemap/codemap.json",
-    "docs/codemap/codemap.lock",
-    "docs/codemap/model.mjs",
-    "package-lock.json",
-    "package.json"
+    "HANGELOG.md",
+    "src/components/Chronicle.tsx",
+    "src/index.css"
   ],
-  "generated_at": "2026-09-19T09:49:57.103Z",
+  "generated_at": "2026-09-21T12:02:39.546Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -48,7 +42,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "c3cc204cbbcf63c90517213dd2d8a09b079c7d626705f37388611e69bbe47bca"
+      "fingerprint": "a8a452766a4b2a29d92dfcae01277436bacf036e12b5f2434a64e1bec5bbf6ef"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -81,7 +75,7 @@
         "src/components/SkillPanel.tsx",
         "src/components/Wallet.tsx"
       ],
-      "fingerprint": "e67fae0392859cf6e5f6b1e2f9f98098d12147af8444428f97c330317c82f224"
+      "fingerprint": "eeac6f1125bd7708d5f3c4d3f078e0bf23767e1ac15362a55540a1c4e9bd9456"
     },
     "web-modals": {
       "path": "src/components/Modals.tsx",
@@ -245,8 +239,11 @@
   },
   "previous": {
     "commit": "a63c075f2a3ad6fd05ca2622ab52d2ba89a975bb",
-    "generated_at": "2026-09-19T09:49:42.843Z",
-    "changed_modules": [],
+    "generated_at": "2026-09-19T09:49:57.103Z",
+    "changed_modules": [
+      "web-app",
+      "web-panels"
+    ],
     "new_modules": [],
     "removed_modules": []
   },

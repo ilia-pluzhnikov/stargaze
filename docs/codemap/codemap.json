@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-19T09:49:57.103Z",
-  "generated_from_commit": "a63c075f2a3ad6fd05ca2622ab52d2ba89a975bb",
+  "generated_at": "2026-09-21T12:02:39.546Z",
+  "generated_from_commit": "75c55a56e18af027b77bb81b9742d58729a670a8",
   "scope": [
     "src/",
     "cli/",
@@ -54,7 +54,7 @@
           "symbol": "base: './'"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "web-sky",
@@ -149,7 +149,7 @@
           "symbol": "export function Chronicle"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "web-modals",
