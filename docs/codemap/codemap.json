@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-21T12:02:39.546Z",
-  "generated_from_commit": "75c55a56e18af027b77bb81b9742d58729a670a8",
+  "generated_at": "2026-09-21T12:19:27.488Z",
+  "generated_from_commit": "5fb9f340b19ba22304870bde9799eee1398f3f27",
   "scope": [
     "src/",
     "cli/",
@@ -32,7 +32,7 @@
       ],
       "tests": [],
       "constraints": [
-        "base: './' — собранный dist/index.html обязан открываться двойным кликом без сервера",
+        "base: './' — относительные пути, сборка раздаётся из любой подпапки; с диска (file://) не открывается — модульный скрипт блокируется CORS",
         "Без UI-библиотек и Tailwind: вся тема в src/index.css",
         "«Сегодня» берётся из игрового пояса UTC+7 (todayInGameTz), не из локального дня браузера"
       ],
@@ -149,7 +149,7 @@
           "symbol": "export function Chronicle"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-modals",
@@ -1573,7 +1573,7 @@
     {
       "id": "flow-local-mode",
       "name": "Локальный режим (API недоступен)",
-      "trigger": "Открытие dist/index.html двойным кликом или недоступный /api/store",
+      "trigger": "Статическая раздача без API (npm run dev, любой статический хостинг) или недоступный /api/store",
       "steps": [
         {
           "node": "web-usestore",

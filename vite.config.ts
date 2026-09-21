@@ -1,7 +1,8 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
-// base './' — собранный dist/index.html открывается двойным кликом без сервера
+// base './' — относительные пути: сборка раздаётся из любой подпапки. С диска (file://)
+// не открывается — модульный скрипт блокируется CORS, нужен HTTP-сервер
 export default defineConfig({
   base: './',
   plugins: [react()],

@@ -59,7 +59,7 @@ export const nodes = [
     entrypoints: ['src/main.tsx → createRoot().render(<App/>)', 'npm run dev / npm run build (vite)'],
     tests: [],
     constraints: [
-      "base: './' — собранный dist/index.html обязан открываться двойным кликом без сервера",
+      "base: './' — относительные пути, сборка раздаётся из любой подпапки; с диска (file://) не открывается — модульный скрипт блокируется CORS",
       'Без UI-библиотек и Tailwind: вся тема в src/index.css',
       '«Сегодня» берётся из игрового пояса UTC+7 (todayInGameTz), не из локального дня браузера',
     ],
@@ -602,7 +602,7 @@ export const flows = [
   {
     id: 'flow-local-mode',
     name: 'Локальный режим (API недоступен)',
-    trigger: 'Открытие dist/index.html двойным кликом или недоступный /api/store',
+    trigger: 'Статическая раздача без API (npm run dev, любой статический хостинг) или недоступный /api/store',
     steps: [
       { node: 'web-usestore', action: 'probeServer() вернул false → mode=local, фоновый ре-пробинг раз в 10 с', evidence: { path: 'src/hooks/useStore.ts', symbol: 'if (!(await probeServer()) || cancelled) return' } },
       { node: 'web-sync', action: 'probeServer: file:// или невалидный store → false', evidence: { path: 'src/logic/api.ts', symbol: "window.location.protocol === 'file:'" } },
