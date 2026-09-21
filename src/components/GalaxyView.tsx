@@ -9,7 +9,6 @@ import {
   galaxyStats,
   isRankAchieved,
   rankStars,
-  rankTitle,
   skillStars,
   skillTiers,
   starProgress,
@@ -33,7 +32,6 @@ interface GalaxyViewProps {
   onSwitch: (id: string) => void
   onBack: () => void
   onAddStar: (parentStarId: string | null) => void
-  onEditRanks: () => void
   onLightStar: (starId: string, evidence: string, alsoIds: string[]) => void
   onUnlightStar: (starId: string) => void
   onEditStar: (star: StarComponent) => void
@@ -48,7 +46,6 @@ export function GalaxyView({
   onSwitch,
   onBack,
   onAddStar,
-  onEditRanks,
   onLightStar,
   onUnlightStar,
   onEditStar,
@@ -82,12 +79,11 @@ export function GalaxyView({
 
   const legend = useMemo(() => skillTiers(store.stars, skill.id).map((t, k) => ({
     tier: t,
-    title: rankTitle(skill, t),
     lit: rankStars(store.stars, skill.id, t).filter((s) => !!s.litAt).length,
     total: rankStars(store.stars, skill.id, t).length,
     achieved: isRankAchieved(store.stars, skill.id, t),
     y: 760 - k * 60,
-  })), [store.stars, skill])
+  })), [store.stars, skill.id])
 
   // ── подсветка ранга по клику в легенде ──
   const [highlightTier, setHighlightTier] = useState<Tier | null>(null)
@@ -247,7 +243,7 @@ export function GalaxyView({
             {legend.map((item) => (
               <text key={item.tier} className="const-name" x={-230} y={item.y} fontSize={13.5} fill={sky.rankLabel(item.tier)}
                 onClick={() => setHighlightTier((c) => (c === item.tier ? null : item.tier))} style={{ cursor: 'pointer' }}>
-                {item.tier} · {item.title} · {item.lit}/{item.total}{item.achieved ? ' ✓' : ''}
+                {item.tier} · {item.lit}/{item.total}{item.achieved ? ' ✓' : ''}
               </text>
             ))}
           </g>
@@ -259,7 +255,6 @@ export function GalaxyView({
       )}
       <div className="galaxy-toolbar">
         <button onClick={onBack}>← Небо</button>
-        <button onClick={onEditRanks}>✎ Ранги</button>
       </div>
       {!selectedStarId && (
         <GalaxyHud skill={skill} level={level} stats={stats} hover={hover} ribbon={ribbon} onSwitch={onSwitch} />
@@ -268,7 +263,6 @@ export function GalaxyView({
         <StarCard
           key={selectedStar.id}
           star={selectedStar}
-          skill={skill}
           parent={parent}
           childrenCount={childrenCount}
           unlitAncestors={unlitAncestors}

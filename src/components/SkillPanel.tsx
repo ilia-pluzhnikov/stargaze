@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Quest, Skill, StarComponent, Store } from '../types'
 import { lastCompletionDay, questDoneOnDay, skillXpTotal } from '../logic/selectors'
 import { provisionForQuest } from '../logic/sparks'
-import { currentRank, galaxySummary, rankTitle } from '../logic/stars'
+import { currentRank, galaxySummary } from '../logic/stars'
 import { skillLevel } from '../logic/xp'
 import { QuestRow } from './QuestRow'
 
@@ -52,7 +52,6 @@ export function SkillPanel({
     q.starId ? (store.stars.find((c) => c.id === q.starId) ?? null) : null
   const summary = galaxySummary(store.stars, skill.id)
   const cur = currentRank(store.stars, skill.id)
-  const curTitle = cur ? rankTitle(skill, cur) : undefined
 
   const isDoneNow = (q: Quest) =>
     q.type === 'repeating' ? questDoneOnDay(store.xpLog, q.id, today) : q.status === 'done'
@@ -87,7 +86,7 @@ export function SkillPanel({
             <div className="ladder-row">
               Взято {summary.achieved}/{summary.total}
               {cur
-                ? ` · текущий ранг: ${cur} · ${curTitle}`
+                ? ` · текущий ранг: ${cur}`
                 : ' · все ранги взяты'}
             </div>
           </div>

@@ -9,10 +9,8 @@ import {
   isRankAchieved,
   rankAchievedAt,
   rankStars,
-  rankTitle,
   requiredStars,
   rootsOf,
-  TIER_CLASS,
   skillTiers,
   starProgress,
   starXp,
@@ -134,15 +132,4 @@ describe('starProgress', () => {
     const log = [xp('e1', 'q1', 'D1', 150)]
     expect(starProgress(s, log, quests)).toBe(1)
   })
-})
-
-describe('rankTitle', () => {
-  it('авторское имя из rankTitles приоритетно', () =>
-    expect(rankTitle({ rankTitles: { A: 'Река' } }, 'A')).toBe('Река'))
-  it('без rankTitles — класс светимости', () =>
-    expect(rankTitle({}, 'A')).toBe('Сверхгигант'))
-  it('ранг не назван в rankTitles — класс светимости', () =>
-    expect(rankTitle({ rankTitles: { D: 'Полигон' } }, 'S')).toBe('Гипергигант'))
-  it('TIER_CLASS покрывает все пять рангов', () =>
-    expect(Object.keys(TIER_CLASS).sort()).toEqual(['A', 'B', 'C', 'D', 'S']))
 })

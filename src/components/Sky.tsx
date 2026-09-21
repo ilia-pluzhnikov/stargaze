@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { TIERS } from '../types'
 import type { Skill, StarComponent, Store } from '../types'
 import { SKY_H, SKY_W, constellationPlacements, hashStr, mulberry32 } from '../logic/layout'
-import { rankTitle } from '../logic/stars'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { Galaxy } from './Galaxy'
 import { displaySkillName } from './GalaxyHud'
@@ -110,7 +109,6 @@ export function Sky({ store, onOpenGalaxy }: Props) {
           <div className={hover.star.litAt ? 'sky-tip-title lit' : 'sky-tip-title'}>{hover.star.title}</div>
           <div className="sky-tip-meta">
             <span className={`sky-tip-tier r-${hover.star.tier.toLowerCase()}`}>{hover.star.tier}</span>
-            {' · '}{rankTitle(hover.skill, hover.star.tier)}
             {' · '}{hover.star.litAt ? 'зажжена' : 'не зажжена'}
             {' · '}{displaySkillName(hover.skill.name)}
           </div>

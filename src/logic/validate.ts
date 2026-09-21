@@ -1,4 +1,4 @@
-import type { LedgerEvent, Quest, StarComponent, Store, Tier, WishlistItem, XpEvent } from '../types'
+import type { LedgerEvent, Quest, StarComponent, Store, WishlistItem, XpEvent } from '../types'
 import { TIERS, WISHLIST_EMOJI_MAX } from '../types'
 import { isCalendarDay } from './dates'
 import { XP_REWARD_MAX } from './sparks'
@@ -62,16 +62,6 @@ export function validateStore(x: unknown): string[] {
     if (typeof s.archived !== 'boolean') errors.push(`skills[${i}] (${s.id}): archived — не boolean`)
     if (s.glyphId !== undefined && !isStr(s.glyphId))
       errors.push(`skills[${i}] (${s.id}): glyphId — не строка`)
-    if (s.rankTitles !== undefined) {
-      if (!isObj(s.rankTitles)) errors.push(`skills[${i}] (${s.id}): rankTitles — не объект`)
-      else {
-        for (const [k, v] of Object.entries(s.rankTitles)) {
-          if (!TIER_SET.has(k as Tier))
-            errors.push(`skills[${i}] (${s.id}): rankTitles — ключ ${JSON.stringify(k)} вне D|C|B|A|S`)
-          else if (!isStr(v)) errors.push(`skills[${i}] (${s.id}): rankTitles.${k} — не строка`)
-        }
-      }
-    }
   })
 
   const starById = new Map(stars.map((c) => [c.id, c]))

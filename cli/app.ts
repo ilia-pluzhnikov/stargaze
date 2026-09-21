@@ -7,7 +7,7 @@ import { validateStore } from '../src/logic/validate'
 import { migrateStore } from '../src/logic/migrate'
 import { charXpTotal, epicProgress, isDueToday, questChildren, questDoneOnDay, skillXpTotal } from '../src/logic/selectors'
 import { charLevel, skillLevel } from '../src/logic/xp'
-import { currentRank, galaxySummary, isRankAchieved, rankStars, rankTitle, skillTiers } from '../src/logic/stars'
+import { currentRank, galaxySummary, isRankAchieved, rankStars, skillTiers } from '../src/logic/stars'
 import { isCalendarDay } from '../src/logic/dates'
 import {
   FREE_MOVES_PER_7D, MOVE_FEE_RATE, cancelFeeFor, dayInGameTz, emissionInDays, ledgerTotal, moveFeeFor,
@@ -261,7 +261,7 @@ function cmdStatus(ctx: Ctx): number {
       `${skill.emoji} ${skill.name}`,
       String(info.level),
       `${info.into}/${info.toNext}`,
-      ladder.total === 0 ? 'без дерева' : `${ladder.achieved}/${ladder.total}${cur ? ` · ранг ${cur} · ${rankTitle(skill, cur)}` : ' · ✦ всё взято'}`,
+      ladder.total === 0 ? 'без дерева' : `${ladder.achieved}/${ladder.total}${cur ? ` · ранг ${cur}` : ' · ✦ всё взято'}`,
     ]),
   ]))
   return 0
@@ -351,12 +351,10 @@ function cmdRanks(ctx: Ctx, skillPrefix?: string): number {
   if (!skillPrefix) throw new CliError('использование: stargaze ranks --skill <id>', 2)
   const s = loadStore(ctx.storePath)
   const skillId = resolveId(s.skills, skillPrefix, 'навык')
-  const skill = s.skills.find((sk) => sk.id === skillId)!
   const list = skillTiers(s.stars, skillId).map((tier) => {
     const own = rankStars(s.stars, skillId, tier)
     return {
       tier,
-      title: rankTitle(skill, tier),
       achieved: isRankAchieved(s.stars, skillId, tier),
       lit: own.filter((c) => !!c.litAt).length,
       total: own.length,
@@ -367,8 +365,8 @@ function cmdRanks(ctx: Ctx, skillPrefix?: string): number {
     return 0
   }
   ctx.io.out(table([
-    ['ранг', 'название', ' ', 'звёзды'],
-    ...list.map((r) => [r.tier, r.title, r.achieved ? '✦' : '○', `${r.lit}/${r.total}`]),
+    ['ранг', ' ', 'звёзды'],
+    ...list.map((r) => [r.tier, r.achieved ? '✦' : '○', `${r.lit}/${r.total}`]),
   ]))
   return 0
 }

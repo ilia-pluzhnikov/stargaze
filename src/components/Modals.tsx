@@ -6,7 +6,7 @@ import { isCalendarDay, todayKey } from '../logic/dates'
 import { FREE_MOVES_PER_7D, moveFeeFor, movesUsedIn7d, provisionForQuest } from '../logic/sparks'
 import { migrateStore } from '../logic/migrate'
 import { validateStore } from '../logic/validate'
-import { childrenOf, skillStars, TIER_CLASS } from '../logic/stars'
+import { childrenOf, skillStars } from '../logic/stars'
 import { rarityVar, sky } from './skyColors'
 import { SKY_GLYPHS } from './skyGlyphs'
 
@@ -421,17 +421,11 @@ export function SkillModal({ initial, onSave, onClose }: SkillModalProps) {
   const [want, setWant] = useState(initial?.wantStatement ?? '')
   const [hue, setHue] = useState<number>(initial?.hue ?? Math.floor(Math.random() * 360))
   const [glyphId, setGlyphId] = useState<string | undefined>(initial?.glyphId)
-  const [rankTitles, setRankTitles] = useState<Partial<Record<Tier, string>>>(initial?.rankTitles ?? {})
   const [err, setErr] = useState<string | null>(null)
 
   const save = () => {
     const n = name.trim()
     if (!n) return setErr('Нужно название')
-    const cleanRankTitles: Partial<Record<Tier, string>> = {}
-    for (const t of TIERS) {
-      const v = rankTitles[t]?.trim()
-      if (v) cleanRankTitles[t] = v
-    }
     const skill: Skill = {
       id: initial?.id ?? genId('s'),
       emoji: emoji.trim() || '✨',
@@ -440,7 +434,6 @@ export function SkillModal({ initial, onSave, onClose }: SkillModalProps) {
       lore: initial?.lore,
       hue,
       glyphId,
-      rankTitles: Object.keys(cleanRankTitles).length > 0 ? cleanRankTitles : undefined,
       archived: initial?.archived ?? false,
       createdAt: initial?.createdAt ?? new Date().toISOString(),
     }
@@ -497,21 +490,6 @@ export function SkillModal({ initial, onSave, onClose }: SkillModalProps) {
                   </g>
                 </svg>
               </button>
-            ))}
-          </div>
-        </div>
-        <div className="field">
-          <label>Ранги</label>
-          <div className="rank-titles">
-            {TIERS.map((t) => (
-              <div key={t} className="field-row" style={{ alignItems: 'center', gap: 8 }}>
-                <span style={{ flex: '0 0 20px', color: rarityVar(t) }}>{t}</span>
-                <input
-                  value={rankTitles[t] ?? ''}
-                  onChange={(e) => setRankTitles((cur) => ({ ...cur, [t]: e.target.value }))}
-                  placeholder={TIER_CLASS[t]}
-                />
-              </div>
             ))}
           </div>
         </div>
