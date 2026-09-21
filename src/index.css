@@ -176,7 +176,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   transition: width 0.5s ease;
 }
 .bar.pulse i { animation: barpulse 1.5s ease-in-out infinite; }
-.bar-pulse { animation: barpulse 1.5s ease-in-out infinite; } /* svg-полосы на небе */
 @keyframes barpulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
@@ -248,13 +247,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   color: var(--dim); font-size: 12px; line-height: 1.45;
 }
 
-.bg-star.tw { animation: twinkle 3.4s ease-in-out infinite; }
-/* пик 0.55, не 1: мерцающий фон не должен вспыхивать ярче контентных звёзд */
-@keyframes twinkle {
-  0%, 100% { opacity: 0.1; }
-  50% { opacity: 0.55; }
-}
-
 .star-g { cursor: pointer; }
 .glyph-soft { opacity: 0.08; }
 .glyph-crisp { opacity: 0.26; transition: opacity 0.2s ease; }
@@ -270,8 +262,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
 }
 @keyframes spin-dash { to { stroke-dashoffset: 90; } }
 
-.const-label { cursor: pointer; }
-.const-label:hover .const-name { fill: #ffffff; }
 .const-name { transition: fill 0.15s ease; }
 .sky-name { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 3px; font-weight: 600; }
 
@@ -1436,9 +1426,7 @@ button.chronicle-quest-title:focus-visible { outline: 2px solid var(--accent); o
 
 /* ── Доступность ────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .bg-star.tw,
   .bar.pulse i,
-  .bar-pulse,
   .star-fill,
   .halo-tw,
   .sel-ring { animation: none !important; }

@@ -72,16 +72,6 @@ export function recurringQuestDays(
   return dayRange(startDay, endDay).map((day) => ({ day, completed: completedDays.has(day) }))
 }
 
-/** Число отметок по ISO-неделям для одного квеста. */
-export function recurringQuestWeeks(
-  xpLog: XpEvent[],
-  quest: Quest,
-  startDay: string,
-  endDay: string,
-): RecurringWeekCount[] {
-  return weeksFromDays(recurringQuestDays(xpLog, quest, startDay, endDay))
-}
-
 /**
  * Полная модель Хроники: плотность отметок без расписания, норм и стриков.
  * Статусы active/archived и архивность навыка намеренно остаются ответственностью

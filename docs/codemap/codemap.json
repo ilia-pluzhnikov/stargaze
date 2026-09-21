@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-21T13:19:00.642Z",
-  "generated_from_commit": "3b572f5a56788558bd7d975218a8616740b5e781",
+  "generated_at": "2026-09-21T13:55:11.261Z",
+  "generated_from_commit": "d946e57f59839b14d5fe49c4cb02bc3fda205ef0",
   "scope": [
     "src/",
     "cli/",
@@ -54,7 +54,7 @@
           "symbol": "base: './'"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-sky",
@@ -71,9 +71,7 @@
         "src/components/GalaxyHud.tsx",
         "src/components/CosmosBackdrop.tsx",
         "src/components/StarCard.tsx",
-        "src/components/BgStars.tsx",
         "src/components/skyColors.ts",
-        "src/components/skyField.ts",
         "src/components/skyGlyphs.ts",
         "src/hooks/usePanZoom.ts"
       ],
@@ -82,8 +80,7 @@
         "<GalaxyView/> из App.tsx (галактика навыка)"
       ],
       "tests": [
-        "src/components/skyColors.test.ts",
-        "src/components/skyField.test.ts"
+        "src/components/skyColors.test.ts"
       ],
       "constraints": [
         "Никакого Math.random() в рендере — позиции из seeded PRNG (logic/layout)",
@@ -1585,10 +1582,10 @@
         },
         {
           "node": "web-sync",
-          "action": "probeServer: file:// или невалидный store → false",
+          "action": "probeServer: /api/store недоступен или невалиден → false",
           "evidence": {
             "path": "src/logic/api.ts",
-            "symbol": "window.location.protocol === 'file:'"
+            "symbol": "export async function probeServer"
           }
         },
         {

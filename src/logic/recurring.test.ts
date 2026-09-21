@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Quest, XpEvent } from '../types'
-import { isoWeekStart, recurringDashboard, recurringQuestDays, recurringQuestWeeks } from './recurring'
+import { isoWeekStart, recurringDashboard, recurringQuestDays } from './recurring'
 
 const quest = (overrides: Partial<Quest> = {}): Quest => ({
   id: 'q1',
@@ -23,21 +23,17 @@ const event = (id: string, day: string, amount = 10, questId = 'q1'): XpEvent =>
 })
 
 describe('recurringQuestDays', () => {
-  it('пустой лог даёт пустые клетки и нулевые недели', () => {
+  it('пустой лог даёт пустые клетки', () => {
     expect(recurringQuestDays([], quest(), '2026-07-06', '2026-07-08')).toEqual([
       { day: '2026-07-06', completed: false },
       { day: '2026-07-07', completed: false },
       { day: '2026-07-08', completed: false },
-    ])
-    expect(recurringQuestWeeks([], quest(), '2026-07-06', '2026-07-08')).toEqual([
-      { weekStart: '2026-07-06', weekEnd: '2026-07-08', completed: 0 },
     ])
   })
 
   it('откат в ноль снова делает день пустым', () => {
     const log = [event('e1', '2026-07-06', 10), event('e2', '2026-07-06', -10)]
     expect(recurringQuestDays(log, quest(), '2026-07-06', '2026-07-06')[0].completed).toBe(false)
-    expect(recurringQuestWeeks(log, quest(), '2026-07-06', '2026-07-12')[0].completed).toBe(0)
   })
 
   it('частичный откат оставляет день отмеченным, пока net положительный', () => {
@@ -66,7 +62,8 @@ describe('ISO-недели', () => {
     expect(isoWeekStart('2027-01-04')).toBe('2027-01-04')
 
     const log = [event('e1', '2027-01-03'), event('e2', '2027-01-04')]
-    const weeks = recurringQuestWeeks(log, quest(), '2026-12-28', '2027-01-04')
+    // окно из двух недель, кончающееся понедельником 04-01 → старт 2026-12-28
+    const weeks = recurringDashboard(log, [quest()], '2027-01-04', 2).quests[0].weeks
     expect(weeks.map((week) => [week.weekStart, week.weekEnd, week.completed])).toEqual([
       ['2026-12-28', '2027-01-03', 1],
       ['2027-01-04', '2027-01-04', 1],
@@ -108,6 +105,7 @@ describe('recurringDashboard', () => {
     const log = [event('e1', '2026-07-07'), event('e2', '2026-07-07', -10)]
     const d = recurringDashboard(log, [quest()], '2026-07-07', 2)
     expect(d.quests[0].total).toBe(0)
+    expect(d.quests[0].weeks[1].completed).toBe(0)
     expect(d.todayCompleted).toBe(0)
   })
 
