@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-21T13:55:11.261Z",
-  "generated_from_commit": "d946e57f59839b14d5fe49c4cb02bc3fda205ef0",
+  "generated_at": "2026-09-21T15:27:21.413Z",
+  "generated_from_commit": "ef480639bad02bb83ff5af01d05a8305704a8885",
   "scope": [
     "src/",
     "cli/",
@@ -154,13 +154,13 @@
       "path": "src/components/Modals.tsx",
       "kind": "ui",
       "tier": 1,
-      "role": "Формы квеста/навыка/звезды, завершение с итогом и DoD-гейтом, витрина, перенос дедлайна, импорт/экспорт",
+      "role": "Формы квеста/навыка/звезды/персонажа, завершение с итогом и DoD-гейтом, витрина, перенос дедлайна, импорт/экспорт",
       "external": false,
       "files": [
         "src/components/Modals.tsx"
       ],
       "entrypoints": [
-        "<QuestModal/>, <CompleteQuestModal/>, <SkillModal/>, <StarModal/>, <WishlistModal/>, <MoveDueDateModal/>, <DataModal/> из App.tsx"
+        "<QuestModal/>, <CompleteQuestModal/>, <SkillModal/>, <StarModal/>, <CharacterModal/>, <WishlistModal/>, <MoveDueDateModal/>, <DataModal/> из App.tsx"
       ],
       "tests": [],
       "constraints": [
@@ -655,7 +655,7 @@
       "path": "cli/app.ts",
       "kind": "cli",
       "tier": 0,
-      "role": "31 команда поверх ядра: статус, квесты, карточка, звёзды, кошелёк, перенос и отмена, импорт/экспорт, serve — этим ходит агент-гейм-мастер",
+      "role": "32 команды поверх ядра: статус, персонаж, квесты, карточка, звёзды, кошелёк, перенос и отмена, импорт/экспорт, serve — этим ходит агент-гейм-мастер",
       "external": false,
       "files": [
         "cli/app.ts",
@@ -1374,7 +1374,7 @@
       "evidence": [
         {
           "path": "cli/app.ts",
-          "symbol": "import { genId, reducer, type Action } from '../src/logic/store'"
+          "symbol": "import { characterError, genId, reducer, type Action } from '../src/logic/store'"
         }
       ]
     },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Quest, QuestResult, Skill, StarComponent, Store, Tier } from '../types'
-import { reducer, type Action } from './store'
+import { CHARACTER_AVATAR_MAX } from '../types'
+import { characterError, reducer, type Action } from './store'
 
 const base = (): Store => ({
   version: 4,
@@ -463,5 +464,61 @@ describe('importStore', () => {
   it('v4-payload возвращается тем же объектом', () => {
     const incoming = { ...base(), character: { name: 'Новый', avatar: 'Y' } }
     expect(reducer(base(), { type: 'importStore', store: incoming })).toBe(incoming)
+  })
+})
+
+describe('персонаж', () => {
+  // payload приходит и с границы API — форма чужая, поэтому unknown
+  const set = (s: Store, character: unknown) =>
+    reducer(s, { type: 'setCharacter', character } as unknown as Action)
+
+  it('setCharacter заменяет имя и аватар', () => {
+    const next = set(base(), { name: 'Илья', avatar: '⚔️' })
+    expect(next.character).toEqual({ name: 'Илья', avatar: '⚔️' })
+  })
+
+  it('setCharacter обрезает пробелы по краям — головы не обязаны делать это сами', () => {
+    const next = set(base(), { name: '  Илья ', avatar: ' ⚔️ ' })
+    expect(next.character).toEqual({ name: 'Илья', avatar: '⚔️' })
+  })
+
+  it('пустое после trim имя — no-op', () => {
+    const s = base()
+    expect(set(s, { name: '   ', avatar: '⚔️' })).toBe(s)
+  })
+
+  it('пустой после trim аватар — no-op', () => {
+    const s = base()
+    expect(set(s, { name: 'Илья', avatar: ' ' })).toBe(s)
+  })
+
+  it('аватар ровно в потолок проходит, на юнит длиннее — no-op', () => {
+    const s = base()
+    const atMax = 'я'.repeat(CHARACTER_AVATAR_MAX)
+    expect(set(s, { name: 'Илья', avatar: atMax }).character.avatar).toBe(atMax)
+    expect(set(s, { name: 'Илья', avatar: atMax + 'я' })).toBe(s)
+  })
+
+  it('потолок меряется после trim: пробелы по краям в него не входят', () => {
+    const atMax = 'я'.repeat(CHARACTER_AVATAR_MAX)
+    expect(set(base(), { name: 'Илья', avatar: ` ${atMax} ` }).character.avatar).toBe(atMax)
+  })
+
+  it('чужая форма payload (не объект, нестроковые поля, нет поля) — no-op, а не падение', () => {
+    const s = base()
+    expect(set(s, undefined)).toBe(s)
+    expect(set(s, null)).toBe(s)
+    expect(set(s, 'Илья')).toBe(s)
+    expect(set(s, { name: 'Илья' })).toBe(s)
+    expect(set(s, { name: 42, avatar: '⚔️' })).toBe(s)
+  })
+
+  it('characterError: null для валидного, текст для голов — для остального', () => {
+    expect(characterError({ name: 'Илья', avatar: '⚔️' })).toBeNull()
+    expect(characterError({ name: ' ', avatar: '⚔️' })).toBe('Нужно имя')
+    expect(characterError({ name: 'Илья', avatar: '' })).toBe('Нужен аватар')
+    expect(characterError({ name: 'Илья', avatar: 'я'.repeat(CHARACTER_AVATAR_MAX + 1) }))
+      .toBe(`Аватар — один эмодзи (до ${CHARACTER_AVATAR_MAX} юнитов)`)
+    expect(characterError(null)).toBe('Персонаж: ожидается { name, avatar }')
   })
 })

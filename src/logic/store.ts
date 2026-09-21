@@ -1,5 +1,5 @@
 import type { Character, LedgerEvent, Quest, QuestDueDateMove, QuestResult, Skill, StarComponent, Store, WishlistItem, XpEvent } from '../types'
-import { WISHLIST_EMOJI_MAX } from '../types'
+import { CHARACTER_AVATAR_MAX, WISHLIST_EMOJI_MAX } from '../types'
 import { isCalendarDay } from './dates'
 import { migrateStore } from './migrate'
 import { netForQuest, netForQuestOnDay } from './selectors'
@@ -66,6 +66,18 @@ function ledgerEvent(e: Omit<LedgerEvent, 'id'>): LedgerEvent {
 
 function withLedger(store: Store, events: LedgerEvent[]): Partial<Pick<Store, 'ledger'>> {
   return events.length > 0 ? { ledger: [...(store.ledger ?? []), ...events] } : {}
+}
+
+/** Почему персонаж не годится — текст для голов; null = годится. Длины меряются после trim.
+ * Принимает unknown: payload приходит и с границы API, форма там чужая. */
+export function characterError(c: unknown): string | null {
+  if (typeof c !== 'object' || c === null) return 'Персонаж: ожидается { name, avatar }'
+  const { name, avatar } = c as Record<string, unknown>
+  if (typeof name !== 'string' || typeof avatar !== 'string') return 'Персонаж: ожидается { name, avatar }'
+  if (!name.trim()) return 'Нужно имя'
+  if (!avatar.trim()) return 'Нужен аватар'
+  if (avatar.trim().length > CHARACTER_AVATAR_MAX) return `Аватар — один эмодзи (до ${CHARACTER_AVATAR_MAX} юнитов)`
+  return null
 }
 
 /** Валидная форма позиции витрины в контексте store (excludeId — при update). */
@@ -352,8 +364,11 @@ export function reducer(store: Store, action: Action): Store {
       if (store.quests.some((c) => c.parentQuestId === q.id)) return store
       return { ...store, quests: store.quests.filter((x) => x.id !== q.id) }
     }
-    case 'setCharacter':
-      return { ...store, character: action.character }
+    case 'setCharacter': {
+      if (characterError(action.character)) return store
+      const { name, avatar } = action.character
+      return { ...store, character: { name: name.trim(), avatar: avatar.trim() } }
+    }
     case 'importStore':
       // миграция живёт в ядре: бэкап v3 импортируется одинаково из веба, API и CLI;
       // валидность результата проверяет точка записи (storage) или вызывающая голова
