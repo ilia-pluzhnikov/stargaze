@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { seedStore } from '../src/data/seed'
@@ -36,11 +36,56 @@ describe('api', () => {
   it('GET /api/store отдаёт store', async () => {
     const { base } = await start()
     const s = (await (await fetch(`${base}/api/store`)).json()) as Store
-    expect(s.version).toBe(3)
+    expect(s.version).toBe(4)
   })
   it('GET /api/store без файла — 503', async () => {
     const { base } = await start({ store: false })
     expect((await fetch(`${base}/api/store`)).status).toBe(503)
+  })
+  it('старт на v3-файле: GET /api/store отдаёт v4 без daysOfWeek, файл не тронут', async () => {
+    const { base, storePath } = await start({ store: false })
+    const seed = seedStore()
+    const raw = JSON.stringify({
+      ...seed,
+      version: 3,
+      quests: seed.quests.map((q) => (q.id === 'q_sketch' ? { ...q, daysOfWeek: [1, 3, 5] } : q)),
+    })
+    writeFileSync(storePath, raw, 'utf8')
+    const s = (await (await fetch(`${base}/api/store`)).json()) as Store
+    expect(s.version).toBe(4)
+    expect(s.quests.every((q) => !('daysOfWeek' in q))).toBe(true)
+    expect(readFileSync(storePath, 'utf8')).toBe(raw)
+  })
+  it('первая запись через API поверх v3-файла создаёт store.json.v3.bak', async () => {
+    const { base, storePath } = await start({ store: false })
+    const seed = seedStore()
+    const raw = JSON.stringify({
+      ...seed,
+      version: 3,
+      quests: seed.quests.map((q) => (q.id === 'q_sketch' ? { ...q, daysOfWeek: [1, 3, 5] } : q)),
+    })
+    writeFileSync(storePath, raw, 'utf8')
+    expect(existsSync(`${storePath}.v3.bak`)).toBe(false)
+    const r = await fetch(`${base}/api/action`, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'setCharacter', character: { name: 'Новый', avatar: '🧭' } }),
+    })
+    expect(r.status).toBe(200)
+    expect(readFileSync(`${storePath}.v3.bak`, 'utf8')).toBe(raw)
+    expect((JSON.parse(readFileSync(storePath, 'utf8')) as Store).version).toBe(4)
+  })
+  it('addQuest с daysOfWeek → 422 от валидатора, файл не меняется', async () => {
+    const { base, storePath } = await start()
+    const before = readFileSync(storePath, 'utf8')
+    const quest = {
+      id: 'q_old', title: 'Зал', type: 'repeating', skillId: null, xpReward: 20,
+      daysOfWeek: [2, 4, 6], status: 'active', createdAt: '2026-09-01T00:00:00.000Z',
+    }
+    const r = await fetch(`${base}/api/action`, { method: 'POST', body: JSON.stringify({ type: 'addQuest', quest }) })
+    expect(r.status).toBe(422)
+    const body = (await r.json()) as { errors: string[] }
+    expect(body.errors.join()).toMatch(/daysOfWeek — поле удалено в v4/)
+    expect(readFileSync(storePath, 'utf8')).toBe(before)
   })
   it('POST /api/action применяет и возвращает канон', async () => {
     const { base } = await start()
@@ -64,7 +109,7 @@ describe('api', () => {
     const before = readFileSync(storePath, 'utf8')
     const r = await fetch(`${base}/api/action`, {
       method: 'POST',
-      body: JSON.stringify({ type: 'importStore', store: { version: 3 } }),
+      body: JSON.stringify({ type: 'importStore', store: { version: 4 } }),
     })
     expect(r.status).toBe(422)
     const body = (await r.json()) as { error: string; errors: string[] }
@@ -139,7 +184,7 @@ describe('API: экономика искр', () => {
   const TS = '2026-09-10T05:00:00.000Z'
   const DAY = '2026-09-10'
   const fixture = (): Store => ({
-    version: 3, character: { name: 'И', avatar: '🧙' },
+    version: 4, character: { name: 'И', avatar: '🧙' },
     skills: [{ id: 's1', emoji: '⚔️', name: 'Навык', wantStatement: '', hue: 200, archived: false, createdAt: TS }],
     stars: [{ id: 'c1', skillId: 's1', parentStarId: null, tier: 'S', title: 'Вершина', createdAt: TS }],
     xpLog: [],

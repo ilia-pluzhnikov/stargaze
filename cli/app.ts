@@ -4,9 +4,9 @@ import { dirname, join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { acquireLock, loadStore, releaseLock, saveStore, withStore } from '../src/logic/storage'
 import { validateStore } from '../src/logic/validate'
-import { charXpTotal, completedDaysForQuest, epicProgress, isDueToday, questChildren, questDoneOnDay, skillXpTotal } from '../src/logic/selectors'
+import { migrateStore } from '../src/logic/migrate'
+import { charXpTotal, epicProgress, isDueToday, questChildren, questDoneOnDay, skillXpTotal } from '../src/logic/selectors'
 import { charLevel, skillLevel } from '../src/logic/xp'
-import { computeStreak } from '../src/logic/streak'
 import { currentRank, galaxySummary, isRankAchieved, rankStars, rankTitle, skillTiers } from '../src/logic/stars'
 import { isCalendarDay } from '../src/logic/dates'
 import {
@@ -68,7 +68,7 @@ export function runCli(argv: string[], io: Io): number {
         parent: { type: 'string' },
         criteria: { type: 'string' },
         xp: { type: 'string' },
-        days: { type: 'string' },
+        days: { type: 'string' }, // удалён в 0.3: объявлен только ради внятного отказа в buildQuest
         due: { type: 'string' },
         note: { type: 'string' },
         evidence: { type: 'string' },
@@ -219,31 +219,27 @@ function cmdStatus(ctx: Ctx): number {
   const s = loadStore(ctx.storePath)
   const char = charLevel(charXpTotal(s.xpLog))
   const activeQuests = s.quests.filter((q) => q.status === 'active')
+  // «на сегодня» — только контракты (привычкам isDueToday отвечает false);
+  // привычки считаются по факту: сколько активных отмечено сегодня
   const dueToday = activeQuests.filter((q) => isDueToday(q, ctx.today))
-  const doneToday = dueToday.filter((q) =>
-    q.type === 'repeating' ? questDoneOnDay(s.xpLog, q.id, ctx.today) : false,
-  )
+  const habitsDone = activeQuests.filter(
+    (q) => q.type === 'repeating' && questDoneOnDay(s.xpLog, q.id, ctx.today),
+  ).length
   const skills = s.skills.filter((sk) => !sk.archived).map((sk) => {
     const info = skillLevel(skillXpTotal(s.xpLog, sk.id))
-    const streak = Math.max(
-      0,
-      ...s.quests
-        .filter((q) => q.skillId === sk.id && q.type === 'repeating' && q.status === 'active')
-        .map((q) => computeStreak(q, completedDaysForQuest(s.xpLog, q.id), ctx.today)),
-    )
     const ladder = galaxySummary(s.stars, sk.id)
     const cur = currentRank(s.stars, sk.id)
-    return { skill: sk, info, streak, ladder, cur }
+    return { skill: sk, info, ladder, cur }
   })
   const provision = provisionTotal(s, ctx.today)
   const movesUsed = movesUsedIn7d(s, ctx.today)
   if (ctx.json) {
     ctx.io.out(JSON.stringify({
       character: { name: s.character.name, level: char.level, into: char.into, toNext: char.toNext, totalXp: charXpTotal(s.xpLog) },
-      today: { due: dueToday.length, done: doneToday.length },
-      skills: skills.map(({ skill, info, streak, ladder, cur }) => ({
+      today: { due: dueToday.length, habitsDone },
+      skills: skills.map(({ skill, info, ladder, cur }) => ({
         id: skill.id, name: skill.name, level: info.level, into: info.into, toNext: info.toNext,
-        streak, ranksTotal: ladder.total, ranksAchieved: ladder.achieved, currentRank: cur,
+        ranksTotal: ladder.total, ranksAchieved: ladder.achieved, currentRank: cur,
       })),
       sparks: { balance: sparksBalance(s, ctx.today), provision, moves: { used: movesUsed, free: FREE_MOVES_PER_7D } },
     }, null, 2))
@@ -253,15 +249,14 @@ function cmdStatus(ctx: Ctx): number {
   ctx.io.out(`✨ ${sparksBalance(s, ctx.today)}${provision > 0 ? ` (капает −${provision})` : ''}`)
   const quota = movesQuotaLine(movesUsed)
   if (quota) ctx.io.out(quota)
-  ctx.io.out(`Сегодня: ${doneToday.length} / ${dueToday.length} положенных отметок`)
+  ctx.io.out(`Привычек отмечено сегодня: ${habitsDone} · контрактов на сегодня: ${dueToday.length}`)
   ctx.io.out('')
   ctx.io.out(table([
-    ['навык', 'ур.', 'XP', 'стрик', 'ранги'],
-    ...skills.map(({ skill, info, streak, ladder, cur }) => [
+    ['навык', 'ур.', 'XP', 'ранги'],
+    ...skills.map(({ skill, info, ladder, cur }) => [
       `${skill.emoji} ${skill.name}`,
       String(info.level),
       `${info.into}/${info.toNext}`,
-      streak > 0 ? `${streak}🔥` : '—',
       ladder.total === 0 ? 'без дерева' : `${ladder.achieved}/${ladder.total}${cur ? ` · ранг ${cur} · ${rankTitle(skill, cur)}` : ' · ✦ всё взято'}`,
     ]),
   ]))
@@ -417,11 +412,14 @@ function cmdValidate(ctx: Ctx): number {
     }
     return 1
   }
-  const errors = validateStore(parsed)
+  // validate отвечает на вопрос «загрузится ли этот файл»: старый формат проходит миграцию
+  const current = migrateStore(parsed)
+  const errors = validateStore(current)
+  const note = current !== parsed ? ' (старый формат: мигрируется в v4 при первой записи)' : ''
   if (ctx.json) {
     ctx.io.out(JSON.stringify({ ok: errors.length === 0, errors }, null, 2))
   } else if (errors.length === 0) {
-    ctx.io.out('store валиден ✓')
+    ctx.io.out(`store валиден ✓${note}`)
   } else {
     ctx.io.err(`найдено проблем: ${errors.length}`)
     for (const e of errors) ctx.io.err(`  · ${e}`)
@@ -455,10 +453,11 @@ function cmdImport(ctx: Ctx, file?: string): number {
     }
     throw new CliError(`не удалось прочитать файл импорта: ${file} (${reason})`, 1)
   }
-  // только валидный v3 JSON — без автомиграции, как веб (resolveStoredStore)
-  const errors = validateStore(parsed)
+  // экспорт v3 мигрируется автоматически — как в вебе и в API (migrateStore в ядре)
+  const current = migrateStore(parsed)
+  const errors = validateStore(current)
   if (errors.length) throw new CliError(`импортируемый store невалиден:\n  ${errors.join('\n  ')}`)
-  const store = parsed as Store
+  const store = current as Store
   acquireLock(ctx.storePath)
   try {
     if (existsSync(ctx.storePath)) {
@@ -568,6 +567,10 @@ function cmdComplete(
   const questId = resolveId(candidates, prefix, 'квест')
   const quest = s.quests.find((q) => q.id === questId)!
   const d = day ?? ctx.today
+  // ядро на отметку наперёд отвечает тихим no-op, а общий текст applyOrFail
+  // («уже отмечен за …») был бы тут неправдой — отсекаем на границе CLI
+  if (!un && quest.type === 'repeating' && d > ctx.today)
+    throw new CliError('--day в будущем: привычку нельзя отметить наперёд', 2)
   const hasResultFlags = flags.result !== undefined || flags.artifact !== undefined || flags.evidence !== undefined
   if (quest.type === 'repeating' && hasResultFlags)
     throw new CliError(`«${quest.title}» — repeating-квест: итог некуда писать, --result/--artifact/--evidence не поддерживаются`, 2)
@@ -648,12 +651,12 @@ function buildQuest(s: Store, flags: CliFlags, status: 'active' | 'proposed'): Q
   const type = typeof flags.type === 'string' ? flags.type : undefined
   const xp = typeof flags.xp === 'string' ? flags.xp : undefined
   if (!title || !type || !xp) throw new CliError('обязательные флаги: --title, --type, --xp', 2)
+  if (flags.days !== undefined) throw new CliError('--days удалён в 0.3: привычки без расписания', 2)
   if (!['repeating', 'short', 'mid', 'long'].includes(type)) throw new CliError(`--type: repeating|short|mid|long`, 2)
   const xpReward = Number(xp)
   if (!Number.isInteger(xpReward) || xpReward <= 0) throw new CliError('--xp: целое > 0', 2)
   const skill = typeof flags.skill === 'string' ? flags.skill : undefined
   const star = typeof flags.star === 'string' ? flags.star : undefined
-  const days = typeof flags.days === 'string' ? flags.days : undefined
   const due = typeof flags.due === 'string' ? flags.due : undefined
   const note = typeof flags.note === 'string' ? flags.note : undefined
   let skillId: string | null = skill ? resolveId(s.skills.filter((k) => !k.archived), skill, 'навык') : null
@@ -678,11 +681,6 @@ function buildQuest(s: Store, flags: CliFlags, status: 'active' | 'proposed'): Q
     // сахар CLI: без --skill/--star ребёнок наследует навык родителя
     if (!skill && !star) skillId = p.skillId
   }
-  const daysOfWeek = days
-    ? days.split(',').map((x) => Number(x.trim()))
-    : undefined
-  if (daysOfWeek && daysOfWeek.some((d) => !Number.isInteger(d) || d < 0 || d > 6))
-    throw new CliError('--days: числа 0..6 через запятую (0=вс)', 2)
   if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) throw new CliError('--due: формат YYYY-MM-DD', 2)
   const desc = typeof flags.desc === 'string' ? flags.desc : undefined
   const why = typeof flags.why === 'string' ? flags.why : undefined
@@ -698,7 +696,7 @@ function buildQuest(s: Store, flags: CliFlags, status: 'active' | 'proposed'): Q
   })
   return {
     id: genId('q'), title, type: type as Quest['type'], skillId, starId, xpReward,
-    daysOfWeek, dueDate: due, status, createdAt: new Date().toISOString(),
+    dueDate: due, status, createdAt: new Date().toISOString(),
     ...(parentQuestId ? { parentQuestId } : {}),
     ...(status === 'proposed' ? { proposalNote: note } : {}),
     ...(desc ? { description: desc } : {}),

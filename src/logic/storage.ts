@@ -1,8 +1,9 @@
 // Node-only: доступ к store.json на диске. НЕ импортировать из браузерного кода
 // (src/components, src/hooks, src/App) — только cli/ и server/.
-import { mkdirSync, readFileSync, renameSync, rmdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { Store } from '../types'
+import { migrateStore } from './migrate'
 import { validateStore } from './validate'
 
 export interface LockOpts {
@@ -73,29 +74,61 @@ export function releaseLock(storePath: string): void {
   }
 }
 
-export function loadStore(path: string): Store {
+const v3BackupPath = (storePath: string) => `${storePath}.v3.bak`
+
+/** Файл store: parse → migrateStore → validateStore. raw и migrated нужны withStore для бэкапа. */
+function readStoreFile(path: string): { store: Store; raw: string; migrated: boolean } {
   const raw = readFileSync(path, 'utf8') // отсутствие файла = ошибка, не тихий seed
   const parsed = JSON.parse(raw) as unknown
-  const errors = validateStore(parsed)
+  // чтение без побочных эффектов: старый формат мигрируется в памяти, файл не трогаем —
+  // на диск v4 ляжет при первой обычной записи
+  const current = migrateStore(parsed)
+  const errors = validateStore(current)
   if (errors.length) throw new Error(`store невалиден (${path}):\n  ${errors.join('\n  ')}`)
-  return parsed as Store
+  return { store: current as Store, raw, migrated: current !== parsed }
 }
 
-export function saveStore(path: string, store: Store): void {
+export function loadStore(path: string): Store {
+  return readStoreFile(path).store
+}
+
+function assertValid(path: string, store: Store): void {
   const errors = validateStore(store)
   if (errors.length) throw new StoreValidationError(errors, path)
+}
+
+function writeStoreFile(path: string, store: Store): void {
   const tmp = join(dirname(path), `.store.json.tmp-${process.pid}`)
   writeFileSync(tmp, JSON.stringify(store, null, 2) + '\n', 'utf8')
   renameSync(tmp, path) // атомарная замена
+}
+
+/** Страховка необратимой миграции: исходный текст файла старого формата кладётся рядом
+ * один раз и никогда не перезаписывается. Тот же tmp+rename, что у записи store. */
+function backupOnce(path: string, raw: string): void {
+  const bak = v3BackupPath(path)
+  if (existsSync(bak)) return
+  const tmp = join(dirname(path), `.store.v3.bak.tmp-${process.pid}`)
+  writeFileSync(tmp, raw, 'utf8')
+  renameSync(tmp, bak)
+}
+
+export function saveStore(path: string, store: Store): void {
+  assertValid(path, store)
+  writeStoreFile(path, store)
 }
 
 /** Лок → load → fn → save → unlock. Если fn вернула тот же объект (no-op редьюсера) — не пишем. */
 export function withStore(path: string, fn: (s: Store) => Store, opts: LockOpts = {}): Store {
   acquireLock(path, opts)
   try {
-    const current = loadStore(path)
+    const { store: current, raw, migrated } = readStoreFile(path)
     const next = fn(current)
-    if (next !== current) saveStore(path, next)
+    if (next !== current) {
+      assertValid(path, next) // отказ записи не оставляет следов — в том числе бэкапа
+      if (migrated) backupOnce(path, raw)
+      writeStoreFile(path, next)
+    }
     return next
   } finally {
     releaseLock(path)

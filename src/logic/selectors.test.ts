@@ -84,9 +84,10 @@ describe('сроки: isDueToday / isDueWithin / compareDueUrgency', () => {
     expect(isDueToday(mq({ type: 'long' }), today)).toBe(false)
   })
 
-  it('isDueToday: повторяющийся — по расписанию', () => {
-    expect(isDueToday(mq({ type: 'repeating', daysOfWeek: [1] }), today)).toBe(true)
-    expect(isDueToday(mq({ type: 'repeating', daysOfWeek: [2] }), today)).toBe(false)
+  it('isDueToday: привычка не бывает «положена» — расписания нет', () => {
+    expect(isDueToday(mq({ type: 'repeating' }), today)).toBe(false)
+    // срок — понятие контрактов: dueDate привычку «положенной» не делает
+    expect(isDueToday(mq({ type: 'repeating', dueDate: today }), today)).toBe(false)
   })
 
   it('isDueWithin: граница включается, просрочка включается, бессрочные и повторяющиеся мимо', () => {

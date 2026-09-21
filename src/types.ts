@@ -72,7 +72,6 @@ export interface Quest {
   starId?: string | null // привязка к звезде-компоненту (фолбэк — навык)
   parentQuestId?: string | null // null/нет = обычный квест; иначе — подквест эпика (один уровень)
   xpReward: number
-  daysOfWeek?: number[] // repeating: 0=вс..6=сб; пусто/нет = каждый день
   dueDate?: string // short/mid/long: 'YYYY-MM-DD'
   status: QuestStatus
   proposalNote?: string // агент: зачем предлагает (только у status='proposed')
@@ -151,12 +150,12 @@ export interface QuestDueDateMove {
 }
 
 export interface Store {
-  version: 3
+  version: 4
   character: Character
   skills: Skill[]
   stars: StarComponent[]
   quests: Quest[]
-  xpLog: XpEvent[] // единственный источник правды для XP, уровней, стриков
+  xpLog: XpEvent[] // единственный источник правды для XP и уровней
   ledger?: LedgerEvent[] // кошелёк искр; нет = пустая история
   wishlist?: WishlistItem[]
 }
@@ -177,5 +176,3 @@ export const LEDGER_KIND_LABEL: Record<LedgerKind, string> = {
   adjust: 'корректировка',
   reversal: 'откат',
 }
-
-export const DOW_LABELS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']

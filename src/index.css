@@ -275,7 +275,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
 .const-name { transition: fill 0.15s ease; }
 .sky-name { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 3px; font-weight: 600; }
 
-.streak-tag { font-size: 11px; fill: var(--peach); }
 
 /* ── HUD-бар (Skyrim) ───────────────────────────── */
 .hud {
@@ -321,7 +320,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   font-family: var(--font-mono);
   font-feature-settings: 'tnum' 1, 'zero' 1;
 }
-.hud-meta .fire { color: var(--peach); }
 .hud-actions {
   display: flex;
   align-items: center;
@@ -442,7 +440,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
 .quest-row .q-title { font-size: 14px; }
 .quest-row.done .q-title { text-decoration: line-through; color: var(--faint); }
 .quest-row .q-meta { color: var(--faint); font-size: 11.5px; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.quest-row .q-meta .fire { color: var(--peach); }
 .quest-row .q-xp {
   color: var(--gold);
   font-family: var(--font-mono);
@@ -693,13 +690,13 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   display: inline-block;
   width: 10px;
   height: 10px;
-  border: 1px solid transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.02);
 }
 .chronicle-legend i.done { border-color: #70B8FF; background: rgba(112, 184, 255, 0.7); }
-.chronicle-legend i.missed { border-color: rgba(255, 255, 255, 0.24); background: transparent; }
 .chronicle-legend small { margin-left: auto; color: var(--faint); }
+.chronicle-legend small.warn { color: var(--danger); }
 .chronicle-scroll {
   overflow-x: auto;
   overscroll-behavior-inline: contain;
@@ -770,6 +767,9 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+button.chronicle-quest-title { display: block; width: 100%; padding: 0; text-align: left; }
+button.chronicle-quest-title:hover { color: var(--accent); }
+button.chronicle-quest-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chronicle-quest-meta {
   display: flex;
   flex-wrap: wrap;
@@ -795,14 +795,10 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   padding: 0;
   align-self: center;
   justify-self: center;
-  border: 1px solid transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.018);
   cursor: default;
-}
-.chronicle-cell.scheduled:not(.completed) {
-  border-color: rgba(255, 255, 255, 0.22);
-  background: transparent;
 }
 .chronicle-cell.completed {
   border-color: hsl(var(--chronicle-hue) 72% 70% / 0.82);
@@ -820,34 +816,28 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
 .chronicle-cell:enabled { cursor: pointer; transition: transform 0.12s ease, filter 0.12s ease; }
 .chronicle-cell:enabled:hover { transform: scale(1.35); filter: brightness(1.3); }
 .chronicle-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.chronicle-streaks {
+/* взвод: первый клик по старой отметке — предупреждение, второй снимает */
+.chronicle-cell.completed.armed,
+.chronicle-cell.completed.armed.week-start {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.35);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35);
+}
+.chronicle-total {
   min-height: 62px;
   padding: 8px 10px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-content: center;
-  gap: 3px 7px;
+  place-items: center;
   border-left: 1px solid var(--line);
   border-bottom: 1px solid rgba(255, 255, 255, 0.055);
   background: var(--panel);
-  color: var(--faint);
-  font-size: 9px;
-  text-transform: uppercase;
 }
-.chronicle-streaks span { display: flex; flex-direction: column; gap: 1px; }
-.chronicle-streaks b {
+.chronicle-total b {
   color: var(--ink);
   font-family: var(--font-display);
   font-size: 19px;
   font-weight: 400;
   line-height: 1;
-}
-.chronicle-streaks em {
-  grid-column: 1 / -1;
-  color: var(--gold);
-  font-size: 8px;
-  font-style: normal;
-  letter-spacing: 0.08em;
 }
 .chronicle-week-label,
 .chronicle-week-tail,
@@ -881,7 +871,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   font-family: var(--font-mono);
   font-size: 9.5px;
 }
-.chronicle-week-total.complete { color: var(--gold); border-color: rgba(240, 160, 80, 0.32); }
 .chronicle-week-total.empty { color: var(--faint); }
 .chronicle-week-tail {
   padding: 0 10px;
@@ -917,8 +906,8 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
 }
 .chronicle-sleeping > p { margin: 7px 0 10px; color: var(--faint); font-size: 11.5px; }
 .chronicle-grid.sleeping .chronicle-quest,
-.chronicle-grid.sleeping .chronicle-streaks { opacity: 0.72; }
-.chronicle-grid.sleeping .chronicle-cell.scheduled:not(.completed) { border-color: transparent; }
+.chronicle-grid.sleeping .chronicle-total { opacity: 0.72; }
+.chronicle-grid.sleeping .chronicle-cell:not(.completed) { border-color: transparent; }
 .chronicle-grid.sleeping .chronicle-cell.completed { opacity: 0.62; }
 
 /* ── Панель навыка (drawer) ─────────────────────── */
@@ -1005,20 +994,6 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
 .field-row .field { flex: 1; }
 /* «Перенести…» рядом с замороженным дедлайном — кнопка по содержимому, а не во всю строку */
 .field-row > .add-btn { margin-top: 0; width: auto; flex: 0 0 auto; padding: 6px 12px; }
-.dow { display: flex; gap: 5px; }
-.dow button {
-  flex: 1;
-  padding: 6px 0;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--faint);
-  font-size: 11.5px;
-}
-.dow button.on {
-  color: var(--accent);
-  border-color: rgba(255, 119, 21, 0.5);
-  background: rgba(255, 119, 21, 0.1);
-}
 .modal-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
 .modal-actions button {
   border: 1px solid var(--line);

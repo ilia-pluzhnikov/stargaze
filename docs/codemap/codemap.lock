@@ -1,13 +1,18 @@
 {
-  "commit": "d4d99ac858706d6bf5ea56cc723b65dc8224df9f",
+  "commit": "a63c075f2a3ad6fd05ca2622ab52d2ba89a975bb",
   "working_tree_dirty": true,
   "dirty_files": [
-    "ocs/codemap/codemap.html",
+    "CHANGELOG.md",
+    "CLAUDE.md",
+    "docs/codemap/README.md",
+    "docs/codemap/codemap.html",
     "docs/codemap/codemap.json",
     "docs/codemap/codemap.lock",
-    "docs/codemap/model.mjs"
+    "docs/codemap/model.mjs",
+    "package-lock.json",
+    "package.json"
   ],
-  "generated_at": "2026-08-25T19:43:17.974Z",
+  "generated_at": "2026-09-19T09:49:57.103Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -30,7 +35,7 @@
     "tsconfig.json",
     "tsconfig.node.json"
   ],
-  "scanned_files": 77,
+  "scanned_files": 76,
   "fingerprint_algorithm": "sha256(sorted(\"<path>\u0000\" + sha256(file bytes; текст нормализован к LF)))",
   "modules": {
     "web-app": {
@@ -43,7 +48,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "dbbcd90e2b2209fb82817614ddc52d14c43180c23f377b3b564b3390a8ff85f6"
+      "fingerprint": "c3cc204cbbcf63c90517213dd2d8a09b079c7d626705f37388611e69bbe47bca"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -76,7 +81,7 @@
         "src/components/SkillPanel.tsx",
         "src/components/Wallet.tsx"
       ],
-      "fingerprint": "eef8263c683cf7f53d407fa20e245da3a6e110591cbfd6107339399cdd074bae"
+      "fingerprint": "e67fae0392859cf6e5f6b1e2f9f98098d12147af8444428f97c330317c82f224"
     },
     "web-modals": {
       "path": "src/components/Modals.tsx",
@@ -84,7 +89,7 @@
       "files": [
         "src/components/Modals.tsx"
       ],
-      "fingerprint": "c44a93c67ea890e899ddc9a0086e1245ddef9b75dedb55da22253d82c4f04ac4"
+      "fingerprint": "8358492a3ab97c81640f0d2dd9265f78fc778d5eb10374a73af0e7cda7dafb1c"
     },
     "web-usestore": {
       "path": "src/hooks/useStore.ts",
@@ -99,12 +104,10 @@
       "external": false,
       "files": [
         "src/logic/api.ts",
-        "src/logic/migrate.test.ts",
-        "src/logic/migrate.ts",
         "src/logic/sync.test.ts",
         "src/logic/sync.ts"
       ],
-      "fingerprint": "5d0ef30e65a9d9d83a80b3cd4253d270a8140a11ddca186179529211c81ffe63"
+      "fingerprint": "b5543543ed5e9d8e486c1fab692724c671e92a35aea2e068fb1647dec9b9db68"
     },
     "core-store": {
       "path": "src/logic/store.ts",
@@ -116,7 +119,7 @@
         "src/logic/store.test.ts",
         "src/logic/store.ts"
       ],
-      "fingerprint": "a757e78f985209ae0bebf902b009d1fde9642251e2f1679021938c7897f97654"
+      "fingerprint": "e7e05da2d70d02796f790b9d5a67bdc447180db3d8dd5757d417140e51ecf679"
     },
     "core-sparks": {
       "path": "src/logic/sparks.ts",
@@ -126,7 +129,7 @@
         "src/logic/sparks.test.ts",
         "src/logic/sparks.ts"
       ],
-      "fingerprint": "2ea12ccbd4780d80f90725515f4bc146556bfbfa85cead9efc7f9d6f97601a93"
+      "fingerprint": "f55f486c2019ece20416f283e3a1c92c1416e8c0c3c92fb5a6b8aef4d129c198"
     },
     "core-stars": {
       "path": "src/logic/stars.ts",
@@ -147,21 +150,21 @@
         "src/logic/selectors.ts",
         "src/logic/stats.test.ts",
         "src/logic/stats.ts",
-        "src/logic/streak.test.ts",
-        "src/logic/streak.ts",
         "src/logic/xp.test.ts",
         "src/logic/xp.ts"
       ],
-      "fingerprint": "026d6a7c999d7d127b8cfbd157274288af508aa62b61d9678478f9a7286e05ac"
+      "fingerprint": "0a15eafd3aaed0ae8ea0de72cae876934df0eb4b892f8944a708ac77dc0b8f10"
     },
     "core-validate": {
       "path": "src/logic/validate.ts",
       "external": false,
       "files": [
+        "src/logic/migrate.test.ts",
+        "src/logic/migrate.ts",
         "src/logic/validate.test.ts",
         "src/logic/validate.ts"
       ],
-      "fingerprint": "710ad257c9921f631e7f9108b473f623fd87a96c5291b368533df4c8fd9cf7d7"
+      "fingerprint": "e3e2d21f188a2f9b883a73f0240b66cc3b517d9adb7916458127664147f98e16"
     },
     "core-layout": {
       "path": "src/logic/layout.ts",
@@ -176,10 +179,11 @@
       "path": "src/types.ts",
       "external": false,
       "files": [
+        "src/logic/dates.test.ts",
         "src/logic/dates.ts",
         "src/types.ts"
       ],
-      "fingerprint": "8a7cb753a5df6f60ddbdd55f70fbb9ba2e56b5f322df9550c220ab84631439fc"
+      "fingerprint": "600a535a509ad3bdfaa6a273d8af6b573c02c0ce453db55ac2c408346546446e"
     },
     "core-storage": {
       "path": "src/logic/storage.ts",
@@ -188,7 +192,7 @@
         "src/logic/storage.test.ts",
         "src/logic/storage.ts"
       ],
-      "fingerprint": "87a9938bcc88393962f81558126e71feeea7bd4c7d67f0f222e1383f72c1638b"
+      "fingerprint": "f539be785900a03620abf1f3f7aef8dd4c5b5d25935613e58e646a2e13c884f6"
     },
     "server": {
       "path": "server/app.ts",
@@ -198,7 +202,7 @@
         "server/app.ts",
         "server/main.ts"
       ],
-      "fingerprint": "602ef3ef0f70b000b6f320b21fe730f3cdc5d9370ab55adb7fb538c5d2729c2e"
+      "fingerprint": "5b79d5c20a604118d693ed32674fea3656b1bcfb5110a7bdcc662d8d34ef8859"
     },
     "cli": {
       "path": "cli/app.ts",
@@ -211,7 +215,7 @@
         "cli/main.ts",
         "cli/smoke.test.ts"
       ],
-      "fingerprint": "769e6986eccc8d8f377fb4367aec65e2da9274c9601819d40126f37c9e3cb6c2"
+      "fingerprint": "ce8982563a07ead74829dda8503cc088d0285dffd12c64768471dd75620cf0e0"
     },
     "store-json": {
       "path": null,
@@ -236,12 +240,12 @@
         "deploy/docker-compose.yml",
         "deploy/stargaze-wrapper.sh"
       ],
-      "fingerprint": "290be15cf15e51318270adbdb721ae5d80579c19aae8a2044e34c7fcd7874759"
+      "fingerprint": "f830877888756a47b498808610758d7391a8a53272ad5847c3049cd40246297b"
     }
   },
   "previous": {
-    "commit": "d4d99ac858706d6bf5ea56cc723b65dc8224df9f",
-    "generated_at": "2026-08-25T19:43:08.402Z",
+    "commit": "a63c075f2a3ad6fd05ca2622ab52d2ba89a975bb",
+    "generated_at": "2026-09-19T09:49:42.843Z",
     "changed_modules": [],
     "new_modules": [],
     "removed_modules": []
@@ -251,7 +255,6 @@
     "web-panels: прямых тестов нет",
     "web-modals: прямых тестов нет",
     "web-usestore: прямых тестов нет",
-    "core-model: прямых тестов нет",
     "store-json: внешняя система — файлов в репозитории нет, доказательства косвенные (src/logic/storage.ts, src/logic/storage.ts)",
     "browser-localstorage: внешняя система — файлов в репозитории нет, доказательства косвенные (src/logic/migrate.ts, src/logic/sync.ts)",
     "infra-deploy: прямых тестов нет"

@@ -1,11 +1,9 @@
-import { Fragment, useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { RecurringDashboard, RecurringQuestHistory, RecurringWeekCount } from '../logic/recurring'
 import type { Tier } from '../types'
-import { dowOf, formatDayShort } from '../logic/dates'
+import { addDays, dowOf, DOW_SHORT, formatDayShort, formatDayWithDow } from '../logic/dates'
 import { rarityVar } from './skyColors'
-
-const DOW_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб']
 
 export interface ChronicleRow extends RecurringQuestHistory {
   title: string
@@ -19,7 +17,18 @@ interface Props {
   dashboard: RecurringDashboard
   rows: ChronicleRow[]
   sleepingRows: ChronicleRow[]
-  onToggleToday: (questId: string, completed: boolean) => void
+  onToggleDay: (questId: string, day: string, completed: boolean) => void
+  onEditQuest: (questId: string) => void
+}
+
+/** Взведённая клетка — `${questId}|${day}`: снятие отметки старше вчера идёт в два клика. */
+type Armed = string | null
+
+interface GridActions {
+  armed: Armed
+  setArmed: (key: Armed) => void
+  onToggleDay: Props['onToggleDay']
+  onEditQuest: Props['onEditQuest']
 }
 
 interface GridProps {
@@ -27,11 +36,11 @@ interface GridProps {
   days: string[]
   rows: ChronicleRow[]
   weeks?: RecurringWeekCount[]
-  sleeping?: boolean
-  onToggleToday: (questId: string, completed: boolean) => void
+  /** Нет действий = спящая сетка: только история, без кликов. */
+  actions?: GridActions
 }
 
-function ChronicleGrid({ today, days, rows, weeks, sleeping = false, onToggleToday }: GridProps) {
+function ChronicleGrid({ today, days, rows, weeks, actions }: GridProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -39,17 +48,19 @@ function ChronicleGrid({ today, days, rows, weeks, sleeping = false, onToggleTod
     if (node) node.scrollLeft = node.scrollWidth
   }, [days.length])
 
+  const sleeping = !actions
+  const yesterday = addDays(today, -1)
   const statsColumn = days.length + 2
   const footerRow = rows.length + 2
   const gridStyle: CSSProperties = {
-    gridTemplateColumns: `clamp(210px, 26vw, 260px) repeat(${days.length}, 18px) 126px`,
+    gridTemplateColumns: `clamp(210px, 26vw, 260px) repeat(${days.length}, 18px) 86px`,
   }
 
   return (
     <div className="chronicle-scroll" ref={scrollRef}>
       <div className={`chronicle-grid${sleeping ? ' sleeping' : ''}`} style={gridStyle}>
         <div className="chronicle-corner chronicle-sticky-left" style={{ gridColumn: 1, gridRow: 1 }}>
-          {sleeping ? 'Архив' : 'Рекуррентные квесты'}
+          {sleeping ? 'Архив' : 'Привычки'}
         </div>
         {days.map((day, index) => (
           <div
@@ -63,12 +74,11 @@ function ChronicleGrid({ today, days, rows, weeks, sleeping = false, onToggleTod
           </div>
         ))}
         <div className="chronicle-stats-head chronicle-sticky-right" style={{ gridColumn: statsColumn, gridRow: 1 }}>
-          Серии
+          Отметок
         </div>
 
         {rows.map((row, rowIndex) => {
           const gridRow = rowIndex + 2
-          const currentWeek = row.weeks[row.weeks.length - 1]
           const hueStyle = { '--chronicle-hue': row.hue } as CSSProperties
           return (
             <Fragment key={row.questId}>
@@ -76,14 +86,21 @@ function ChronicleGrid({ today, days, rows, weeks, sleeping = false, onToggleTod
                 className="chronicle-quest chronicle-sticky-left"
                 style={{ ...hueStyle, gridColumn: 1, gridRow }}
               >
-                <div className="chronicle-quest-title">{row.title}</div>
+                {actions ? (
+                  // из Журнала привычки ушли — название здесь единственный вход в правку и архив
+                  <button
+                    type="button"
+                    className="chronicle-quest-title"
+                    title="Открыть привычку: правка и архив"
+                    onClick={() => actions.onEditQuest(row.questId)}
+                  >
+                    {row.title}
+                  </button>
+                ) : (
+                  <div className="chronicle-quest-title">{row.title}</div>
+                )}
                 <div className="chronicle-quest-meta">
                   {row.skillLabel && <span>{row.skillLabel}</span>}
-                  {currentWeek && currentWeek.scheduled > 0 && (
-                    <span>
-                      неделя {currentWeek.scheduledCompleted}/{currentWeek.scheduled}
-                    </span>
-                  )}
                   {row.starTitle && (
                     <span className="chronicle-star-link">
                       {row.starTier && <i className="rarity-mark" style={{ background: rarityVar(row.starTier) }} aria-hidden="true" />}
@@ -95,17 +112,43 @@ function ChronicleGrid({ today, days, rows, weeks, sleeping = false, onToggleTod
 
               {row.days.map((entry, dayIndex) => {
                 const isToday = entry.day === today
-                const state = entry.completed ? 'отмечено' : entry.scheduled ? 'не закрыто' : 'не запланировано'
-                const interactive = !sleeping && isToday && (entry.scheduled || entry.completed)
+                const label = formatDayWithDow(entry.day)
+                const state = entry.completed ? 'отмечено' : 'пусто'
+                // старше вчера окно искр закрыто: отметка даст только XP, а снятую оплаченную
+                // повторная постановка уже не оплатит — поэтому снятие здесь в два клика
+                const stale = entry.day < yesterday
+                const key = `${row.questId}|${entry.day}`
+                const isArmed = actions?.armed === key
+                const hint = !actions
+                  ? ''
+                  : isArmed
+                    ? ' · снять? повторная отметка искр не даст · нажми ещё раз'
+                    : entry.completed
+                      ? ' · нажми, чтобы снять'
+                      : ` · нажми, чтобы отметить${stale ? ' (XP без искр)' : ''}`
                 return (
                   <button
                     key={entry.day}
-                    className={`chronicle-cell${entry.completed ? ' completed' : ''}${entry.scheduled ? ' scheduled' : ''}${isToday ? ' today' : ''}${dowOf(entry.day) === 1 ? ' week-start' : ''}`}
+                    className={`chronicle-cell${entry.completed ? ' completed' : ''}${isArmed ? ' armed' : ''}${isToday ? ' today' : ''}${dowOf(entry.day) === 1 ? ' week-start' : ''}`}
                     style={{ ...hueStyle, gridColumn: dayIndex + 2, gridRow }}
-                    disabled={!interactive}
-                    title={`${formatDayShort(entry.day)} · ${state}${interactive ? ' · нажми, чтобы изменить' : ''}`}
-                    aria-label={`${row.title}, ${formatDayShort(entry.day)}: ${state}`}
-                    onClick={() => onToggleToday(row.questId, entry.completed)}
+                    disabled={!actions}
+                    title={`${label} · ${state}${hint}`}
+                    aria-label={`${row.title}, ${label}: ${state}`}
+                    onClick={() => {
+                      if (!actions) return
+                      if (entry.completed && stale && !isArmed) {
+                        actions.setArmed(key)
+                        return
+                      }
+                      actions.setArmed(null)
+                      actions.onToggleDay(row.questId, entry.day, entry.completed)
+                    }}
+                    onMouseLeave={() => {
+                      if (isArmed) actions?.setArmed(null)
+                    }}
+                    onBlur={() => {
+                      if (isArmed) actions?.setArmed(null)
+                    }}
                   >
                     <span aria-hidden="true" />
                   </button>
@@ -113,16 +156,10 @@ function ChronicleGrid({ today, days, rows, weeks, sleeping = false, onToggleTod
               })}
 
               <div
-                className="chronicle-streaks chronicle-sticky-right"
+                className="chronicle-total chronicle-sticky-right"
                 style={{ gridColumn: statsColumn, gridRow }}
               >
-                <span>
-                  сейчас <b>{row.currentStreak}</b>
-                </span>
-                <span>
-                  лучший <b>{row.bestStreak}</b>
-                </span>
-                {row.currentStreak === 0 && row.bestStreak > 0 && <em>новый цикл</em>}
+                <b>{row.total}</b>
               </div>
             </Fragment>
           )
@@ -135,20 +172,19 @@ function ChronicleGrid({ today, days, rows, weeks, sleeping = false, onToggleTod
               style={{ gridColumn: 1, gridRow: footerRow }}
             >
               Ритм по неделям
-              <small>закрыто / положено</small>
+              <small>отметок за неделю</small>
             </div>
             {weeks.map((week) => {
               const startIndex = days.indexOf(week.weekStart)
               const span = Math.max(1, days.indexOf(week.weekEnd) - startIndex + 1)
-              const complete = week.scheduled > 0 && week.scheduledCompleted === week.scheduled
               return (
                 <div
                   key={week.weekStart}
-                  className={`chronicle-week-total${complete ? ' complete' : ''}${week.scheduled === 0 ? ' empty' : ''}`}
+                  className={`chronicle-week-total${week.completed === 0 ? ' empty' : ''}`}
                   style={{ gridColumn: `${startIndex + 2} / span ${span}`, gridRow: footerRow }}
-                  title={`${formatDayShort(week.weekStart)}–${formatDayShort(week.weekEnd)} · ${week.completed} отметок всего`}
+                  title={`${formatDayShort(week.weekStart)}–${formatDayShort(week.weekEnd)} · отметок: ${week.completed}`}
                 >
-                  {week.scheduledCompleted}/{week.scheduled}
+                  {week.completed}
                 </div>
               )
             })}
@@ -165,9 +201,16 @@ function ChronicleGrid({ today, days, rows, weeks, sleeping = false, onToggleTod
   )
 }
 
-export function Chronicle({ dashboard, rows, sleepingRows, onToggleToday }: Props) {
-  const openTitles = new Set(dashboard.todayOpenQuestIds)
-  const remaining = rows.filter((row) => openTitles.has(row.questId)).map((row) => row.title)
+export function Chronicle({ dashboard, rows, sleepingRows, onToggleDay, onEditQuest }: Props) {
+  const [armed, setArmed] = useState<Armed>(null)
+
+  // взвод не живёт вечно: на тач-экранах нет ни mouseleave, ни надёжного blur — без
+  // таймера забытая взведённая клетка снималась бы одним случайным касанием позже
+  useEffect(() => {
+    if (!armed) return
+    const timer = setTimeout(() => setArmed(null), 4000)
+    return () => clearTimeout(timer)
+  }, [armed])
 
   return (
     <main className="chronicle">
@@ -176,28 +219,22 @@ export function Chronicle({ dashboard, rows, sleepingRows, onToggleToday }: Prop
           <div>
             <div className="chronicle-kicker">История ритма</div>
             <h1>Хроника</h1>
-            <p>Повторяющиеся квесты за последние 12 ISO-недель — напрямую из xpLog.</p>
+            <p>Привычки за последние 12 ISO-недель — напрямую из xpLog.</p>
           </div>
           <div className="chronicle-today-summary">
             <span>Сегодня</span>
-            {dashboard.todayScheduled === 0 ? (
-              <strong>нет обязательных отметок</strong>
-            ) : (
-              <>
-                <strong>
-                  {dashboard.todayCompleted}/{dashboard.todayScheduled} закрыто
-                </strong>
-                <small>{remaining.length > 0 ? `Осталось: ${remaining.join(' · ')}` : 'Контур дня закрыт'}</small>
-              </>
-            )}
+            <strong>{dashboard.todayCompleted > 0 ? `отмечено: ${dashboard.todayCompleted}` : 'пока пусто'}</strong>
           </div>
         </header>
 
         <div className="chronicle-legend" aria-label="Легенда">
           <span><i className="done" /> отмечено</span>
-          <span><i className="missed" /> положено, не закрыто</span>
-          <span><i /> не положено</span>
-          <small>Сегодняшнюю ячейку можно нажать</small>
+          <span><i /> пусто</span>
+          <small className={armed ? 'warn' : undefined}>
+            {armed
+              ? 'Нажми ещё раз, чтобы снять отметку: повторная отметка искр уже не даст'
+              : 'Нажми на любую клетку. Искры — только за сегодня и вчера'}
+          </small>
         </div>
 
         {rows.length > 0 ? (
@@ -206,23 +243,17 @@ export function Chronicle({ dashboard, rows, sleepingRows, onToggleToday }: Prop
             days={dashboard.days}
             rows={rows}
             weeks={dashboard.weeks}
-            onToggleToday={onToggleToday}
+            actions={{ armed, setArmed, onToggleDay, onEditQuest }}
           />
         ) : (
-          <div className="chronicle-empty">Нет активных повторяющихся квестов.</div>
+          <div className="chronicle-empty">Нет активных привычек.</div>
         )}
 
         {sleepingRows.length > 0 && (
           <details className="chronicle-sleeping">
             <summary>Спящие привычки <span>{sleepingRows.length}</span></summary>
-            <p>История сохранена, но пропуски не участвуют в ритме активных направлений.</p>
-            <ChronicleGrid
-              today={dashboard.today}
-              days={dashboard.days}
-              rows={sleepingRows}
-              sleeping
-              onToggleToday={onToggleToday}
-            />
+            <p>История сохранена; спящие привычки не отмечаются.</p>
+            <ChronicleGrid today={dashboard.today} days={dashboard.days} rows={sleepingRows} />
           </details>
         )}
       </div>

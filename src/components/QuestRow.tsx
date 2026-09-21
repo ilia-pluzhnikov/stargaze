@@ -14,7 +14,6 @@ interface Props {
   skill: { emoji: string; name: string } | null
   star?: StarComponent | null
   done: boolean
-  streak: number
   doneDay?: string | null // для секции «Выполненные»
   child?: boolean // рендер с отступом под родителем
   parentRef?: { id: string; title: string } | null // «⤴ часть эпика» (пометка в meta и крошка в карточке)
@@ -34,7 +33,6 @@ export function QuestRow({
   skill,
   star,
   done,
-  streak,
   doneDay,
   child,
   parentRef,
@@ -92,7 +90,6 @@ export function QuestRow({
           {provision !== undefined && provision > 0 && (
             <span className="q-drip">капает −{provision} ✨</span>
           )}
-          {streak > 0 && <span className="fire">🔥×{streak}</span>}
           {doneDay && <span>выполнено {formatDayShort(doneDay)}</span>}
           {hasCard && (
             <span className="card-tag">

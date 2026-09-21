@@ -37,7 +37,7 @@ const quest = (overrides: Partial<Quest> = {}): Quest => ({
 })
 
 const base = (overrides: Partial<Store> = {}): Store => ({
-  version: 3,
+  version: 4,
   character: { name: 'Тест', avatar: '⚔️' },
   skills: [skill('s1')],
   stars: [star()],
@@ -47,9 +47,19 @@ const base = (overrides: Partial<Store> = {}): Store => ({
 })
 
 describe('validateStore', () => {
-  it('валидный store v3', () => expect(validateStore(base())).toEqual([]))
+  it('валидный store v4', () => expect(validateStore(base())).toEqual([]))
   it('не-объект', () => expect(validateStore('мусор')).toEqual(['store: не объект']))
   it('чужая версия', () => expect(validateStore({ ...base(), version: 2 }).join()).toMatch(/version/))
+  it('v3 без миграции — отказ по version', () =>
+    expect(validateStore({ ...base(), version: 3 }).join()).toMatch(/version: ожидается 4, получено 3/))
+  it('квест с ключом daysOfWeek — отказ: поле удалено в v4', () => {
+    const s = { ...base(), quests: [{ ...quest({ type: 'repeating' }), daysOfWeek: [1, 3] }] }
+    expect(validateStore(s).join()).toMatch(/quests\[0\] \(q1\): daysOfWeek — поле удалено в v4/)
+  })
+  it('daysOfWeek отвергается при любом значении, даже пустом', () => {
+    const s = { ...base(), quests: [{ ...quest({ type: 'repeating' }), daysOfWeek: [] }] }
+    expect(validateStore(s).join()).toMatch(/поле удалено в v4/)
+  })
   it('битый character', () =>
     expect(validateStore({ ...base(), character: { name: 5 } }).join()).toMatch(/character/))
 
@@ -304,7 +314,7 @@ describe('validateStore: DoD-гейт и история итогов', () => {
 
 describe('подквесты (parentQuestId)', () => {
   const subqStore = (quests: Quest[]): Store => ({
-    version: 3,
+    version: 4,
     character: { name: 'И', avatar: 'X' },
     skills: [{ id: 's1', emoji: '✨', name: 'Н', wantStatement: '', hue: 200, archived: false, createdAt: 'T0' }],
     stars: [],
@@ -368,7 +378,7 @@ describe('подквесты (parentQuestId)', () => {
 
 describe('валидация экономики искр', () => {
   const mk = (): Store => ({
-    version: 3, character: { name: 'И', avatar: '🧙' },
+    version: 4, character: { name: 'И', avatar: '🧙' },
     skills: [{ id: 's1', emoji: '⚔️', name: 'Навык', wantStatement: '', hue: 200, archived: false, createdAt: '2026-09-01T00:00:00.000Z' }],
     stars: [{ id: 'st1', skillId: 's1', parentStarId: null, tier: 'S', title: 'Звезда', createdAt: '2026-09-01T00:00:00.000Z' }],
     xpLog: [],

@@ -18,7 +18,7 @@ export function mkQuest(over: Partial<Quest> = {}): Quest {
 
 export function mkStore(over: Partial<Store> = {}): Store {
   return {
-    version: 3, character: { name: 'Тест', avatar: '🧙' },
+    version: 4, character: { name: 'Тест', avatar: '🧙' },
     skills: [], stars: [], quests: [mkQuest()], xpLog: [], ...over,
   }
 }
@@ -66,18 +66,41 @@ describe('экономика: completeQuest', () => {
     expect(after.ledger!.map((e) => e.kind)).toEqual(['drain'])
     expect(sparksBalance(after, day) - sparksBalance(before, day)).toBe(0)
   })
-  it('анти-бэкфилл repeating: сегодня/вчера платят, позавчера/завтра — только XP', () => {
+  it('анти-бэкфилл repeating: сегодня/вчера платят, позавчера — только XP', () => {
     const q = mkQuest({ type: 'repeating', dueDate: undefined })
     const today = '2026-09-10'
     const cases: [string, boolean][] = [
-      [today, true], [addDays(today, -1), true],
-      [addDays(today, -2), false], [addDays(today, 1), false],
+      [today, true], [addDays(today, -1), true], [addDays(today, -2), false],
     ]
     for (const [day, paid] of cases) {
       const s = reducer(mkStore({ quests: [q] }), { type: 'completeQuest', questId: 'q1', day, ts: tsAt(today) })
       expect(s.xpLog, day).toHaveLength(1)
       expect(s.ledger ?? [], day).toHaveLength(paid ? 1 : 0)
     }
+  })
+  it('отметка привычки в будущее — побитовый no-op', () => {
+    const q = mkQuest({ type: 'repeating', dueDate: undefined })
+    const today = '2026-09-10'
+    const s0 = mkStore({ quests: [q] })
+    const s = reducer(s0, { type: 'completeQuest', questId: 'q1', day: addDays(today, 1), ts: tsAt(today) })
+    expect(s).toBe(s0)
+  })
+  it('граница будущего — игровой день ts (UTC+7), а не календарная часть строки', () => {
+    const q = mkQuest({ type: 'repeating', dueDate: undefined })
+    // 18:00 UTC 09-10 = 01:00 09-11 в игровом поясе ⇒ «сегодня» уже 09-11
+    const s = reducer(mkStore({ quests: [q] }), {
+      type: 'completeQuest', questId: 'q1', day: '2026-09-11', ts: '2026-09-10T18:00:00.000Z',
+    })
+    expect(s.xpLog).toHaveLength(1)
+  })
+  it('нестроковый ts: гейт будущего молчит, битое событие отклонит валидатор', () => {
+    const q = mkQuest({ type: 'repeating', dueDate: undefined })
+    const s = reducer(mkStore({ quests: [q] }), {
+      type: 'completeQuest', questId: 'q1', day: '2026-09-10', ts: 12345 as unknown as string,
+    })
+    expect(s.xpLog).toHaveLength(1)
+    expect(s.ledger ?? []).toHaveLength(0)
+    expect(validateStore(s).length).toBeGreaterThan(0)
   })
   it('контрактный бэкфилл не уменьшает долг: провизия по игровому дню ts', () => {
     // сдаём «за D+1», хотя на часах D+6 → окно не пройдено → drain по D+6
@@ -144,6 +167,16 @@ describe('экономика: uncompleteQuest', () => {
     s2 = reducer(s2, { type: 'uncompleteQuest', questId: 'q1', day: backDay, ts: tsAt(today) })
     expect(s2.ledger ?? []).toHaveLength(0)
     expect(s2.xpLog).toHaveLength(2) // +100 / −100
+  })
+  it('откат оплаченной вчерашней отметки пишет reversal тем же днём', () => {
+    const q = mkQuest({ type: 'repeating', dueDate: undefined })
+    const today = '2026-09-10'
+    const yesterday = addDays(today, -1)
+    let s = reducer(mkStore({ quests: [q] }), { type: 'completeQuest', questId: 'q1', day: yesterday, ts: tsAt(today) })
+    expect(s.ledger!.map((e) => e.kind)).toEqual(['earn'])
+    s = reducer(s, { type: 'uncompleteQuest', questId: 'q1', day: yesterday, ts: tsAt(today) })
+    expect(s.ledger!.map((e) => e.kind)).toEqual(['earn', 'reversal'])
+    expect(s.ledger![1]).toMatchObject({ day: yesterday, amount: -100, reversesId: s.ledger![0].id })
   })
   it('доэкономический done-квест откатывается без reversal', () => {
     // сдача была до экономики: XP есть, ledger пуст

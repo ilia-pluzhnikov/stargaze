@@ -1,8 +1,9 @@
 import type { Character, LedgerEvent, Quest, QuestDueDateMove, QuestResult, Skill, StarComponent, Store, WishlistItem, XpEvent } from '../types'
 import { WISHLIST_EMOJI_MAX } from '../types'
 import { isCalendarDay } from './dates'
+import { migrateStore } from './migrate'
 import { netForQuest, netForQuestOnDay } from './selectors'
-import { cancelFeeFor, earnWindowOk, FREE_MOVES_PER_7D, moveFeeFor, movesUsedIn7d, provisionForQuest, purchasedDays, settlementDay, sparksBalance } from './sparks'
+import { cancelFeeFor, dayInGameTz, earnWindowOk, FREE_MOVES_PER_7D, moveFeeFor, movesUsedIn7d, provisionForQuest, purchasedDays, settlementDay, sparksBalance } from './sparks'
 import { ancestorsOf } from './stars'
 import { seedStore } from '../data/seed'
 
@@ -97,6 +98,12 @@ export function reducer(store: Store, action: Action): Store {
       const quest = store.quests.find((q) => q.id === action.questId)
       if (!quest || quest.status === 'archived' || quest.status === 'proposed') return store
       if (quest.type === 'repeating') {
+        // отметка наперёд — no-op: этого дня ещё не было. Из веба недостижимо; гейт бережёт
+        // append-only xpLog от агента с --day из будущего. Нераспознанный или нестроковый ts
+        // дня не даёт — гейт молчит: денег такая отметка не получит (earnWindowOk → false),
+        // а битый ts отклонит валидатор
+        const tsDay = typeof action.ts === 'string' ? dayInGameTz(action.ts) : ''
+        if (isCalendarDay(tsDay) && action.day > tsDay) return store
         // максимум одна отметка в день
         if (netForQuestOnDay(store.xpLog, quest.id, action.day) > 0) return store
         const pay = earnWindowOk(action.day, action.ts)
@@ -150,7 +157,7 @@ export function reducer(store: Store, action: Action): Store {
       const ledger = store.ledger ?? []
       const reversedIds = new Set(ledger.filter((e) => e.kind === 'reversal').map((e) => e.reversesId))
       if (quest.type === 'repeating') {
-        // откат только сегодняшней отметки
+        // откат отметки любого дня: день берётся из payload (Хроника, CLI --day)
         const net = netForQuestOnDay(store.xpLog, quest.id, action.day)
         if (net <= 0) return store
         // разворачивается earn этого дня, если был (бэкфилл-отметка earn не писала)
@@ -348,7 +355,9 @@ export function reducer(store: Store, action: Action): Store {
     case 'setCharacter':
       return { ...store, character: action.character }
     case 'importStore':
-      return action.store
+      // миграция живёт в ядре: бэкап v3 импортируется одинаково из веба, API и CLI;
+      // валидность результата проверяет точка записи (storage) или вызывающая голова
+      return migrateStore(action.store) as Store
     case 'resetToSeed':
       return seedStore()
     case 'moveDueDate': {

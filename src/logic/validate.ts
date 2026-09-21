@@ -32,7 +32,7 @@ function checkDupIds(errors: string[], name: string, list: { id?: unknown }[]): 
 export function validateStore(x: unknown): string[] {
   const errors: string[] = []
   if (!isObj(x)) return ['store: не объект']
-  if (x.version !== 3) errors.push(`version: ожидается 3, получено ${JSON.stringify(x.version)}`)
+  if (x.version !== 4) errors.push(`version: ожидается 4, получено ${JSON.stringify(x.version)}`)
   if (!isObj(x.character) || !isStr(x.character.name) || !isStr(x.character.avatar))
     errors.push('character: ожидается { name: string, avatar: string }')
   let brokenArrays = false
@@ -195,10 +195,9 @@ export function validateStore(x: unknown): string[] {
         })
       if (q.type === 'repeating') errors.push(`quests[${i}] (${q.id}): resultHistory у repeating-квеста`)
     }
-    if (q.daysOfWeek !== undefined) {
-      if (!Array.isArray(q.daysOfWeek) || q.daysOfWeek.some((d) => !isInt(d) || d < 0 || d > 6))
-        errors.push(`quests[${i}] (${q.id}): daysOfWeek — не массив целых 0..6`)
-    }
+    // v4: расписания у привычек нет. Ключ отвергается при любом значении — валидный v4
+    // гарантированно чистый, а устаревший payload агента получает внятную ошибку
+    if (isObj(q) && 'daysOfWeek' in q) errors.push(`quests[${i}] (${q.id}): daysOfWeek — поле удалено в v4`)
     if (q.dueDate !== undefined && !isCalendarDay(q.dueDate))
       errors.push(`quests[${i}] (${q.id}): dueDate — не календарная дата YYYY-MM-DD`)
     if (q.acceptedAt !== undefined && !isStr(q.acceptedAt))

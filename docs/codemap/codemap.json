@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-25T19:43:17.974Z",
-  "generated_from_commit": "d4d99ac858706d6bf5ea56cc723b65dc8224df9f",
+  "generated_at": "2026-09-19T09:49:57.103Z",
+  "generated_from_commit": "a63c075f2a3ad6fd05ca2622ab52d2ba89a975bb",
   "scope": [
     "src/",
     "cli/",
@@ -228,25 +228,21 @@
       "path": "src/logic/sync.ts",
       "kind": "bridge",
       "tier": 2,
-      "role": "HTTP-клиент /api/*, офлайн-очередь действий (двухисточниковый дренаж), чтение legacy-ключей localStorage",
+      "role": "HTTP-клиент /api/*, офлайн-очередь действий (двухисточниковый дренаж)",
       "external": false,
       "files": [
         "src/logic/api.ts",
-        "src/logic/sync.ts",
-        "src/logic/migrate.ts"
+        "src/logic/sync.ts"
       ],
       "entrypoints": [
         "probeServer/fetchServerStore/postAction",
-        "loadQueue/appendQueue/drainQueue",
-        "loadStoredStore"
+        "loadQueue/appendQueue/drainQueue"
       ],
       "tests": [
-        "src/logic/sync.test.ts",
-        "src/logic/migrate.test.ts"
+        "src/logic/sync.test.ts"
       ],
       "constraints": [
         "Пишем только в stargaze.queue.v2; legacy questlog.queue.v2 дренируется первым и вечно",
-        "loadStoredStore: stargaze.v3 → фолбэк questlog.v3; автомиграции v2→v3 нет",
         "Гейт серверного режима — /api/store с валидацией, а не /api/health",
         "4xx на действие выбрасывает его из очереди (иначе очередь застрянет навечно)"
       ],
@@ -262,10 +258,6 @@
         {
           "path": "src/logic/api.ts",
           "symbol": "export async function probeServer"
-        },
-        {
-          "path": "src/logic/migrate.ts",
-          "symbol": "export const LEGACY_STORE_KEY = 'questlog.v3'"
         }
       ],
       "changed_since_previous": false
@@ -409,32 +401,29 @@
       "path": "src/logic/selectors.ts",
       "kind": "core",
       "tier": 4,
-      "role": "Всё вычисляемое: XP навыка/персонажа, уровни, стрики, недельная статистика, дашборд повторяемых, прогресс эпика",
+      "role": "Всё вычисляемое: XP навыка/персонажа, уровни, недельная статистика, плотность привычек (Хроника), прогресс эпика",
       "external": false,
       "files": [
         "src/logic/selectors.ts",
         "src/logic/xp.ts",
-        "src/logic/streak.ts",
         "src/logic/stats.ts",
         "src/logic/recurring.ts"
       ],
       "entrypoints": [
         "skillXpTotal/charXpTotal",
         "skillLevel/charLevel",
-        "computeStreak",
         "recurringDashboard",
         "epicProgress"
       ],
       "tests": [
         "src/logic/selectors.test.ts",
         "src/logic/xp.test.ts",
-        "src/logic/streak.test.ts",
         "src/logic/stats.test.ts",
         "src/logic/recurring.test.ts"
       ],
       "constraints": [
         "Формулы уровней: навык 100 + 50·(n−1), персонаж 300 + 150·(n−1) — менять только со спекой и тестами",
-        "Стрик: сегодняшний невыполненный положенный день не рвёт — рвёт только завершившийся пустым",
+        "Привычки без расписания и стриков: Хроника считает отметки (net XP > 0) по дням и ISO-неделям",
         "Денормализованных счётчиков нет — всё считается из xpLog"
       ],
       "evidence": [
@@ -447,10 +436,6 @@
           "symbol": "export function levelFromXp"
         },
         {
-          "path": "src/logic/streak.ts",
-          "symbol": "export function computeStreak"
-        },
-        {
           "path": "src/logic/recurring.ts",
           "symbol": "export function recurringDashboard"
         }
@@ -459,22 +444,29 @@
     },
     {
       "id": "core-validate",
-      "name": "Валидация store",
+      "name": "Валидация и миграция store",
       "path": "src/logic/validate.ts",
       "kind": "core",
       "tier": 4,
-      "role": "Структурный контроль всего store: типы, ссылочная целостность, календарные даты, потолок награды, глубина подквестов",
+      "role": "Структурный контроль всего store: типы, ссылочная целостность, календарные даты, потолок награды, глубина подквестов; миграция формата между версиями и чтение ключей localStorage",
       "external": false,
       "files": [
-        "src/logic/validate.ts"
+        "src/logic/validate.ts",
+        "src/logic/migrate.ts"
       ],
       "entrypoints": [
-        "validateStore(x) → string[]"
+        "validateStore(x) → string[]",
+        "migrateStore(raw) → unknown",
+        "loadStoredStore(kv)"
       ],
       "tests": [
-        "src/logic/validate.test.ts"
+        "src/logic/validate.test.ts",
+        "src/logic/migrate.test.ts"
       ],
       "constraints": [
+        "Порядок на любом входе чужих данных: parse → migrateStore → validateStore",
+        "migrateStore чистая и идемпотентная; актуальная версия и мусор возвращаются по ссылке",
+        "loadStoredStore: stargaze.v4 → stargaze.v3 → questlog.v3; прежние ключи не удаляются никогда",
         "Даты календарные (isCalendarDay), xpReward ≤ XP_REWARD_MAX 1000",
         "Глубина подквестов — один уровень",
         "Статусных инвариантов у подквестов нет: гейт транзакционный, не структурный"
@@ -483,6 +475,14 @@
         {
           "path": "src/logic/validate.ts",
           "symbol": "export function validateStore"
+        },
+        {
+          "path": "src/logic/migrate.ts",
+          "symbol": "export function migrateStore"
+        },
+        {
+          "path": "src/logic/migrate.ts",
+          "symbol": "export const LEGACY_STORE_KEY = 'questlog.v3'"
         }
       ],
       "changed_since_previous": false
@@ -528,7 +528,7 @@
       "path": "src/types.ts",
       "kind": "core",
       "tier": 5,
-      "role": "Типы store v3 (Quest/Skill/StarComponent/XpEvent/LedgerEvent/WishlistItem) и календарные примитивы",
+      "role": "Типы store v4 (Quest/Skill/StarComponent/XpEvent/LedgerEvent/WishlistItem) и календарные примитивы",
       "external": false,
       "files": [
         "src/types.ts",
@@ -538,9 +538,11 @@
         "interface Store",
         "dayKey/addDays/diffDays/isCalendarDay"
       ],
-      "tests": [],
+      "tests": [
+        "src/logic/dates.test.ts"
+      ],
       "constraints": [
-        "store v3 без миграции: ledger/wishlist — опциональные поля",
+        "store v4; v3 мигрируется migrateStore (снимается daysOfWeek); ledger/wishlist — опциональные поля",
         "dayKey формата YYYY-MM-DD; сравнение дней — строковое, без Date-арифметики в потребителях"
       ],
       "evidence": [
@@ -581,7 +583,8 @@
       "constraints": [
         "НЕ импортировать из браузерного кода (src/components, src/hooks, src/App) — только cli/ и server/",
         "saveStore бросает StoreValidationError вместо записи невалидного store",
-        "withStore не пишет, если fn вернула тот же объект (no-op редьюсера)"
+        "withStore не пишет, если fn вернула тот же объект (no-op редьюсера)",
+        "Перед первой записью поверх файла старого формата рядом кладётся <store>.v3.bak — один раз, без перезаписи"
       ],
       "evidence": [
         {
@@ -595,6 +598,10 @@
         {
           "path": "src/logic/storage.ts",
           "symbol": "mkdirSync(lock) // атомарно"
+        },
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "function backupOnce"
         }
       ],
       "changed_since_previous": false
@@ -728,13 +735,13 @@
       "path": null,
       "kind": "datastore",
       "tier": 5,
-      "role": "Хранилище локального режима и офлайн-очереди: stargaze.v3 / stargaze.queue.v2 (+ вечные legacy-ключи questlog.*)",
+      "role": "Хранилище локального режима и офлайн-очереди: stargaze.v4 / stargaze.queue.v2 (+ вечные ключи прежних версий: stargaze.v3, questlog.*)",
       "external": true,
       "files": [],
       "entrypoints": [
-        "stargaze.v3",
+        "stargaze.v4",
         "stargaze.queue.v2",
-        "questlog.v3 / questlog.queue.v2 (только чтение)"
+        "stargaze.v3 / questlog.v3 / questlog.queue.v2 (только чтение)"
       ],
       "tests": [],
       "constraints": [
@@ -744,7 +751,7 @@
       "evidence": [
         {
           "path": "src/logic/migrate.ts",
-          "symbol": "export const STORE_KEY = 'stargaze.v3'"
+          "symbol": "export const STORE_KEY = 'stargaze.v4'"
         },
         {
           "path": "src/logic/sync.ts",
@@ -1218,17 +1225,6 @@
     },
     {
       "from": "core-progress",
-      "to": "core-sparks",
-      "type": "imports",
-      "evidence": [
-        {
-          "path": "src/logic/recurring.ts",
-          "symbol": "from './sparks'"
-        }
-      ]
-    },
-    {
-      "from": "core-progress",
       "to": "core-model",
       "type": "imports",
       "evidence": [
@@ -1279,6 +1275,32 @@
         {
           "path": "src/logic/storage.ts",
           "symbol": "import { validateStore } from './validate'"
+        },
+        {
+          "path": "src/logic/storage.ts",
+          "symbol": "import { migrateStore } from './migrate'"
+        }
+      ]
+    },
+    {
+      "from": "core-store",
+      "to": "core-validate",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/store.ts",
+          "symbol": "import { migrateStore } from './migrate'"
+        }
+      ]
+    },
+    {
+      "from": "web-usestore",
+      "to": "core-validate",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/hooks/useStore.ts",
+          "symbol": "import { loadStoredStore, STORE_KEY } from '../logic/migrate'"
         }
       ]
     },
@@ -1579,15 +1601,15 @@
         },
         {
           "node": "browser-localstorage",
-          "action": "Персист в stargaze.v3 на каждое изменение",
+          "action": "Персист в stargaze.v4 на каждое изменение",
           "evidence": {
             "path": "src/hooks/useStore.ts",
             "symbol": "localStorage.setItem(STORE_KEY, JSON.stringify(store))"
           }
         },
         {
-          "node": "web-sync",
-          "action": "При старте store читается из stargaze.v3 → фолбэк questlog.v3",
+          "node": "core-validate",
+          "action": "При старте store читается из stargaze.v4 → stargaze.v3 → questlog.v3 с миграцией",
           "evidence": {
             "path": "src/logic/migrate.ts",
             "symbol": "export function loadStoredStore"

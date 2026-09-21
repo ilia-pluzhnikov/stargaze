@@ -53,8 +53,8 @@ export function dayInGameTz(iso: string): string {
 
 /** Сегодня в игровом поясе — «сегодня» для всех голов. Локальный день машины
  * (todayKey) годится только там, где день не сравнивается с данными: у игрока
- * в поездке и у сервера в UTC он расходится с игровым и уводит день у ledger,
- * xpLog, стриков и расписания. */
+ * в поездке и у сервера в UTC он расходится с игровым и уводит день у ledger
+ * и xpLog. */
 export function todayInGameTz(): string {
   return dayInGameTz(new Date().toISOString())
 }
