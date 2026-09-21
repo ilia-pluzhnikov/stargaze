@@ -8,8 +8,9 @@ RPG-интерфейс над реальной жизнью: навыки — г
 
 - `npm run dev` — dev-сервер (Vite)
 - `npm run serve` — сборка + запуск веб и API поверх `~/.stargaze/store.json`
-- `npm run build` — сборка веба; `base: './'` ⇒ `dist/index.html` обязан
-  открываться двойным кликом без сервера (не ломать!)
+- `npm run build` — сборка веба; `base: './'` — пути относительные, сборка
+  раздаётся из любой подпапки. С диска (`file://`) не открывается: браузер
+  блокирует модульный скрипт по CORS — нужен любой HTTP-сервер
 - `npm test` — vitest; `npm run typecheck` — строгий tsc — гонять перед коммитом
 - `npm run build:cli` / `npm run build:server` — CJS-бандлы `dist-node/`
 
