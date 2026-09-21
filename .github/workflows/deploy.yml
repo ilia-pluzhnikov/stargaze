@@ -8,6 +8,9 @@ concurrency: deploy
 
 jobs:
   deploy:
+    # Личный деплой автора на его сервер. В форке секретов нет — джоб
+    # пропускается, а не падает на каждом push в master.
+    if: github.repository == 'ilia-pluzhnikov/stargaze'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

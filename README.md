@@ -10,6 +10,8 @@
 
 ## Запуск за минуту
 
+Нужен [Node.js](https://nodejs.org) 22.12 или новее (проверить: `node -v`).
+
 ```bash
 git clone https://github.com/ilia-pluzhnikov/stargaze.git
 cd stargaze
