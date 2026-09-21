@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Quest, Skill, SkyStore, StarComponent, XpEvent } from '../types'
+import { layoutConstellation } from './layout'
 import { skillXpTotal } from './selectors'
-import { isRankAchieved } from './stars'
-import { skyAsOf } from './timeline'
+import { isRankAchieved, skillStars } from './stars'
+import { constellationAsOf, skyAsOf } from './timeline'
 
 // Полдень UTC = 19:00 игрового пояса (UTC+7): тот же календарный день
 const at = (day: string) => `${day}T12:00:00.000Z`
@@ -132,5 +133,60 @@ describe('skyAsOf', () => {
     expect(skyAsOf(store, '2026-12-31')).toEqual(store)
     skyAsOf(store, '2026-06-01')
     expect(store).toEqual(snapshot)
+  })
+})
+
+describe('constellationAsOf', () => {
+  const stars = [
+    star('root', '2026-06-01'),
+    star('mid', '2026-06-02', { parentStarId: 'root' }),
+    star('leaf', '2026-06-03', { parentStarId: 'mid' }),
+    star('side', '2026-06-04', { parentStarId: 'root' }),
+  ]
+  const full = layoutConstellation(skillStars(stars, 's1'), 's1')
+
+  it('полный набор → те же узлы, рёбра и координаты, что в full', () => {
+    expect(constellationAsOf(full, stars)).toEqual(full)
+  })
+
+  it('подмножество: координаты оставшихся не меняются, рёбра только между оставшимися', () => {
+    const past = skyAsOf(sky({ stars }), '2026-06-02').stars // root, mid
+    const c = constellationAsOf(full, past)
+    expect(c.nodes.map((n) => n.star.id)).toEqual(['root', 'mid'])
+    for (const n of c.nodes) {
+      const src = full.nodes.find((f) => f.star.id === n.star.id)!
+      expect([n.x, n.y, n.depth]).toEqual([src.x, src.y, src.depth])
+    }
+    expect(c.edges).toEqual([[-1, 0], [0, 1]])
+    expect(c.root).toEqual(full.root)
+  })
+
+  it('перепривязанная звезда получает ребро к новому родителю, без него — к ядру', () => {
+    // mid создана позже leaf: в прошлом leaf висит на root
+    const moved = [
+      star('root', '2026-06-01'),
+      star('mid', '2026-06-20', { parentStarId: 'root' }),
+      star('leaf', '2026-06-03', { parentStarId: 'mid' }),
+    ]
+    const fullMoved = layoutConstellation(skillStars(moved, 's1'), 's1')
+    const c = constellationAsOf(fullMoved, skyAsOf(sky({ stars: moved }), '2026-06-10').stars)
+    const idx = (id: string) => c.nodes.findIndex((n) => n.star.id === id)
+    expect(c.nodes.map((n) => n.star.id).sort()).toEqual(['leaf', 'root'])
+    expect(c.edges).toContainEqual([idx('root'), idx('leaf')])
+    const onlyLeaf = constellationAsOf(fullMoved, [{ ...moved[2], parentStarId: null }])
+    expect(onlyLeaf.edges).toEqual([[-1, 0]])
+  })
+
+  it('star в узлах — объект из прошлого (срезанный litAt)', () => {
+    const lit = [star('root', '2026-06-01', { litAt: at('2026-06-20') })]
+    const fullLit = layoutConstellation(lit, 's1')
+    const past = skyAsOf(sky({ stars: lit }), '2026-06-10').stars
+    const c = constellationAsOf(fullLit, past)
+    expect(c.nodes[0].star).toBe(past[0])
+    expect(c.nodes[0].star.litAt).toBeUndefined()
+  })
+
+  it('звезда, которой нет в полной раскладке, молча пропускается', () => {
+    expect(constellationAsOf(full, [star('ghost', '2026-06-01')]).nodes).toEqual([])
   })
 })

@@ -1,4 +1,5 @@
 import type { Skill, SkyStore, StarComponent } from '../types'
+import type { Constellation, ConstellationNode } from './layout'
 import { dayInGameTz } from './sparks'
 
 // История неба выводится из нынешнего store: createdAt/litAt звёзд, createdAt навыков и
@@ -47,4 +48,26 @@ export function skyAsOf(store: SkyStore, day: string): SkyStore {
     // пара всегда по одну сторону среза
     xpLog: store.xpLog.filter((e) => e.day <= day),
   }
+}
+
+/** Созвездие прошлого в сегодняшних координатах. `full` — `layoutConstellation` по полному
+ * сегодняшнему набору звёзд навыка, `pastStars` — звёзды навыка из `skyAsOf`. Позиции и depth
+ * берутся из `full` (раскладка от времени не зависит), объекты `star` — из прошлого, рёбра — по
+ * уже перепривязанному `parentStarId`. Форма результата та же: код отрисовки не меняется. */
+export function constellationAsOf(full: Constellation, pastStars: StarComponent[]): Constellation {
+  const pastById = new Map(pastStars.map((s) => [s.id, s]))
+  const nodes: ConstellationNode[] = []
+  const indexById = new Map<string, number>()
+  for (const n of full.nodes) {
+    const star = pastById.get(n.star.id)
+    if (!star) continue
+    indexById.set(star.id, nodes.length)
+    nodes.push({ star, depth: n.depth, x: n.x, y: n.y })
+  }
+  // как в layoutConstellation: i-е ребро ведёт в i-й узел; -1 — от корня
+  const edges = nodes.map((n, i): [number, number] => [
+    n.star.parentStarId === null ? -1 : indexById.get(n.star.parentStarId) ?? -1,
+    i,
+  ])
+  return { root: full.root, nodes, edges }
 }
