@@ -3,7 +3,8 @@ import type { Quest, Skill, SkyStore, StarComponent, XpEvent } from '../types'
 import { layoutConstellation } from './layout'
 import { skillXpTotal } from './selectors'
 import { isRankAchieved, skillStars } from './stars'
-import { constellationAsOf, skyAsOf } from './timeline'
+import { constellationAsOf, skyAsOf, skyTotals, timelineBounds, timelineMarks, timelineMonths } from './timeline'
+import type { TimelineMark } from './timeline'
 
 // Полдень UTC = 19:00 игрового пояса (UTC+7): тот же календарный день
 const at = (day: string) => `${day}T12:00:00.000Z`
@@ -188,5 +189,121 @@ describe('constellationAsOf', () => {
 
   it('звезда, которой нет в полной раскладке, молча пропускается', () => {
     expect(constellationAsOf(full, [star('ghost', '2026-06-01')]).nodes).toEqual([])
+  })
+})
+
+describe('timelineBounds', () => {
+  it('пустой store → null', () => expect(timelineBounds(sky({ skills: [] }))).toBeNull())
+
+  it('самый ранний день среди навыков, звёзд и xpLog', () => {
+    const store = sky({
+      skills: [skill('s1', '2026-06-05')],
+      stars: [star('a', '2026-06-07')],
+      xpLog: [xp('e1', '2026-06-02', 10)],
+    })
+    expect(timelineBounds(store)).toEqual({ first: '2026-06-02' })
+  })
+
+  it('архивный навык и его звёзды границу не дают', () => {
+    const store = sky({
+      skills: [skill('old', '2026-01-01', { archived: true }), skill('s1', '2026-06-05')],
+      stars: [star('x', '2026-01-02', { skillId: 'old' })],
+    })
+    expect(timelineBounds(store)).toEqual({ first: '2026-06-05' })
+  })
+
+  it('со skillId — день создания навыка; нет такого навыка → null', () => {
+    const store = sky({ skills: [skill('s1', '2026-06-05'), skill('s2', '2026-07-01')], xpLog: [xp('e1', '2026-06-02', 10)] })
+    expect(timelineBounds(store, 's2')).toEqual({ first: '2026-07-01' })
+    expect(timelineBounds(store, 'nope')).toBeNull()
+  })
+})
+
+describe('timelineMarks', () => {
+  const starDays = (marks: TimelineMark[]) => marks.filter((m) => m.kind === 'star').map((m) => `${m.day}:${m.skillId}`)
+  const rankDays = (marks: TimelineMark[]) => marks.filter((m) => m.kind === 'rank').map((m) => m.day)
+
+  it('пустой store → []', () => expect(timelineMarks(sky({ skills: [] }))).toEqual([]))
+
+  it('засечка звезды — в день зажигания, label — название звезды', () => {
+    const store = sky({ stars: [
+      star('a', '2026-06-01', { title: 'A1', litAt: at('2026-06-10') }),
+      star('b', '2026-06-01'),
+      star('c', '2026-06-01'),
+    ] }) // 1 из 3 — ранг не взят, засечка одна
+    expect(timelineMarks(store)).toEqual([{ day: '2026-06-10', kind: 'star', skillId: 's1', label: 'A1' }])
+  })
+
+  it('засечка ранга — в день перехода «нет → да»', () => {
+    const store = sky({
+      skills: [skill('s1', '2026-06-01', { name: 'Английский' })],
+      stars: [
+        star('a', '2026-06-01', { litAt: at('2026-06-05') }),
+        star('b', '2026-06-01', { litAt: at('2026-06-08') }),
+        star('c', '2026-06-01'),
+      ],
+    })
+    expect(timelineMarks(store).filter((m) => m.kind === 'rank')).toEqual([
+      { day: '2026-06-08', kind: 'rank', skillId: 's1', label: 'ранг D · Английский' },
+    ])
+  })
+
+  it('ранг взят, отобран добавлением звёзд и взят снова — две засечки', () => {
+    const store = sky({ stars: [
+      star('a', '2026-06-01', { litAt: at('2026-06-05') }), // 1 из 1 — взят
+      star('b', '2026-06-10', { litAt: at('2026-06-20') }), // с 06-10: 1 из 3 — потерян; 06-20: 2 из 3 — снова взят
+      star('c', '2026-06-10'),
+    ] })
+    expect(rankDays(timelineMarks(store))).toEqual(['2026-06-05', '2026-06-20'])
+  })
+
+  it('архивный навык засечек не даёт; фильтр по skillId; сортировка по дню', () => {
+    const store = sky({
+      skills: [skill('s1', '2026-06-01'), skill('s2', '2026-06-01'), skill('old', '2026-06-01', { archived: true })],
+      stars: [
+        star('late', '2026-06-01', { litAt: at('2026-06-20') }),
+        star('early', '2026-06-01', { skillId: 's2', litAt: at('2026-06-03') }),
+        star('gone', '2026-06-01', { skillId: 'old', litAt: at('2026-06-02') }),
+      ],
+    })
+    expect(starDays(timelineMarks(store))).toEqual(['2026-06-03:s2', '2026-06-20:s1'])
+    expect(starDays(timelineMarks(store, 's1'))).toEqual(['2026-06-20:s1'])
+  })
+
+  it('звезда, зажжённая раньше создания навыка, даёт засечки в день, когда стала видна на небе', () => {
+    const store = sky({ skills: [skill('s1', '2026-06-10')], stars: [star('a', '2026-06-01', { litAt: at('2026-06-02') })] })
+    expect(timelineMarks(store).map((m) => `${m.kind}:${m.day}`)).toEqual(['star:2026-06-10', 'rank:2026-06-10'])
+  })
+})
+
+describe('skyTotals', () => {
+  it('считает звёзды только неархивных навыков', () => {
+    const store = sky({
+      skills: [skill('s1', '2026-06-01'), skill('old', '2026-06-01', { archived: true })],
+      stars: [
+        star('a', '2026-06-01', { litAt: at('2026-06-02') }),
+        star('b', '2026-06-01'),
+        star('x', '2026-06-01', { skillId: 'old', litAt: at('2026-06-02') }),
+      ],
+    })
+    expect(skyTotals(store)).toEqual({ starsLit: 1, starsTotal: 2 })
+  })
+
+  it('пустое небо → нули', () => expect(skyTotals(sky({ skills: [] }))).toEqual({ starsLit: 0, starsTotal: 0 }))
+})
+
+describe('timelineMonths', () => {
+  it('первая подпись — в день начала, дальше — первые числа месяцев; январь подписан годом', () => {
+    expect(timelineMonths('2026-11-20', '2027-02-03')).toEqual([
+      { day: '2026-11-20', label: 'ноя' },
+      { day: '2026-12-01', label: 'дек' },
+      { day: '2027-01-01', label: '2027' },
+      { day: '2027-02-01', label: 'фев' },
+    ])
+  })
+
+  it('один день — одна подпись; перевёрнутый диапазон — пусто', () => {
+    expect(timelineMonths('2026-06-14', '2026-06-14')).toEqual([{ day: '2026-06-14', label: 'июн' }])
+    expect(timelineMonths('2026-06-14', '2026-06-13')).toEqual([])
   })
 })
