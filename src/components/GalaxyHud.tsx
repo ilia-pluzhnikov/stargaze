@@ -1,5 +1,4 @@
 import type { Skill, StarComponent } from '../types'
-import { rankTitle } from '../logic/stars'
 import type { GalaxyStats } from '../logic/stars'
 
 /** Имя навыка для неба: без уточнения в скобках («Гитара (акустика)» → «Гитара»). */
@@ -31,7 +30,7 @@ export function GalaxyHud({ skill, level, stats, hover, ribbon, onSwitch }: Gala
             <span className={hover.star.litAt ? 'ghud-star lit' : 'ghud-star'}>{hover.star.title}</span>
             <br />
             <span className="ghud-star-meta">
-              {hover.star.tier} · {rankTitle(skill, hover.star.tier)} · {hover.tierLit}/{hover.tierTotal} · {hover.star.litAt ? 'зажжена' : 'не зажжена'}
+              {hover.star.tier} · {hover.tierLit}/{hover.tierTotal} · {hover.star.litAt ? 'зажжена' : 'не зажжена'}
             </span>
             {hover.star.criteria && (
               <>

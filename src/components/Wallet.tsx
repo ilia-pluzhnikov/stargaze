@@ -3,7 +3,6 @@ import type { Quest, Store, WishlistItem } from '../types'
 import { LEDGER_KIND_LABEL } from '../types'
 import { formatDayShort } from '../logic/dates'
 import { ledgerTotal, provisionForQuest, provisionTotal, purchasedDays, sparksBalance } from '../logic/sparks'
-import { rankTitle } from '../logic/stars'
 import { SavingsTrack } from './SavingsTrack'
 import { WishVisual } from './WishVisual'
 import { trackModel } from '../logic/track'
@@ -164,7 +163,7 @@ export function Wallet({ store, today, onPurchase, onSpend, onClaim, onAddItem, 
                 {w.sourceUrl && <a className="wi-link" href={w.sourceUrl} target="_blank" rel="noreferrer">↗</a>}
                 <span className="wi-anchor">
                   {skill ? `${skill.emoji} ${skill.name}` : '?'} · {star ? star.title : `звезда ${w.starId} не найдена`}
-                  {skill && star ? ` · ${star.tier} «${rankTitle(skill, star.tier)}»` : ''}
+                  {star ? ` · ${star.tier}` : ''}
                 </span>
                 {w.claimedAt ? (
                   <span className="wi-claimed">✦ получено {formatDayShort(w.claimedAt.slice(0, 10))}</span>

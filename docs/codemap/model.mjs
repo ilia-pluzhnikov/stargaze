@@ -246,17 +246,16 @@ export const nodes = [
     kind: 'core',
     role: 'Рекурсивное дерево звёзд (parentStarId), ранги D–S поперёк треков, порог «ранг взят» и статистика галактики',
     files: ['src/logic/stars.ts'],
-    entrypoints: ['isRankAchieved', 'currentRank/rankTitle', 'ancestorsOf/childrenOf', 'galaxyStats'],
+    entrypoints: ['isRankAchieved', 'currentRank', 'ancestorsOf/childrenOf', 'galaxyStats'],
     tests: ['src/logic/stars.test.ts'],
     constraints: [
       'Порог ранга — ceil(0.6·n) зажжённых звёзд ранга по всему навыку (RANK_RATIO)',
       'Ранг — статус, не запрет: гейтов на зажигание нет',
-      'Имена рангов — классы светимости (TIER_CLASS), rankTitles навыка — опциональная надстройка',
+      'У ранга нет имени — только буква D–S и счёт звёзд',
     ],
     evidence: [
       { path: 'src/logic/stars.ts', symbol: 'export function isRankAchieved' },
       { path: 'src/logic/stars.ts', symbol: 'export const RANK_RATIO' },
-      { path: 'src/logic/stars.ts', symbol: 'export const TIER_CLASS' },
     ],
   },
   {
@@ -509,7 +508,7 @@ export const edges = [
 
   // — небо
   { from: 'web-sky', to: 'core-layout', type: 'imports', evidence: [{ path: 'src/components/Sky.tsx', symbol: "from '../logic/layout'" }] },
-  { from: 'web-sky', to: 'core-stars', type: 'imports', evidence: [{ path: 'src/components/Sky.tsx', symbol: "import { rankTitle } from '../logic/stars'" }] },
+  { from: 'web-sky', to: 'core-stars', type: 'imports', evidence: [{ path: 'src/components/Galaxy.tsx', symbol: "from '../logic/stars'" }] },
   { from: 'web-sky', to: 'core-progress', type: 'imports', evidence: [{ path: 'src/components/Galaxy.tsx', symbol: "from '../logic/selectors'" }] },
   { from: 'web-sky', to: 'core-model', type: 'imports', evidence: [{ path: 'src/components/skyColors.ts', symbol: "from '../types'" }] },
 

@@ -18,7 +18,6 @@ export interface Skill {
   lore?: string // абзац-описание школы под именем галактики; нет = показываем wantStatement
   hue: number // 0..360 — оттенок галактики
   glyphId?: string // глиф-фигура созвездия (см. components/skyGlyphs.ts); нет = без глифа
-  rankTitles?: Partial<Record<Tier, string>> // { D: 'Разминка', … }
   archived: boolean
   createdAt: string // ISO
 }

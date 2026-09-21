@@ -76,22 +76,9 @@ describe('validateStore', () => {
     expect(validateStore(broken).some((e) => e.includes('glyphId'))).toBe(true)
   })
 
-  it('rankTitles: отсутствие и валидный объект валидны', () => {
-    expect(validateStore(base())).toEqual([])
-    const withTitles = base({ skills: [skill('s1', { rankTitles: { D: 'Разминка', S: 'Мастер' } })] })
-    expect(validateStore(withTitles)).toEqual([])
-  })
-  it('rankTitles: не объект — ошибка', () => {
-    const s = base({ skills: [skill('s1', { rankTitles: 'нет' as unknown as Skill['rankTitles'] })] })
-    expect(validateStore(s).join()).toMatch(/rankTitles/)
-  })
-  it('rankTitles: ключ вне TIERS — ошибка', () => {
-    const s = base({ skills: [skill('s1', { rankTitles: { X: 'что-то' } as unknown as Skill['rankTitles'] })] })
-    expect(validateStore(s).join()).toMatch(/rankTitles/)
-  })
-  it('rankTitles: значение не строка — ошибка', () => {
-    const s = base({ skills: [skill('s1', { rankTitles: { D: 5 as unknown as string } })] })
-    expect(validateStore(s).join()).toMatch(/rankTitles/)
+  it('rankTitles из прежних store — поле снято, но не мешает: v4 остаётся валидным', () => {
+    const legacy = { ...base(), skills: [{ ...skill('s1'), rankTitles: { D: 'Разминка', S: 'Мастер' } }] }
+    expect(validateStore(legacy)).toEqual([])
   })
 
   it('star: parentStarId должен существовать', () => {

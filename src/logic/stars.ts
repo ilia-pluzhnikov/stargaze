@@ -1,23 +1,8 @@
-import type { Quest, Skill, StarComponent, Tier, XpEvent } from '../types'
+import type { Quest, StarComponent, Tier, XpEvent } from '../types'
 import { TIERS } from '../types'
 
 /** Доля звёзд ранга, достаточная для его взятия. */
 export const RANK_RATIO = 0.6
-
-/** Классы светимости (Йеркская система) — универсальные имена рангов.
- * Совпадают с геометрией неба: tierStyle.scale рисует высокие ранги крупнее. */
-export const TIER_CLASS: Record<Tier, string> = {
-  D: 'Карлик',
-  C: 'Субгигант',
-  B: 'Гигант',
-  A: 'Сверхгигант',
-  S: 'Гипергигант',
-}
-
-/** Имя ранга навыка: авторское из rankTitles, иначе класс светимости. */
-export function rankTitle(skill: Pick<Skill, 'rankTitles'>, tier: Tier): string {
-  return skill.rankTitles?.[tier] ?? TIER_CLASS[tier]
-}
 
 /** Сколько звёзд нужно зажечь при общем числе total. */
 export function requiredStars(total: number): number {

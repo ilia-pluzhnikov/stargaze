@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import type { Quest, Skill, StarComponent, XpEvent } from '../types'
+import type { Quest, StarComponent, XpEvent } from '../types'
 import { questDoneOnDay } from '../logic/selectors'
-import { rankTitle } from '../logic/stars'
 import { todayInGameTz } from '../logic/sparks'
 import { rarityVar } from './skyColors'
 
 interface Props {
   star: StarComponent
-  skill: Skill
   parent: StarComponent | null
   childrenCount: number
   unlitAncestors: StarComponent[]
@@ -21,7 +19,7 @@ interface Props {
   onClose: () => void
 }
 
-export function StarCard({ star, skill, parent, childrenCount, unlitAncestors, quests, xpLog, xp, onLight, onUnlight, onEdit, onAddChild, onClose }: Props) {
+export function StarCard({ star, parent, childrenCount, unlitAncestors, quests, xpLog, xp, onLight, onUnlight, onEdit, onAddChild, onClose }: Props) {
   const [evidence, setEvidence] = useState('')
   const [cascade, setCascade] = useState(true)
   const [confirmUnlight, setConfirmUnlight] = useState(false)
@@ -35,7 +33,7 @@ export function StarCard({ star, skill, parent, childrenCount, unlitAncestors, q
         <div className="hud-meta">
           {parent && <span>после: {parent.title}</span>}
           {childrenCount > 0 && <span>ветвей дальше: {childrenCount}</span>}
-          <span style={{ color: rarityVar(star.tier) }}>ранг: {star.tier} · {rankTitle(skill, star.tier)}</span>
+          <span style={{ color: rarityVar(star.tier) }}>ранг: {star.tier}</span>
           {star.criteria && <span>критерий: {star.criteria}</span>}
           <span className="xp">{xp} XP вложено{star.xpTarget ? ` / ${star.xpTarget}` : ''}</span>
           {lit && star.evidence && <span>подтверждено: {star.evidence}</span>}

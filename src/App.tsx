@@ -304,7 +304,6 @@ export default function App() {
             setSelectedStarId(null)
           }}
           onAddStar={(parentStarId) => setStarModal({ skillId: galaxy.id, defaultParentStarId: parentStarId })}
-          onEditRanks={() => setSkillModal({ skill: galaxy })}
           onLightStar={handleLight}
           onUnlightStar={(starId) => dispatch({ type: 'unlightStar', starId })}
           onEditStar={(star) => setStarModal({ skillId: star.skillId, star })}
