@@ -84,17 +84,19 @@ export const nodes = [
       'src/components/GalaxyHud.tsx',
       'src/components/CosmosBackdrop.tsx',
       'src/components/StarCard.tsx',
+      'src/components/TimelineBar.tsx',
       'src/components/skyColors.ts',
       'src/components/skyGlyphs.ts',
       'src/hooks/usePanZoom.ts',
     ],
-    entrypoints: ['<Sky/> из App.tsx (вкладка «Небо»)', '<GalaxyView/> из App.tsx (галактика навыка)'],
+    entrypoints: ['<Sky/> из App.tsx (вкладка «Небо»)', '<GalaxyView/> из App.tsx (галактика навыка)', '<TimelineBar/> из App.tsx (полоса истории неба)'],
     tests: ['src/components/skyColors.test.ts'],
     constraints: [
       'Никакого Math.random() в рендере — позиции из seeded PRNG (logic/layout)',
       "sky-seeds 'questlog-milky'/'questlog-sky' — вечные соли PRNG, ренейм перерисует небо",
       'hue навыков вне оранжевой зоны ≈15–35 (сольётся с брендовым акцентом #FF7715)',
       'FPS-паспорт: покой ≥55, пан ≥30; стоимость twinkle определяется площадью repaint',
+      'В режиме истории store — проекция прошлого, раскладка — от layoutFrom; без actions компоненты только показывают',
     ],
     evidence: [
       { path: 'src/components/Sky.tsx', symbol: 'export function Sky' },
@@ -333,6 +335,27 @@ export const nodes = [
     ],
   },
   {
+    id: 'core-timeline',
+    tier: 3,
+    name: 'История неба',
+    path: 'src/logic/timeline.ts',
+    kind: 'core',
+    role: 'Небо на любую прошлую дату: проекция skills/stars/quests/xpLog по игровому дню, созвездие прошлого в сегодняшних координатах, границы, засечки и подписи полосы времени',
+    files: ['src/logic/timeline.ts'],
+    entrypoints: ['skyAsOf(store, day)', 'constellationAsOf(full, pastStars)', 'timelineBounds/timelineMarks/timelineMonths', 'skyTotals'],
+    tests: ['src/logic/timeline.test.ts'],
+    constraints: [
+      'История выводится из нынешнего store (createdAt, litAt, xpLog.day): формат v4 не меняется; это приближение, не снимок',
+      'Раскладка всегда считается по сегодняшнему набору; время управляет только видимостью, светом и уровнями',
+      'xpLog режется по day, не по ts: отметка задним числом и её откат всегда по одну сторону среза',
+      'Проекция — SkyStore без ledger: баланс искр по ней не посчитать',
+    ],
+    evidence: [
+      { path: 'src/logic/timeline.ts', symbol: 'export function skyAsOf' },
+      { path: 'src/logic/timeline.ts', symbol: 'export function constellationAsOf' },
+    ],
+  },
+  {
     id: 'core-model',
     tier: 5,
     name: 'Модель данных и календарь',
@@ -504,12 +527,14 @@ export const edges = [
   { from: 'web-app', to: 'core-store', type: 'imports', evidence: [{ path: 'src/App.tsx', symbol: "import { genId } from './logic/store'" }] },
   { from: 'web-app', to: 'core-sparks', type: 'imports', evidence: [{ path: 'src/App.tsx', symbol: "from './logic/sparks'" }] },
   { from: 'web-app', to: 'core-progress', type: 'imports', evidence: [{ path: 'src/App.tsx', symbol: "from './logic/selectors'" }] },
+  { from: 'web-app', to: 'core-timeline', type: 'imports', evidence: [{ path: 'src/App.tsx', symbol: "from './logic/timeline'" }] },
   { from: 'web-app', to: 'core-model', type: 'imports', evidence: [{ path: 'src/App.tsx', symbol: "from './types'" }] },
 
   // — небо
   { from: 'web-sky', to: 'core-layout', type: 'imports', evidence: [{ path: 'src/components/Sky.tsx', symbol: "from '../logic/layout'" }] },
   { from: 'web-sky', to: 'core-stars', type: 'imports', evidence: [{ path: 'src/components/Galaxy.tsx', symbol: "from '../logic/stars'" }] },
   { from: 'web-sky', to: 'core-progress', type: 'imports', evidence: [{ path: 'src/components/Galaxy.tsx', symbol: "from '../logic/selectors'" }] },
+  { from: 'web-sky', to: 'core-timeline', type: 'imports', evidence: [{ path: 'src/components/Galaxy.tsx', symbol: "from '../logic/timeline'" }] },
   { from: 'web-sky', to: 'core-model', type: 'imports', evidence: [{ path: 'src/components/skyColors.ts', symbol: "from '../types'" }] },
 
   // — панели
@@ -548,6 +573,10 @@ export const edges = [
   { from: 'core-validate', to: 'core-sparks', type: 'imports', evidence: [{ path: 'src/logic/validate.ts', symbol: "from './sparks'" }] },
   { from: 'core-validate', to: 'core-model', type: 'imports', evidence: [{ path: 'src/logic/validate.ts', symbol: "from './dates'" }] },
   { from: 'core-layout', to: 'core-model', type: 'imports', evidence: [{ path: 'src/logic/layout.ts', symbol: "from '../types'" }] },
+  { from: 'core-timeline', to: 'core-stars', type: 'imports', evidence: [{ path: 'src/logic/timeline.ts', symbol: "from './stars'" }] },
+  { from: 'core-timeline', to: 'core-sparks', type: 'imports', evidence: [{ path: 'src/logic/timeline.ts', symbol: "from './sparks'" }] },
+  { from: 'core-timeline', to: 'core-layout', type: 'imports', evidence: [{ path: 'src/logic/timeline.ts', symbol: "from './layout'" }] },
+  { from: 'core-timeline', to: 'core-model', type: 'imports', evidence: [{ path: 'src/logic/timeline.ts', symbol: "from '../types'" }] },
 
   // — персистенс
   { from: 'core-storage', to: 'core-validate', type: 'imports', evidence: [{ path: 'src/logic/storage.ts', symbol: "import { validateStore } from './validate'" }, { path: 'src/logic/storage.ts', symbol: "import { migrateStore } from './migrate'" }] },
@@ -629,7 +658,8 @@ export const flows = [
     name: 'Отрисовка неба',
     trigger: 'Открытие вкладки «Небо» или клик по галактике навыка',
     steps: [
-      { node: 'web-app', action: 'Передаёт store в <Sky/> / <GalaxyView/>', evidence: { path: 'src/App.tsx', symbol: "import { GalaxyView } from './components/GalaxyView'" } },
+      { node: 'web-app', action: 'Передаёт в <Sky/> / <GalaxyView/> store (в режиме истории — проекцию прошлого) и layoutFrom — сегодняшний store для раскладки', evidence: { path: 'src/App.tsx', symbol: "import { GalaxyView } from './components/GalaxyView'" } },
+      { node: 'core-timeline', action: 'Режим истории: skyAsOf(store, день) — кто существовал, что горело, какой был XP; constellationAsOf кладёт прошлое в сегодняшние координаты', evidence: { path: 'src/logic/timeline.ts', symbol: 'export function skyAsOf' } },
       { node: 'core-layout', action: 'constellationPlacements + layoutConstellation: seeded PRNG, детерминированные позиции', evidence: { path: 'src/logic/layout.ts', symbol: 'export function constellationPlacements' } },
       { node: 'core-stars', action: 'Ранги, порог «ранг взят», статистика галактики', evidence: { path: 'src/logic/stars.ts', symbol: 'export function galaxyStats' } },
       { node: 'core-progress', action: 'XP и уровень навыка для HUD', evidence: { path: 'src/logic/selectors.ts', symbol: 'export function skillXpTotal' } },

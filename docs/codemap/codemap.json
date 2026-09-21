@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-21T16:56:29.375Z",
-  "generated_from_commit": "8461152a3abb69d4e86e1427789a8799ec584a1f",
+  "generated_at": "2026-09-21T19:21:44.810Z",
+  "generated_from_commit": "299b4bb006b63f703406f1992c83183c81db90b6",
   "scope": [
     "src/",
     "cli/",
@@ -71,13 +71,15 @@
         "src/components/GalaxyHud.tsx",
         "src/components/CosmosBackdrop.tsx",
         "src/components/StarCard.tsx",
+        "src/components/TimelineBar.tsx",
         "src/components/skyColors.ts",
         "src/components/skyGlyphs.ts",
         "src/hooks/usePanZoom.ts"
       ],
       "entrypoints": [
         "<Sky/> из App.tsx (вкладка «Небо»)",
-        "<GalaxyView/> из App.tsx (галактика навыка)"
+        "<GalaxyView/> из App.tsx (галактика навыка)",
+        "<TimelineBar/> из App.tsx (полоса истории неба)"
       ],
       "tests": [
         "src/components/skyColors.test.ts"
@@ -86,7 +88,8 @@
         "Никакого Math.random() в рендере — позиции из seeded PRNG (logic/layout)",
         "sky-seeds 'questlog-milky'/'questlog-sky' — вечные соли PRNG, ренейм перерисует небо",
         "hue навыков вне оранжевой зоны ≈15–35 (сольётся с брендовым акцентом #FF7715)",
-        "FPS-паспорт: покой ≥55, пан ≥30; стоимость twinkle определяется площадью repaint"
+        "FPS-паспорт: покой ≥55, пан ≥30; стоимость twinkle определяется площадью repaint",
+        "В режиме истории store — проекция прошлого, раскладка — от layoutFrom; без actions компоненты только показывают"
       ],
       "evidence": [
         {
@@ -146,7 +149,7 @@
           "symbol": "export function Chronicle"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-modals",
@@ -181,7 +184,7 @@
           "symbol": "export function DataModal"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-usestore",
@@ -386,7 +389,7 @@
           "symbol": "export const RANK_RATIO"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-progress",
@@ -478,7 +481,7 @@
           "symbol": "export const LEGACY_STORE_KEY = 'questlog.v3'"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-layout",
@@ -514,6 +517,44 @@
         }
       ],
       "changed_since_previous": false
+    },
+    {
+      "id": "core-timeline",
+      "name": "История неба",
+      "path": "src/logic/timeline.ts",
+      "kind": "core",
+      "tier": 3,
+      "role": "Небо на любую прошлую дату: проекция skills/stars/quests/xpLog по игровому дню, созвездие прошлого в сегодняшних координатах, границы, засечки и подписи полосы времени",
+      "external": false,
+      "files": [
+        "src/logic/timeline.ts"
+      ],
+      "entrypoints": [
+        "skyAsOf(store, day)",
+        "constellationAsOf(full, pastStars)",
+        "timelineBounds/timelineMarks/timelineMonths",
+        "skyTotals"
+      ],
+      "tests": [
+        "src/logic/timeline.test.ts"
+      ],
+      "constraints": [
+        "История выводится из нынешнего store (createdAt, litAt, xpLog.day): формат v4 не меняется; это приближение, не снимок",
+        "Раскладка всегда считается по сегодняшнему набору; время управляет только видимостью, светом и уровнями",
+        "xpLog режется по day, не по ts: отметка задним числом и её откат всегда по одну сторону среза",
+        "Проекция — SkyStore без ledger: баланс искр по ней не посчитать"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/timeline.ts",
+          "symbol": "export function skyAsOf"
+        },
+        {
+          "path": "src/logic/timeline.ts",
+          "symbol": "export function constellationAsOf"
+        }
+      ],
+      "changed_since_previous": true
     },
     {
       "id": "core-model",
@@ -690,7 +731,7 @@
           "symbol": "export function resolveId"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "store-json",
@@ -888,6 +929,17 @@
     },
     {
       "from": "web-app",
+      "to": "core-timeline",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "from './logic/timeline'"
+        }
+      ]
+    },
+    {
+      "from": "web-app",
       "to": "core-model",
       "type": "imports",
       "evidence": [
@@ -927,6 +979,17 @@
         {
           "path": "src/components/Galaxy.tsx",
           "symbol": "from '../logic/selectors'"
+        }
+      ]
+    },
+    {
+      "from": "web-sky",
+      "to": "core-timeline",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Galaxy.tsx",
+          "symbol": "from '../logic/timeline'"
         }
       ]
     },
@@ -1256,6 +1319,50 @@
       "evidence": [
         {
           "path": "src/logic/layout.ts",
+          "symbol": "from '../types'"
+        }
+      ]
+    },
+    {
+      "from": "core-timeline",
+      "to": "core-stars",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/timeline.ts",
+          "symbol": "from './stars'"
+        }
+      ]
+    },
+    {
+      "from": "core-timeline",
+      "to": "core-sparks",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/timeline.ts",
+          "symbol": "from './sparks'"
+        }
+      ]
+    },
+    {
+      "from": "core-timeline",
+      "to": "core-layout",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/timeline.ts",
+          "symbol": "from './layout'"
+        }
+      ]
+    },
+    {
+      "from": "core-timeline",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/timeline.ts",
           "symbol": "from '../types'"
         }
       ]
@@ -1682,10 +1789,18 @@
       "steps": [
         {
           "node": "web-app",
-          "action": "Передаёт store в <Sky/> / <GalaxyView/>",
+          "action": "Передаёт в <Sky/> / <GalaxyView/> store (в режиме истории — проекцию прошлого) и layoutFrom — сегодняшний store для раскладки",
           "evidence": {
             "path": "src/App.tsx",
             "symbol": "import { GalaxyView } from './components/GalaxyView'"
+          }
+        },
+        {
+          "node": "core-timeline",
+          "action": "Режим истории: skyAsOf(store, день) — кто существовал, что горело, какой был XP; constellationAsOf кладёт прошлое в сегодняшние координаты",
+          "evidence": {
+            "path": "src/logic/timeline.ts",
+            "symbol": "export function skyAsOf"
           }
         },
         {
