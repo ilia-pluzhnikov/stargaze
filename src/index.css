@@ -399,6 +399,23 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   margin-top: 8px;
   background: linear-gradient(90deg, transparent, rgba(255, 119, 21, 0.5), rgba(255, 185, 135, 0.5), transparent);
 }
+/* Десктоп: правая панель едет вместе со скроллом журнала. top: 0 отсчитывается
+   от padding'а .journal, а не от его края — панель замирает там же, где стояла.
+   max-height в cqh (контент-бокс .journal) — страховка для низких окон: иначе
+   низ навыков недостижим, пока липкая панель не упрётся в конец сетки. Браузер
+   без container-юнитов (Chromium < 105) отбросит container-type и max-height —
+   останется чистый sticky. */
+@media (min-width: 901px) {
+  .journal { container-type: size; }
+  .journal-grid .pane.right {
+    position: sticky;
+    top: 0;
+    max-height: 100cqh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+}
 
 .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .filters button {

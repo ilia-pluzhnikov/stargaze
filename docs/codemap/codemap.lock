@@ -1,12 +1,14 @@
 {
-  "commit": "5fb9f340b19ba22304870bde9799eee1398f3f27",
+  "commit": "3b572f5a56788558bd7d975218a8616740b5e781",
   "working_tree_dirty": true,
   "dirty_files": [
-    "LAUDE.md",
-    "docs/codemap/model.mjs",
-    "vite.config.ts"
+    "CHANGELOG.md",
+    "docs/codemap/codemap.html",
+    "docs/codemap/codemap.json",
+    "docs/codemap/codemap.lock",
+    "src/index.css"
   ],
-  "generated_at": "2026-09-21T12:19:27.488Z",
+  "generated_at": "2026-09-21T13:19:00.642Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -42,7 +44,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "2ea5f7e3b220f00bfe20ff68d8071ad5dd2677dc9c98c7cfa68d0c23af878bfb"
+      "fingerprint": "34acbd3db068700ec9541f255b694421ee0d9870d38ee2112b183bfec12c5a7f"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -238,8 +240,8 @@
     }
   },
   "previous": {
-    "commit": "75c55a56e18af027b77bb81b9742d58729a670a8",
-    "generated_at": "2026-09-21T12:02:39.546Z",
+    "commit": "5fb9f340b19ba22304870bde9799eee1398f3f27",
+    "generated_at": "2026-09-21T12:29:50.323Z",
     "changed_modules": [
       "web-app"
     ],
