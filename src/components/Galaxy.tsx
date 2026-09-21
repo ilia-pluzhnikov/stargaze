@@ -5,6 +5,7 @@ import { skillXpTotal } from '../logic/selectors'
 import { currentRank, isRankAchieved, skillStars, skillTiers } from '../logic/stars'
 import { CONST_H, CONST_W, layoutConstellation } from '../logic/layout'
 import type { SkyPlacement } from '../logic/layout'
+import { constellationAsOf } from '../logic/timeline'
 import { glyphById } from './skyGlyphs'
 import { sky, tierStyle } from './skyColors'
 
@@ -12,6 +13,8 @@ interface Props {
   anchor: SkyPlacement
   skill: Skill
   stars: StarComponent[]
+  /** Полный сегодняшний набор звёзд — только для раскладки; stars в режиме истории — проекция прошлого. */
+  layoutStars: StarComponent[]
   xpLog: XpEvent[]
   onOpen: () => void
   onStarHover: (hover: { star: StarComponent; x: number; y: number } | null) => void
@@ -22,14 +25,17 @@ interface Props {
 const MINI_SCALE = 0.25
 
 /** Узел неба: мини-созвездие навыка (скелет без фильтров) + имя + сводка. */
-export function Galaxy({ anchor, skill, stars, xpLog, onOpen, onStarHover }: Props) {
+export function Galaxy({ anchor, skill, stars, layoutStars, xpLog, onOpen, onStarHover }: Props) {
   const hue = skill.hue
   const level = skillLevel(skillXpTotal(xpLog, skill.id))
   const own = useMemo(() => skillStars(stars, skill.id), [stars, skill.id])
   const tiers = useMemo(() => skillTiers(stars, skill.id), [stars, skill.id])
   const cur = currentRank(stars, skill.id)
   const marks = tiers.map((t) => (isRankAchieved(stars, skill.id, t) ? '✓' : t === cur ? '●' : '○'))
-  const constellation = useMemo(() => layoutConstellation(own, skill.id), [own, skill.id])
+  // Позиции — по полному сегодняшнему набору (мемо не пересчитывается при движении по времени),
+  // видимость и свет — по stars
+  const full = useMemo(() => layoutConstellation(skillStars(layoutStars, skill.id), skill.id), [layoutStars, skill.id])
+  const constellation = useMemo(() => constellationAsOf(full, own), [full, own])
   const glyph = glyphById(skill.glyphId)
   const half = (CONST_H * MINI_SCALE) / 2
   const rootHaloId = `mini-root-halo-${skill.id}`

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { TIERS } from '../types'
-import type { Skill, StarComponent, Store } from '../types'
+import type { Skill, SkyStore, StarComponent } from '../types'
 import { SKY_H, SKY_W, constellationPlacements, hashStr, mulberry32 } from '../logic/layout'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { Galaxy } from './Galaxy'
@@ -9,7 +9,9 @@ import { sky } from './skyColors'
 import { CosmosBackdrop } from './CosmosBackdrop'
 
 interface Props {
-  store: Store
+  store: SkyStore
+  /** Сегодняшнее небо для раскладки; нет = то же, что store. В режиме истории store — проекция прошлого. */
+  layoutFrom?: SkyStore
   onOpenGalaxy: (skillId: string) => void
 }
 
@@ -20,17 +22,24 @@ interface StarHover {
   y: number
 }
 
-export function Sky({ store, onOpenGalaxy }: Props) {
+export function Sky({ store, layoutFrom, onOpenGalaxy }: Props) {
   const pz = usePanZoom(SKY_W, SKY_H)
   const [hover, setHover] = useState<StarHover | null>(null)
   // Пан уводит звёзды из-под курсора — иначе после отпускания остаётся устаревший тултип.
   useEffect(() => {
     if (pz.isPanning) setHover(null)
   }, [pz.isPanning])
+  const layout = layoutFrom ?? store
   const skills = useMemo(() => store.skills.filter((s) => !s.archived), [store.skills])
-  const placements = useMemo(() => constellationPlacements(skills.map(({ id, hue, name }) => ({ id, hue, name }))), [skills])
-  const backdropHue = skills.length
-    ? Math.round(skills.reduce((sum, skill) => sum + skill.hue, 0) / skills.length)
+  // Раскладка и фон — по сегодняшнему набору: слоты зависят от числа навыков и их hue,
+  // иначе при движении по времени галактики прыгают, а фон плывёт
+  const layoutSkills = useMemo(() => layout.skills.filter((s) => !s.archived), [layout.skills])
+  const placements = useMemo(
+    () => constellationPlacements(layoutSkills.map(({ id, hue, name }) => ({ id, hue, name }))),
+    [layoutSkills],
+  )
+  const backdropHue = layoutSkills.length
+    ? Math.round(layoutSkills.reduce((sum, skill) => sum + skill.hue, 0) / layoutSkills.length)
     : 230
   const milky = useMemo(() => {
     const rng = mulberry32(hashStr('questlog-milky'))
@@ -97,7 +106,7 @@ export function Sky({ store, onOpenGalaxy }: Props) {
         })}
         {skills.map((skill) => (
           <Galaxy key={skill.id} anchor={placements.get(skill.id)!} skill={skill}
-            stars={store.stars} xpLog={store.xpLog} onOpen={() => onOpenGalaxy(skill.id)}
+            stars={store.stars} layoutStars={layout.stars} xpLog={store.xpLog} onOpen={() => onOpenGalaxy(skill.id)}
             onStarHover={(h) => setHover(h ? { skill, star: h.star, x: h.x, y: h.y } : null)} />
         ))}
       </svg>

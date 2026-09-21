@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { TIERS } from '../types'
-import type { Skill, StarComponent, Store, Tier } from '../types'
+import type { Skill, SkyStore, StarComponent, Tier } from '../types'
 import { GALAXY_H, GALAXY_W, hashStr, layoutConstellation, mulberry32 } from '../logic/layout'
 import {
   ancestorsOf,
@@ -16,6 +16,7 @@ import {
 } from '../logic/stars'
 import { skillLevel } from '../logic/xp'
 import { skillXpTotal } from '../logic/selectors'
+import { constellationAsOf } from '../logic/timeline'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { sky, tierStyle } from './skyColors'
 import { glyphById } from './skyGlyphs'
@@ -24,7 +25,9 @@ import { CosmosBackdrop } from './CosmosBackdrop'
 import { StarCard } from './StarCard'
 
 interface GalaxyViewProps {
-  store: Store
+  store: SkyStore
+  /** Сегодняшнее небо для раскладки; нет = то же, что store. */
+  layoutFrom?: SkyStore
   skill: Skill
   skills: Skill[] // неархивные, канонический порядок store.skills — лента и листание
   selectedStarId: string | null
@@ -39,6 +42,7 @@ interface GalaxyViewProps {
 
 export function GalaxyView({
   store,
+  layoutFrom,
   skill,
   skills,
   selectedStarId,
@@ -55,27 +59,36 @@ export function GalaxyView({
   const glyph = glyphById(skill.glyphId)
   const cur = currentRank(store.stars, skill.id)
 
+  const layoutStars = (layoutFrom ?? store).stars
+  const full = useMemo(() => layoutConstellation(skillStars(layoutStars, skill.id), skill.id), [layoutStars, skill.id])
   const constellation = useMemo(
-    () => layoutConstellation(skillStars(store.stars, skill.id), skill.id),
-    [store.stars, skill.id],
+    () => constellationAsOf(full, skillStars(store.stars, skill.id)),
+    [full, store.stars, skill.id],
   )
-  const edgePaths = useMemo(() => {
+  // Изгиб ребра привязан к дочерней звезде и считается по полной раскладке в её порядке:
+  // сегодняшний рисунок не меняется, а в прошлом ребро не «пляшет», когда соседние исчезают
+  const bows = useMemo(() => {
     const rng = mulberry32(hashStr(skill.id + ':bows'))
-    return constellation.edges.map(([a, b]) => {
-      const A = a < 0 ? constellation.root : constellation.nodes[a]
-      const B = constellation.nodes[b]
-      const mx = (A.x + B.x) / 2
-      const my = (A.y + B.y) / 2
-      const dx = B.x - A.x
-      const dy = B.y - A.y
-      const len = Math.hypot(dx, dy) || 1
-      const bow = (rng() - 0.5) * Math.min(16, len * 0.12)
-      return {
-        d: `M${A.x.toFixed(1)} ${A.y.toFixed(1)} Q${(mx - (dy / len) * bow).toFixed(1)} ${(my + (dx / len) * bow).toFixed(1)} ${B.x.toFixed(1)} ${B.y.toFixed(1)}`,
-        lit: (a < 0 || !!constellation.nodes[a].star.litAt) && !!B.star.litAt,
-      }
-    })
-  }, [constellation, skill.id])
+    return new Map(full.edges.map(([, b]): [string, number] => [full.nodes[b].star.id, rng()]))
+  }, [full, skill.id])
+  const edgePaths = useMemo(
+    () =>
+      constellation.edges.map(([a, b]) => {
+        const A = a < 0 ? constellation.root : constellation.nodes[a]
+        const B = constellation.nodes[b]
+        const mx = (A.x + B.x) / 2
+        const my = (A.y + B.y) / 2
+        const dx = B.x - A.x
+        const dy = B.y - A.y
+        const len = Math.hypot(dx, dy) || 1
+        const bow = ((bows.get(B.star.id) ?? 0.5) - 0.5) * Math.min(16, len * 0.12)
+        return {
+          d: `M${A.x.toFixed(1)} ${A.y.toFixed(1)} Q${(mx - (dy / len) * bow).toFixed(1)} ${(my + (dx / len) * bow).toFixed(1)} ${B.x.toFixed(1)} ${B.y.toFixed(1)}`,
+          lit: (a < 0 || !!constellation.nodes[a].star.litAt) && !!B.star.litAt,
+        }
+      }),
+    [constellation, bows],
+  )
 
   const legend = useMemo(() => skillTiers(store.stars, skill.id).map((t, k) => ({
     tier: t,
