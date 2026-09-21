@@ -7,7 +7,6 @@ const isValidStore = (x: unknown): x is Store => validateStore(x).length === 0
 // Клиент мини-API. Все функции «мягкие»: сеть упала → false/null, не исключение.
 
 export async function probeServer(timeoutMs = 1200): Promise<boolean> {
-  if (typeof window === 'undefined' || window.location.protocol === 'file:') return false
   try {
     const ctrl = new AbortController()
     const t = setTimeout(() => ctrl.abort(), timeoutMs)
