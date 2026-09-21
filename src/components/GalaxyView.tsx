@@ -24,6 +24,13 @@ import { GalaxyHud, displaySkillName } from './GalaxyHud'
 import { CosmosBackdrop } from './CosmosBackdrop'
 import { StarCard } from './StarCard'
 
+export interface GalaxyActions {
+  onAddStar: (parentStarId: string | null) => void
+  onLightStar: (starId: string, evidence: string, alsoIds: string[]) => void
+  onUnlightStar: (starId: string) => void
+  onEditStar: (star: StarComponent) => void
+}
+
 interface GalaxyViewProps {
   store: SkyStore
   /** Сегодняшнее небо для раскладки; нет = то же, что store. */
@@ -34,10 +41,10 @@ interface GalaxyViewProps {
   onSelectStar: (id: string | null) => void
   onSwitch: (id: string) => void
   onBack: () => void
-  onAddStar: (parentStarId: string | null) => void
-  onLightStar: (starId: string, evidence: string, alsoIds: string[]) => void
-  onUnlightStar: (starId: string) => void
-  onEditStar: (star: StarComponent) => void
+  /** Действия правки; нет = только просмотр (небо в режиме истории). */
+  actions?: GalaxyActions
+  /** День проекции в режиме истории; нет = сегодня. */
+  asOfDay?: string
 }
 
 export function GalaxyView({
@@ -49,10 +56,8 @@ export function GalaxyView({
   onSelectStar,
   onSwitch,
   onBack,
-  onAddStar,
-  onLightStar,
-  onUnlightStar,
-  onEditStar,
+  actions,
+  asOfDay,
 }: GalaxyViewProps) {
   const pz = usePanZoom(GALAXY_W, GALAXY_H)
   const hue = skill.hue
@@ -269,7 +274,7 @@ export function GalaxyView({
       <div className="galaxy-toolbar">
         <button onClick={onBack}>← Небо</button>
       </div>
-      {!selectedStarId && (
+      {!selectedStar && (
         <GalaxyHud skill={skill} level={level} stats={stats} hover={hover} ribbon={ribbon} onSwitch={onSwitch} />
       )}
       {selectedStar && (
@@ -282,10 +287,13 @@ export function GalaxyView({
           quests={store.quests.filter((q) => q.starId === selectedStar.id && q.status !== 'archived' && q.status !== 'proposed')}
           xpLog={store.xpLog}
           xp={starXp(store.xpLog, store.quests, selectedStar.id)}
-          onLight={(evidence, alsoIds) => onLightStar(selectedStar.id, evidence, alsoIds)}
-          onUnlight={() => onUnlightStar(selectedStar.id)}
-          onEdit={() => onEditStar(selectedStar)}
-          onAddChild={() => onAddStar(selectedStar.id)}
+          asOfDay={asOfDay}
+          actions={actions && {
+            onLight: (evidence, alsoIds) => actions.onLightStar(selectedStar.id, evidence, alsoIds),
+            onUnlight: () => actions.onUnlightStar(selectedStar.id),
+            onEdit: () => actions.onEditStar(selectedStar),
+            onAddChild: () => actions.onAddStar(selectedStar.id),
+          }}
           onClose={() => onSelectStar(null)}
         />
       )}
@@ -297,9 +305,15 @@ export function GalaxyView({
       )}
       {constellation.nodes.length === 0 && (
         <div className="galaxy-empty">
-          Звёзд пока нет. Добавь первую — например, «А1» для языка или «5 км» для бега.
-          <br />
-          <button onClick={() => onAddStar(null)}>+ звезда</button>
+          {actions ? (
+            <>
+              Звёзд пока нет. Добавь первую — например, «А1» для языка или «5 км» для бега.
+              <br />
+              <button onClick={() => actions.onAddStar(null)}>+ звезда</button>
+            </>
+          ) : (
+            'На эту дату звёзд ещё не было.'
+          )}
         </div>
       )}
     </div>

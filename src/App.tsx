@@ -303,10 +303,12 @@ export default function App() {
             setGalaxyId(null)
             setSelectedStarId(null)
           }}
-          onAddStar={(parentStarId) => setStarModal({ skillId: galaxy.id, defaultParentStarId: parentStarId })}
-          onLightStar={handleLight}
-          onUnlightStar={(starId) => dispatch({ type: 'unlightStar', starId })}
-          onEditStar={(star) => setStarModal({ skillId: star.skillId, star })}
+          actions={{
+            onAddStar: (parentStarId) => setStarModal({ skillId: galaxy.id, defaultParentStarId: parentStarId }),
+            onLightStar: handleLight,
+            onUnlightStar: (starId) => dispatch({ type: 'unlightStar', starId }),
+            onEditStar: (star) => setStarModal({ skillId: star.skillId, star }),
+          }}
         />
       )}
       {view === 'journal' && (
