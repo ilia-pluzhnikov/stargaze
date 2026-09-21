@@ -212,8 +212,11 @@ button.char-edit:focus-visible { outline: 2px solid var(--accent); outline-offse
 .sky-svg.panning .halo-tw,
 .sky-svg.panning .star-fill { animation-play-state: paused; }
 
-.sky-reset {
+.sky-corner {
   position: absolute; right: 16px; bottom: 16px; z-index: 4;
+  display: flex; gap: 8px;
+}
+.sky-reset {
   color: var(--dim); font-size: 13px;
   padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
   background: rgba(15, 16, 20, 0.7);
@@ -1120,7 +1123,7 @@ button.chronicle-quest-title:focus-visible { outline: 2px solid var(--accent); o
 }
 .galaxy-toolbar button:hover { color: var(--ink); border-color: var(--accent); }
 /* внизу теперь лента HUD — кнопка сброса пан/зума уходит под тулбар */
-.galaxy-view .sky-reset { top: 56px; bottom: auto; }
+.galaxy-view .sky-corner { top: 56px; bottom: auto; }
 .galaxy-empty {
   position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
   color: var(--faint); font-size: 14px; text-align: center; max-width: 420px;
@@ -1488,6 +1491,8 @@ button.chronicle-quest-title:focus-visible { outline: 2px solid var(--accent); o
   color: var(--faint); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase;
 }
 .timeline-months span { position: absolute; top: 0; white-space: nowrap; }
+/* карточка звезды — fixed у нижнего края: при открытой полосе поднимается над ней */
+.app.with-timeline .hud { bottom: calc(var(--timeline-h) + 18px); }
 
 /* ── Доступность ────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {

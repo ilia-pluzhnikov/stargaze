@@ -45,6 +45,8 @@ interface GalaxyViewProps {
   actions?: GalaxyActions
   /** День проекции в режиме истории; нет = сегодня. */
   asOfDay?: string
+  /** Открыть полосу истории; нет = кнопки нет (полоса уже открыта или прошлого ещё нет). */
+  onOpenHistory?: () => void
 }
 
 export function GalaxyView({
@@ -58,6 +60,7 @@ export function GalaxyView({
   onBack,
   actions,
   asOfDay,
+  onOpenHistory,
 }: GalaxyViewProps) {
   const pz = usePanZoom(GALAXY_W, GALAXY_H)
   const hue = skill.hue
@@ -268,8 +271,15 @@ export function GalaxyView({
         </g>
       </svg>
 
-      {pz.isMoved && (
-        <button className="sky-reset" onClick={pz.reset} title="Вернуть обзор всей галактики">⌖ Обзор</button>
+      {(onOpenHistory || pz.isMoved) && (
+        <div className="sky-corner">
+          {onOpenHistory && (
+            <button className="sky-reset" onClick={onOpenHistory} title="Показать галактику на любую прошлую дату">◷ История</button>
+          )}
+          {pz.isMoved && (
+            <button className="sky-reset" onClick={pz.reset} title="Вернуть обзор всей галактики">⌖ Обзор</button>
+          )}
+        </div>
       )}
       <div className="galaxy-toolbar">
         <button onClick={onBack}>← Небо</button>
@@ -279,7 +289,9 @@ export function GalaxyView({
       )}
       {selectedStar && (
         <StarCard
-          key={selectedStar.id}
+          // режим в ключе: смена правка↔просмотр пересоздаёт карточку, иначе взведённое
+          // «Точно погасить?» пережило бы уход в прошлое и возврат
+          key={`${selectedStar.id}:${actions ? 'edit' : 'view'}`}
           star={selectedStar}
           parent={parent}
           childrenCount={childrenCount}

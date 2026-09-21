@@ -13,6 +13,8 @@ interface Props {
   /** Сегодняшнее небо для раскладки; нет = то же, что store. В режиме истории store — проекция прошлого. */
   layoutFrom?: SkyStore
   onOpenGalaxy: (skillId: string) => void
+  /** Открыть полосу истории; нет = кнопки нет (полоса уже открыта или прошлого ещё нет). */
+  onOpenHistory?: () => void
 }
 
 interface StarHover {
@@ -22,7 +24,7 @@ interface StarHover {
   y: number
 }
 
-export function Sky({ store, layoutFrom, onOpenGalaxy }: Props) {
+export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory }: Props) {
   const pz = usePanZoom(SKY_W, SKY_H)
   const [hover, setHover] = useState<StarHover | null>(null)
   // Пан уводит звёзды из-под курсора — иначе после отпускания остаётся устаревший тултип.
@@ -110,8 +112,15 @@ export function Sky({ store, layoutFrom, onOpenGalaxy }: Props) {
             onStarHover={(h) => setHover(h ? { skill, star: h.star, x: h.x, y: h.y } : null)} />
         ))}
       </svg>
-      {pz.isMoved && (
-        <button className="sky-reset" onClick={pz.reset} title="Вернуть обзор всего неба">⌖ Обзор</button>
+      {(onOpenHistory || pz.isMoved) && (
+        <div className="sky-corner">
+          {onOpenHistory && (
+            <button className="sky-reset" onClick={onOpenHistory} title="Показать небо на любую прошлую дату">◷ История</button>
+          )}
+          {pz.isMoved && (
+            <button className="sky-reset" onClick={pz.reset} title="Вернуть обзор всего неба">⌖ Обзор</button>
+          )}
+        </div>
       )}
       {hover && !pz.isPanning && (
         <div className="sky-tip" style={{ left: hover.x, top: hover.y }}>
