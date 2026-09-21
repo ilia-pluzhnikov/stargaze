@@ -14,7 +14,7 @@ import {
   movesUsedIn7d, provisionForQuest, provisionTotal, purchasedDays, sparksBalance,
 } from '../src/logic/sparks'
 import { weeklyXp } from '../src/logic/stats'
-import { genId, reducer, type Action } from '../src/logic/store'
+import { characterError, genId, reducer, type Action } from '../src/logic/store'
 import { LEDGER_KIND_LABEL, TIERS } from '../src/types'
 import type { Quest, QuestResult, StarComponent, Store, Tier, WishlistItem } from '../src/types'
 import { createApp } from '../server/app'
@@ -28,6 +28,7 @@ export interface Io {
 
 const USAGE = `stargaze — RPG-интерфейс над реальной жизнью. Команды:
   status | quests | quest <id> | skills | ranks | stars | stats
+  character [--name "Имя"] [--emoji ⚔️] — без флагов показывает персонажа, с флагами меняет имя и/или аватар
   complete | uncomplete | check | uncheck | add-quest | propose-quest | accept | reject | archive
   light-star | add-star | validate | export | import
   wallet | wishlist | wishlist-add | wishlist-edit <item> | buy <item> | spend <✨> <на что> | claim <item>
@@ -85,6 +86,7 @@ export function runCli(argv: string[], io: Io): number {
         url: { type: 'string' },
         orig: { type: 'string' },
         emoji: { type: 'string' },
+        name: { type: 'string' },
         image: { type: 'string' },
         repeat: { type: 'boolean', default: false },
         once: { type: 'boolean', default: false },
@@ -109,6 +111,8 @@ export function runCli(argv: string[], io: Io): number {
     switch (command) {
       case 'status':
         return cmdStatus(ctx)
+      case 'character':
+        return cmdCharacter(ctx, { name: values.name, emoji: values.emoji })
       case 'quests':
         return cmdQuests(ctx, values)
       case 'quest':
@@ -260,6 +264,22 @@ function cmdStatus(ctx: Ctx): number {
       ladder.total === 0 ? 'без дерева' : `${ladder.achieved}/${ladder.total}${cur ? ` · ранг ${cur} · ${rankTitle(skill, cur)}` : ' · ✦ всё взято'}`,
     ]),
   ]))
+  return 0
+}
+
+function cmdCharacter(ctx: Ctx, flags: { name?: string; emoji?: string }): number {
+  let character = loadStore(ctx.storePath).character
+  const changing = flags.name !== undefined || flags.emoji !== undefined
+  if (changing) {
+    // setCharacter заменяет объект целиком — незаданное флагом поле берём из текущего
+    const next = { name: flags.name ?? character.name, avatar: flags.emoji ?? character.avatar }
+    // причину называем сами: ядро на негодный payload отвечает тихим no-op
+    const why = characterError(next)
+    if (why) throw new CliError(why, 2)
+    character = applyOrFail(ctx, { type: 'setCharacter', character: next }, 'персонаж не изменён').character
+  }
+  if (ctx.json) ctx.io.out(JSON.stringify({ character }, null, 2))
+  else ctx.io.out(`${changing ? 'персонаж: ' : ''}${character.avatar} ${character.name}`)
   return 0
 }
 

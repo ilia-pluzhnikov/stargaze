@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import type { Quest, QuestDodItem, QuestResource, QuestResult, QuestType, Skill, StarComponent, Store, Tier, WishlistItem } from '../types'
+import type { Character, Quest, QuestDodItem, QuestResource, QuestResult, QuestType, Skill, StarComponent, Store, Tier, WishlistItem } from '../types'
 import { QUEST_TYPE_LABEL, TIERS, WISHLIST_EMOJI_MAX } from '../types'
-import { genId } from '../logic/store'
+import { characterError, genId } from '../logic/store'
 import { isCalendarDay, todayKey } from '../logic/dates'
 import { FREE_MOVES_PER_7D, moveFeeFor, movesUsedIn7d, provisionForQuest } from '../logic/sparks'
 import { migrateStore } from '../logic/migrate'
@@ -647,6 +647,54 @@ export function StarModal({ skillId, stars, initial, defaultParentStarId, canDel
                 Удалить
               </button>
             ))}
+          <button onClick={onClose}>Отмена</button>
+          <button className="primary" onClick={save}>
+            Сохранить
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* ── Персонаж ──────────────────────────────────── */
+
+interface CharacterModalProps {
+  initial: Character
+  onSave: (c: Character) => void
+  onClose: () => void
+}
+
+export function CharacterModal({ initial, onSave, onClose }: CharacterModalProps) {
+  const [avatar, setAvatar] = useState(initial.avatar)
+  const [name, setName] = useState(initial.name)
+  const [err, setErr] = useState<string | null>(null)
+
+  const save = () => {
+    // стёртое поле аватара — не повод терять эмодзи: остаётся прежний
+    const character: Character = { name: name.trim(), avatar: avatar.trim() || initial.avatar }
+    const why = characterError(character)
+    if (why) return setErr(why)
+    onSave(character)
+  }
+
+  return (
+    <>
+      <div className="overlay" onClick={onClose} />
+      <div className="modal">
+        <h3>Персонаж</h3>
+        <div className="field-row">
+          <div className="field" style={{ flex: '0 0 80px' }}>
+            <label>Эмодзи</label>
+            <input value={avatar} onChange={(e) => setAvatar(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Имя</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="Например: Странник" />
+          </div>
+        </div>
+        {err && <div className="err">{err}</div>}
+        <div className="modal-actions">
           <button onClick={onClose}>Отмена</button>
           <button className="primary" onClick={save}>
             Сохранить

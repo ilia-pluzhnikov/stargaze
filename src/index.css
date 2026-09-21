@@ -148,6 +148,10 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   font-size: 11px;
   margin-left: 8px;
 }
+/* имя и аватар (шапка и карточка Журнала) — вход в модалку «Персонаж» */
+button.char-edit { padding: 0; line-height: inherit; }
+button.char-edit:hover { color: var(--accent); filter: brightness(1.25); }
+button.char-edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .actions { display: flex; gap: 6px; }
 .actions button {

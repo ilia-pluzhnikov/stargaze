@@ -32,13 +32,14 @@ interface Props {
   onUncomplete: (q: Quest) => void
   onEditQuest: (q: Quest) => void
   onAddQuest: () => void
+  onEditCharacter: () => void
   onOpenSkill: (id: string) => void
   onAccept: (q: Quest) => void
   onReject: (q: Quest) => void
   onTickDod: (q: Quest, index: number) => void
 }
 
-export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, onAddQuest, onOpenSkill, onAccept, onReject, onTickDod }: Props) {
+export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, onAddQuest, onEditCharacter, onOpenSkill, onAccept, onReject, onTickDod }: Props) {
   const [filter, setFilter] = useState<Filter>('today')
   const [showDone, setShowDone] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -187,8 +188,16 @@ export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, o
 
         <div className="pane right">
           <div className="char-card">
-            <div className="big-avatar">{store.character.avatar}</div>
-            <div className="nm">{store.character.name}</div>
+            <div className="big-avatar">
+              <button className="char-edit" title="Сменить имя и аватар" aria-label="Сменить имя и аватар" onClick={onEditCharacter}>
+                {store.character.avatar}
+              </button>
+            </div>
+            <div className="nm">
+              <button className="char-edit" title="Сменить имя и аватар" onClick={onEditCharacter}>
+                {store.character.name}
+              </button>
+            </div>
             <div className="lv">
               Уровень {charInfo.level} · {charInfo.into} / {charInfo.toNext} XP
             </div>

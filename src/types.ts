@@ -6,6 +6,9 @@ export interface Character {
   avatar: string // эмодзи
 }
 
+/** Потолок длины аватара в UTF-16 юнитах — та же мерка, что у эмодзи витрины (WISHLIST_EMOJI_MAX). */
+export const CHARACTER_AVATAR_MAX = 16
+
 /** Навык = галактика на небе. */
 export interface Skill {
   id: string

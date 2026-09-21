@@ -1148,3 +1148,62 @@ describe('привычки без расписания (CLI)', () => {
     expect((s.ledger ?? []).filter((e) => e.questId === q.id)).toHaveLength(0)
   })
 })
+
+describe('cli персонаж', () => {
+  it('character без флагов печатает текущего и ничего не пишет', () => {
+    const p = tmpStore()
+    const before = readFileSync(p, 'utf8')
+    const r = run(['character'], p)
+    expect(r.code).toBe(0)
+    expect(r.out).toBe('🧭 Странник')
+    expect(readFileSync(p, 'utf8')).toBe(before)
+  })
+
+  it('character --json — объект character', () => {
+    const r = run(['character', '--json'], tmpStore())
+    expect(JSON.parse(r.out)).toEqual({ character: { name: 'Странник', avatar: '🧭' } })
+  })
+
+  it('--name меняет только имя: аватар остаётся, status показывает новое', () => {
+    const p = tmpStore()
+    const r = run(['character', '--name', 'Илья'], p)
+    expect(r.code).toBe(0)
+    expect(r.out).toBe('персонаж: 🧭 Илья')
+    expect(loadStore(p).character).toEqual({ name: 'Илья', avatar: '🧭' })
+    expect(run(['status'], p).out).toMatch(/^🧭 Илья — ур\./)
+  })
+
+  it('--emoji меняет только аватар: имя остаётся', () => {
+    const p = tmpStore()
+    expect(run(['character', '--emoji', '⚔️'], p).code).toBe(0)
+    expect(loadStore(p).character).toEqual({ name: 'Странник', avatar: '⚔️' })
+  })
+
+  it('оба флага сразу; --json отдаёт итог записи', () => {
+    const p = tmpStore()
+    const r = run(['character', '--name', ' Илья ', '--emoji', '⚔️', '--json'], p)
+    expect(r.code).toBe(0)
+    expect(JSON.parse(r.out)).toEqual({ character: { name: 'Илья', avatar: '⚔️' } })
+    expect(loadStore(p).character).toEqual({ name: 'Илья', avatar: '⚔️' })
+  })
+
+  it('пустое имя — код 2 с причиной из ядра, store не тронут', () => {
+    const p = tmpStore()
+    const r = run(['character', '--name', '  '], p)
+    expect(r.code).toBe(2)
+    expect(r.err).toMatch(/Нужно имя/)
+    expect(loadStore(p).character.name).toBe('Странник')
+  })
+
+  it('аватар длиннее потолка — код 2, store не тронут', () => {
+    const p = tmpStore()
+    const r = run(['character', '--emoji', 'я'.repeat(17)], p)
+    expect(r.code).toBe(2)
+    expect(r.err).toMatch(/Аватар — один эмодзи/)
+    expect(loadStore(p).character.avatar).toBe('🧭')
+  })
+
+  it('usage упоминает команду', () => {
+    expect(run([]).err).toMatch(/character/)
+  })
+})

@@ -1,20 +1,24 @@
 {
-  "commit": "d946e57f59839b14d5fe49c4cb02bc3fda205ef0",
+  "commit": "ef480639bad02bb83ff5af01d05a8305704a8885",
   "working_tree_dirty": true,
   "dirty_files": [
-    "ocs/codemap/codemap.html",
+    "HANGELOG.md",
+    "README.md",
+    "cli/app.test.ts",
+    "cli/app.ts",
+    "docs/codemap/codemap.html",
     "docs/codemap/codemap.json",
     "docs/codemap/codemap.lock",
     "docs/codemap/model.mjs",
-    "src/components/BgStars.tsx",
-    "src/components/skyField.test.ts",
-    "src/components/skyField.ts",
+    "src/App.tsx",
+    "src/components/Journal.tsx",
+    "src/components/Modals.tsx",
     "src/index.css",
-    "src/logic/api.ts",
-    "src/logic/recurring.test.ts",
-    "src/logic/recurring.ts"
+    "src/logic/store.test.ts",
+    "src/logic/store.ts",
+    "src/types.ts"
   ],
-  "generated_at": "2026-09-21T13:55:11.261Z",
+  "generated_at": "2026-09-21T15:27:21.413Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -50,7 +54,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "18f7eb56ce881cad82ed9064e6a9498a34d0f07c7e0807f1ae8dcac9f2be96f3"
+      "fingerprint": "8ea807f4b63780043502a576b0b49145af65f30824d3973ce10a2e46bb488acd"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -80,7 +84,7 @@
         "src/components/SkillPanel.tsx",
         "src/components/Wallet.tsx"
       ],
-      "fingerprint": "eeac6f1125bd7708d5f3c4d3f078e0bf23767e1ac15362a55540a1c4e9bd9456"
+      "fingerprint": "8df374e63da6635eb614e3cc39f6f54f8168f8e6d9f27e09a2568825e2cd7298"
     },
     "web-modals": {
       "path": "src/components/Modals.tsx",
@@ -88,7 +92,7 @@
       "files": [
         "src/components/Modals.tsx"
       ],
-      "fingerprint": "8358492a3ab97c81640f0d2dd9265f78fc778d5eb10374a73af0e7cda7dafb1c"
+      "fingerprint": "38c8253f3320c72412940fa7f621328bcdc05b27db14fd06b3856e52500739ac"
     },
     "web-usestore": {
       "path": "src/hooks/useStore.ts",
@@ -118,7 +122,7 @@
         "src/logic/store.test.ts",
         "src/logic/store.ts"
       ],
-      "fingerprint": "e7e05da2d70d02796f790b9d5a67bdc447180db3d8dd5757d417140e51ecf679"
+      "fingerprint": "90eff0a7c4d4c9d926072a90fd8d7b4fee34413822acaec8b61dbe9d871f6c0b"
     },
     "core-sparks": {
       "path": "src/logic/sparks.ts",
@@ -182,7 +186,7 @@
         "src/logic/dates.ts",
         "src/types.ts"
       ],
-      "fingerprint": "600a535a509ad3bdfaa6a273d8af6b573c02c0ce453db55ac2c408346546446e"
+      "fingerprint": "c0f37df60067bd5ddbc56bc4b44d573b3f83114c4c4dcf51b7c06567944d4eda"
     },
     "core-storage": {
       "path": "src/logic/storage.ts",
@@ -214,7 +218,7 @@
         "cli/main.ts",
         "cli/smoke.test.ts"
       ],
-      "fingerprint": "ce8982563a07ead74829dda8503cc088d0285dffd12c64768471dd75620cf0e0"
+      "fingerprint": "b7b185da82b922b86e8ba9e8fd6755673e23d704922531befbfb32248b12e751"
     },
     "store-json": {
       "path": null,
@@ -243,8 +247,8 @@
     }
   },
   "previous": {
-    "commit": "d946e57f59839b14d5fe49c4cb02bc3fda205ef0",
-    "generated_at": "2026-09-21T13:55:04.354Z",
+    "commit": "ef480639bad02bb83ff5af01d05a8305704a8885",
+    "generated_at": "2026-09-21T15:26:38.964Z",
     "changed_modules": [],
     "new_modules": [],
     "removed_modules": []

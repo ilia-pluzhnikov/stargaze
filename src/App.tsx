@@ -14,7 +14,7 @@ import { Chronicle } from './components/Chronicle'
 import type { ChronicleRow } from './components/Chronicle'
 import { SkillPanel } from './components/SkillPanel'
 import { Wallet } from './components/Wallet'
-import { CompleteQuestModal, DataModal, MoveDueDateModal, QuestModal, SkillModal, StarModal, WishlistModal } from './components/Modals'
+import { CharacterModal, CompleteQuestModal, DataModal, MoveDueDateModal, QuestModal, SkillModal, StarModal, WishlistModal } from './components/Modals'
 import { LevelUpOverlay } from './components/LevelUpOverlay'
 
 interface Toast {
@@ -46,6 +46,7 @@ export default function App() {
   const [moveModal, setMoveModal] = useState<Quest | null>(null)
   const [wishlistModal, setWishlistModal] = useState<{ item?: WishlistItem } | null>(null)
   const [dataOpen, setDataOpen] = useState(false)
+  const [charOpen, setCharOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [levelUps, setLevelUps] = useState<LevelUp[]>([])
 
@@ -251,10 +252,16 @@ export default function App() {
           </button>
         </nav>
         <div className="char">
-          <span className="char-avatar">{store.character.avatar}</span>
+          <span className="char-avatar">
+            <button className="char-edit" title="Сменить имя и аватар" aria-label="Сменить имя и аватар" onClick={() => setCharOpen(true)}>
+              {store.character.avatar}
+            </button>
+          </span>
           <div className="char-meta">
             <div className="char-name">
-              {store.character.name}
+              <button className="char-edit" title="Сменить имя и аватар" onClick={() => setCharOpen(true)}>
+                {store.character.name}
+              </button>
               <span className="char-lvl">ур. {charInfo.level}</span>
               <span className="char-xp">
                 {charInfo.into} / {charInfo.toNext} XP
@@ -311,6 +318,7 @@ export default function App() {
           onUncomplete={uncompleteQuest}
           onEditQuest={(q) => setQuestModal({ quest: q })}
           onAddQuest={() => setQuestModal({})}
+          onEditCharacter={() => setCharOpen(true)}
           onOpenSkill={(id) => setSkillPanelId(id)}
           onAccept={acceptQuest}
           onReject={rejectQuest}
@@ -481,6 +489,18 @@ export default function App() {
             pushToast('Сброшено к сиду лета')
           }}
           onClose={() => setDataOpen(false)}
+        />
+      )}
+
+      {charOpen && (
+        <CharacterModal
+          initial={store.character}
+          onSave={(character) => {
+            dispatch({ type: 'setCharacter', character })
+            setCharOpen(false)
+            pushToast(`Персонаж: ${character.avatar} ${character.name}`)
+          }}
+          onClose={() => setCharOpen(false)}
         />
       )}
 

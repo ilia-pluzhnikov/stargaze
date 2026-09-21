@@ -136,9 +136,9 @@ export const nodes = [
     name: 'Диалоги и формы',
     path: 'src/components/Modals.tsx',
     kind: 'ui',
-    role: 'Формы квеста/навыка/звезды, завершение с итогом и DoD-гейтом, витрина, перенос дедлайна, импорт/экспорт',
+    role: 'Формы квеста/навыка/звезды/персонажа, завершение с итогом и DoD-гейтом, витрина, перенос дедлайна, импорт/экспорт',
     files: ['src/components/Modals.tsx'],
-    entrypoints: ['<QuestModal/>, <CompleteQuestModal/>, <SkillModal/>, <StarModal/>, <WishlistModal/>, <MoveDueDateModal/>, <DataModal/> из App.tsx'],
+    entrypoints: ['<QuestModal/>, <CompleteQuestModal/>, <SkillModal/>, <StarModal/>, <CharacterModal/>, <WishlistModal/>, <MoveDueDateModal/>, <DataModal/> из App.tsx'],
     tests: [],
     constraints: [
       'Форма зеркалит заморозку условий принятого контракта — поля R/тип/дедлайн недоступны после accept',
@@ -406,7 +406,7 @@ export const nodes = [
     name: 'CLI (голова 2)',
     path: 'cli/app.ts',
     kind: 'cli',
-    role: '31 команда поверх ядра: статус, квесты, карточка, звёзды, кошелёк, перенос и отмена, импорт/экспорт, serve — этим ходит агент-гейм-мастер',
+    role: '32 команды поверх ядра: статус, персонаж, квесты, карточка, звёзды, кошелёк, перенос и отмена, импорт/экспорт, serve — этим ходит агент-гейм-мастер',
     files: ['cli/app.ts', 'cli/main.ts', 'cli/helpers.ts'],
     entrypoints: ['runCli(argv, io)', 'stargaze serve (локальная инсталляция)'],
     tests: ['cli/app.test.ts', 'cli/helpers.test.ts', 'cli/smoke.test.ts'],
@@ -564,7 +564,7 @@ export const edges = [
   { from: 'server', to: 'core-sparks', type: 'calls', evidence: [{ path: 'server/app.ts', symbol: 'sparksBalance(s, settlementDay(action.day, action.ts))' }] },
 
   // — CLI
-  { from: 'cli', to: 'core-store', type: 'imports', evidence: [{ path: 'cli/app.ts', symbol: "import { genId, reducer, type Action } from '../src/logic/store'" }] },
+  { from: 'cli', to: 'core-store', type: 'imports', evidence: [{ path: 'cli/app.ts', symbol: "import { characterError, genId, reducer, type Action } from '../src/logic/store'" }] },
   { from: 'cli', to: 'core-storage', type: 'imports', evidence: [{ path: 'cli/app.ts', symbol: "from '../src/logic/storage'" }] },
   { from: 'cli', to: 'core-validate', type: 'imports', evidence: [{ path: 'cli/app.ts', symbol: "import { validateStore } from '../src/logic/validate'" }] },
   { from: 'cli', to: 'core-sparks', type: 'imports', evidence: [{ path: 'cli/app.ts', symbol: "from '../src/logic/sparks'" }] },
