@@ -1,25 +1,10 @@
 {
-  "commit": "8461152a3abb69d4e86e1427789a8799ec584a1f",
+  "commit": "60c09e3251d719cfd0957b0443f0f763b3d34d86",
   "working_tree_dirty": true,
   "dirty_files": [
-    "HANGELOG.md",
-    "cli/app.ts",
-    "docs/codemap/model.mjs",
-    "src/App.tsx",
-    "src/components/GalaxyHud.tsx",
-    "src/components/GalaxyView.tsx",
-    "src/components/Modals.tsx",
-    "src/components/SkillPanel.tsx",
-    "src/components/Sky.tsx",
-    "src/components/StarCard.tsx",
-    "src/components/Wallet.tsx",
-    "src/logic/stars.test.ts",
-    "src/logic/stars.ts",
-    "src/logic/validate.test.ts",
-    "src/logic/validate.ts",
-    "src/types.ts"
+    "ocs/codemap/model.mjs"
   ],
-  "generated_at": "2026-09-21T16:56:29.375Z",
+  "generated_at": "2026-09-22T03:20:51.762Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -42,7 +27,7 @@
     "tsconfig.json",
     "tsconfig.node.json"
   ],
-  "scanned_files": 73,
+  "scanned_files": 77,
   "fingerprint_algorithm": "sha256(sorted(\"<path>\u0000\" + sha256(file bytes; текст нормализован к LF)))",
   "modules": {
     "web-app": {
@@ -55,7 +40,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "b54e3734f8a5b5368e2f36b17d5fc04ddd1cc4c8b965a102bb9dca07227fde76"
+      "fingerprint": "5a6353281da0c5bdea72b6500fec14924eaad708508143bc1ac2cd230f00c129"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -67,12 +52,14 @@
         "src/components/GalaxyView.tsx",
         "src/components/Sky.tsx",
         "src/components/StarCard.tsx",
+        "src/components/TimelineBar.tsx",
         "src/components/skyColors.test.ts",
         "src/components/skyColors.ts",
         "src/components/skyGlyphs.ts",
+        "src/components/skyHistory.test.tsx",
         "src/hooks/usePanZoom.ts"
       ],
-      "fingerprint": "518f7b23e0104e7f85d622bd37c0a42cbb0db4f69cef0681cfa7a0c2d0a151cd"
+      "fingerprint": "86bf37b2198a48acbb8d73cf511c890ef237023b795a2ac3e09dd7ba2a9d0a3f"
     },
     "web-panels": {
       "path": "src/components/Journal.tsx",
@@ -179,6 +166,15 @@
       ],
       "fingerprint": "2e1ac2decdf2a336a67dcef94a21a9c9eb364ddd8c3afd0c8f8405bfaf9928f1"
     },
+    "core-timeline": {
+      "path": "src/logic/timeline.ts",
+      "external": false,
+      "files": [
+        "src/logic/timeline.test.ts",
+        "src/logic/timeline.ts"
+      ],
+      "fingerprint": "37929d9d85e05ca2a74cb71c54a9aa179c6974270bdf122c50b28949f23e5c54"
+    },
     "core-model": {
       "path": "src/types.ts",
       "external": false,
@@ -187,7 +183,7 @@
         "src/logic/dates.ts",
         "src/types.ts"
       ],
-      "fingerprint": "5b1912d155dc8409331788319f65855a7259e4dee2711254b19756ebad5a0b28"
+      "fingerprint": "0c907dacd9ee0c859a9431dfd3fbfa7d1839758c7c41d8ba019ed42be0f4d51e"
     },
     "core-storage": {
       "path": "src/logic/storage.ts",
@@ -248,17 +244,12 @@
     }
   },
   "previous": {
-    "commit": "ef480639bad02bb83ff5af01d05a8305704a8885",
-    "generated_at": "2026-09-21T15:27:21.413Z",
+    "commit": "299b4bb006b63f703406f1992c83183c81db90b6",
+    "generated_at": "2026-09-21T19:21:44.810Z",
     "changed_modules": [
       "web-app",
       "web-sky",
-      "web-panels",
-      "web-modals",
-      "core-stars",
-      "core-validate",
-      "core-model",
-      "cli"
+      "core-timeline"
     ],
     "new_modules": [],
     "removed_modules": []

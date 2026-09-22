@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { TIERS } from '../types'
-import type { Skill, StarComponent, Store, Tier } from '../types'
+import type { Skill, SkyStore, StarComponent, Tier } from '../types'
 import { GALAXY_H, GALAXY_W, hashStr, layoutConstellation, mulberry32 } from '../logic/layout'
 import {
   ancestorsOf,
@@ -16,6 +16,7 @@ import {
 } from '../logic/stars'
 import { skillLevel } from '../logic/xp'
 import { skillXpTotal } from '../logic/selectors'
+import { constellationAsOf } from '../logic/timeline'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { sky, tierStyle } from './skyColors'
 import { glyphById } from './skyGlyphs'
@@ -23,59 +24,81 @@ import { GalaxyHud, displaySkillName } from './GalaxyHud'
 import { CosmosBackdrop } from './CosmosBackdrop'
 import { StarCard } from './StarCard'
 
-interface GalaxyViewProps {
-  store: Store
-  skill: Skill
-  skills: Skill[] // неархивные, канонический порядок store.skills — лента и листание
-  selectedStarId: string | null
-  onSelectStar: (id: string | null) => void
-  onSwitch: (id: string) => void
-  onBack: () => void
+export interface GalaxyActions {
   onAddStar: (parentStarId: string | null) => void
   onLightStar: (starId: string, evidence: string, alsoIds: string[]) => void
   onUnlightStar: (starId: string) => void
   onEditStar: (star: StarComponent) => void
 }
 
+interface GalaxyViewProps {
+  store: SkyStore
+  /** Сегодняшнее небо для раскладки; нет = то же, что store. Предусловие: всё, что рисуется из
+   * store, есть в layoutFrom (навыки и звёзды store ⊆ layoutFrom) — `skyAsOf` это гарантирует. */
+  layoutFrom?: SkyStore
+  skill: Skill
+  skills: Skill[] // неархивные, канонический порядок store.skills — лента и листание
+  selectedStarId: string | null
+  onSelectStar: (id: string | null) => void
+  onSwitch: (id: string) => void
+  onBack: () => void
+  /** Действия правки; нет = только просмотр (небо в режиме истории). */
+  actions?: GalaxyActions
+  /** День проекции в режиме истории; нет = сегодня. */
+  asOfDay?: string
+  /** Открыть полосу истории; нет = кнопки нет (полоса уже открыта или прошлого ещё нет). */
+  onOpenHistory?: () => void
+}
+
 export function GalaxyView({
   store,
+  layoutFrom,
   skill,
   skills,
   selectedStarId,
   onSelectStar,
   onSwitch,
   onBack,
-  onAddStar,
-  onLightStar,
-  onUnlightStar,
-  onEditStar,
+  actions,
+  asOfDay,
+  onOpenHistory,
 }: GalaxyViewProps) {
   const pz = usePanZoom(GALAXY_W, GALAXY_H)
   const hue = skill.hue
   const glyph = glyphById(skill.glyphId)
   const cur = currentRank(store.stars, skill.id)
 
+  const layoutStars = (layoutFrom ?? store).stars
+  const full = useMemo(() => layoutConstellation(skillStars(layoutStars, skill.id), skill.id), [layoutStars, skill.id])
   const constellation = useMemo(
-    () => layoutConstellation(skillStars(store.stars, skill.id), skill.id),
-    [store.stars, skill.id],
+    () => constellationAsOf(full, skillStars(store.stars, skill.id)),
+    [full, store.stars, skill.id],
   )
-  const edgePaths = useMemo(() => {
+  // Изгиб ребра привязан к дочерней звезде и считается по полной раскладке в её порядке:
+  // сегодняшний рисунок не меняется, а в прошлом ребро не «пляшет», когда соседние исчезают
+  const bows = useMemo(() => {
     const rng = mulberry32(hashStr(skill.id + ':bows'))
-    return constellation.edges.map(([a, b]) => {
-      const A = a < 0 ? constellation.root : constellation.nodes[a]
-      const B = constellation.nodes[b]
-      const mx = (A.x + B.x) / 2
-      const my = (A.y + B.y) / 2
-      const dx = B.x - A.x
-      const dy = B.y - A.y
-      const len = Math.hypot(dx, dy) || 1
-      const bow = (rng() - 0.5) * Math.min(16, len * 0.12)
-      return {
-        d: `M${A.x.toFixed(1)} ${A.y.toFixed(1)} Q${(mx - (dy / len) * bow).toFixed(1)} ${(my + (dx / len) * bow).toFixed(1)} ${B.x.toFixed(1)} ${B.y.toFixed(1)}`,
-        lit: (a < 0 || !!constellation.nodes[a].star.litAt) && !!B.star.litAt,
-      }
-    })
-  }, [constellation, skill.id])
+    return new Map(full.edges.map(([, b]): [string, number] => [full.nodes[b].star.id, rng()]))
+  }, [full, skill.id])
+  const edgePaths = useMemo(
+    () =>
+      constellation.edges.map(([a, b]) => {
+        const A = a < 0 ? constellation.root : constellation.nodes[a]
+        const B = constellation.nodes[b]
+        const mx = (A.x + B.x) / 2
+        const my = (A.y + B.y) / 2
+        const dx = B.x - A.x
+        const dy = B.y - A.y
+        const len = Math.hypot(dx, dy) || 1
+        // ?? 0.5 — страховка: constellation.nodes — подмножество full.nodes, ветка недостижима по построению
+        const bow = ((bows.get(B.star.id) ?? 0.5) - 0.5) * Math.min(16, len * 0.12)
+        return {
+          d: `M${A.x.toFixed(1)} ${A.y.toFixed(1)} Q${(mx - (dy / len) * bow).toFixed(1)} ${(my + (dx / len) * bow).toFixed(1)} ${B.x.toFixed(1)} ${B.y.toFixed(1)}`,
+          lit: (a < 0 || !!constellation.nodes[a].star.litAt) && !!B.star.litAt,
+        }
+      }),
+    [constellation, bows],
+  )
 
   const legend = useMemo(() => skillTiers(store.stars, skill.id).map((t, k) => ({
     tier: t,
@@ -88,6 +111,9 @@ export function GalaxyView({
   // ── подсветка ранга по клику в легенде ──
   const [highlightTier, setHighlightTier] = useState<Tier | null>(null)
   useEffect(() => setHighlightTier(null), [skill.id])
+  // Подсветка действует, только пока ранг есть в легенде: в прошлом, где его звёзд ещё не было,
+  // снять её было бы нечем. Само состояние не сбрасываем — с возвратом ранга вернётся и подсветка
+  const activeTier = highlightTier && legend.some((l) => l.tier === highlightTier) ? highlightTier : null
 
   // ── данные нижнего HUD ──
   const [hoverStarId, setHoverStarId] = useState<string | null>(null)
@@ -211,7 +237,7 @@ export function GalaxyView({
             const twDur = (2.6 + twRng() * 2.6).toFixed(2)
             const twDelay = (twRng() * 4).toFixed(2)
             const haloR = (lit ? 22 : isTarget ? 11 + (prog ?? 0.15) * 8 : 9) * scale
-            const dimmed = highlightTier !== null && star.tier !== highlightTier
+            const dimmed = activeTier !== null && star.tier !== activeTier
             return (
               <g key={star.id} className="star-g" opacity={dimmed ? 0.35 : 1} transform={`translate(${x}, ${y})`}
                 onClick={() => onSelectStar(star.id)}
@@ -250,18 +276,27 @@ export function GalaxyView({
         </g>
       </svg>
 
-      {pz.isMoved && (
-        <button className="sky-reset" onClick={pz.reset} title="Вернуть обзор всей галактики">⌖ Обзор</button>
+      {(onOpenHistory || pz.isMoved) && (
+        <div className="sky-corner">
+          {onOpenHistory && (
+            <button className="sky-reset" onClick={onOpenHistory} title="Показать галактику на любую прошлую дату">◷ История</button>
+          )}
+          {pz.isMoved && (
+            <button className="sky-reset" onClick={pz.reset} title="Вернуть обзор всей галактики">⌖ Обзор</button>
+          )}
+        </div>
       )}
       <div className="galaxy-toolbar">
         <button onClick={onBack}>← Небо</button>
       </div>
-      {!selectedStarId && (
+      {!selectedStar && (
         <GalaxyHud skill={skill} level={level} stats={stats} hover={hover} ribbon={ribbon} onSwitch={onSwitch} />
       )}
       {selectedStar && (
         <StarCard
-          key={selectedStar.id}
+          // режим в ключе: смена правка↔просмотр пересоздаёт карточку, иначе взведённое
+          // «Точно погасить?» пережило бы уход в прошлое и возврат
+          key={`${selectedStar.id}:${actions ? 'edit' : 'view'}`}
           star={selectedStar}
           parent={parent}
           childrenCount={childrenCount}
@@ -269,10 +304,13 @@ export function GalaxyView({
           quests={store.quests.filter((q) => q.starId === selectedStar.id && q.status !== 'archived' && q.status !== 'proposed')}
           xpLog={store.xpLog}
           xp={starXp(store.xpLog, store.quests, selectedStar.id)}
-          onLight={(evidence, alsoIds) => onLightStar(selectedStar.id, evidence, alsoIds)}
-          onUnlight={() => onUnlightStar(selectedStar.id)}
-          onEdit={() => onEditStar(selectedStar)}
-          onAddChild={() => onAddStar(selectedStar.id)}
+          asOfDay={asOfDay}
+          actions={actions && {
+            onLight: (evidence, alsoIds) => actions.onLightStar(selectedStar.id, evidence, alsoIds),
+            onUnlight: () => actions.onUnlightStar(selectedStar.id),
+            onEdit: () => actions.onEditStar(selectedStar),
+            onAddChild: () => actions.onAddStar(selectedStar.id),
+          }}
           onClose={() => onSelectStar(null)}
         />
       )}
@@ -284,9 +322,15 @@ export function GalaxyView({
       )}
       {constellation.nodes.length === 0 && (
         <div className="galaxy-empty">
-          Звёзд пока нет. Добавь первую — например, «А1» для языка или «5 км» для бега.
-          <br />
-          <button onClick={() => onAddStar(null)}>+ звезда</button>
+          {actions ? (
+            <>
+              Звёзд пока нет. Добавь первую — например, «А1» для языка или «5 км» для бега.
+              <br />
+              <button onClick={() => actions.onAddStar(null)}>+ звезда</button>
+            </>
+          ) : (
+            'На эту дату звёзд ещё не было.'
+          )}
         </div>
       )}
     </div>

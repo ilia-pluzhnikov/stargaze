@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { Quest, QuestDodItem, QuestResult, Skill, StarComponent, WishlistItem } from './types'
+import type { Quest, QuestDodItem, QuestResult, Skill, SkyStore, StarComponent, WishlistItem } from './types'
 import { useStore } from './hooks/useStore'
 import { genId } from './logic/store'
 import { cancelFeeFor, sparksBalance, todayInGameTz } from './logic/sparks'
@@ -7,6 +7,7 @@ import { recurringDashboard } from './logic/recurring'
 import { addDays, formatDayWithDow } from './logic/dates'
 import { charLevel, skillLevel } from './logic/xp'
 import { charXpTotal, questDoneOnDay, skillXpTotal } from './logic/selectors'
+import { clampTimelineDay, skyAsOf, skyTotals, timelineBounds, timelineMarks } from './logic/timeline'
 import { Sky } from './components/Sky'
 import { GalaxyView } from './components/GalaxyView'
 import { Journal } from './components/Journal'
@@ -14,8 +15,11 @@ import { Chronicle } from './components/Chronicle'
 import type { ChronicleRow } from './components/Chronicle'
 import { SkillPanel } from './components/SkillPanel'
 import { Wallet } from './components/Wallet'
+import { TimelineBar } from './components/TimelineBar'
 import { CharacterModal, CompleteQuestModal, DataModal, MoveDueDateModal, QuestModal, SkillModal, StarModal, WishlistModal } from './components/Modals'
 import { LevelUpOverlay } from './components/LevelUpOverlay'
+
+type View = 'sky' | 'journal' | 'chronicle' | 'wallet'
 
 interface Toast {
   id: number
@@ -31,10 +35,11 @@ let toastSeq = 1
 
 export default function App() {
   const [store, dispatch, mode] = useStore()
-  const [view, setView] = useState<'sky' | 'journal' | 'chronicle' | 'wallet'>('sky')
+  const [view, setView] = useState<View>('sky')
   const [skillPanelId, setSkillPanelId] = useState<string | null>(null)
   const [galaxyId, setGalaxyId] = useState<string | null>(null)
   const [selectedStarId, setSelectedStarId] = useState<string | null>(null)
+  const [historyDay, setHistoryDay] = useState<string | null>(null) // null — полоса истории закрыта
   const [questModal, setQuestModal] = useState<{ quest?: Quest; defaultSkillId?: string | null } | null>(null)
   const [skillModal, setSkillModal] = useState<{ skill?: Skill } | null>(null)
   const [starModal, setStarModal] = useState<{
@@ -228,8 +233,38 @@ export default function App() {
       : null
   const galaxy = store.skills.find((s) => s.id === galaxyId && !s.archived) ?? null
 
+  // ── История неба: прошлое — проекция skyAsOf; настоящий store не меняется, и всё
+  // остальное в App (уровни, тосты, LevelUpOverlay) продолжает работать от него ──
+  const galaxyKey = galaxy?.id
+  const historyFirst = useMemo(() => timelineBounds(store, galaxyKey)?.first ?? null, [store, galaxyKey])
+  const canOpenHistory = historyFirst !== null && historyFirst < today // прошлого ещё нет — показывать нечего
+  // день полосы зажат в [первый день, сегодня]: вход в галактику поднимает нижнюю границу
+  const shownDay = historyDay === null || historyFirst === null ? null : clampTimelineDay(historyDay, historyFirst, today)
+  const historyOpen = shownDay !== null
+  const inPast = shownDay !== null && shownDay < today
+  const skyStore: SkyStore = useMemo(
+    () => (inPast && shownDay !== null ? skyAsOf(store, shownDay) : store),
+    [store, inPast, shownDay],
+  )
+  const historyMarks = useMemo(
+    () => (historyOpen ? timelineMarks(store, galaxyKey) : []),
+    [store, galaxyKey, historyOpen],
+  )
+  const historySummary = useMemo(
+    () => ({ level: charLevel(charXpTotal(skyStore.xpLog)).level, ...skyTotals(skyStore) }),
+    [skyStore],
+  )
+  // «сегодня» — на момент клика, а не рендера: вкладка, простоявшая через игровую полночь,
+  // иначе открыла бы полосу на «вчера» в режиме просмотра
+  const openHistory = !historyOpen && canOpenHistory ? () => setHistoryDay(todayInGameTz()) : undefined
+  /** Уход с неба закрывает историю: нельзя забыть, что смотришь прошлое. */
+  const switchView = (next: View) => {
+    setView(next)
+    if (next !== 'sky') setHistoryDay(null)
+  }
+
   return (
-    <div className="app">
+    <div className={view === 'sky' && historyOpen ? 'app with-timeline' : 'app'}>
       <header className="topbar">
         <div className="brand">Stargaze</div>
         {mode === 'local' && (
@@ -238,16 +273,16 @@ export default function App() {
           </span>
         )}
         <nav className="views">
-          <button className={view === 'sky' ? 'on' : ''} onClick={() => setView('sky')}>
+          <button className={view === 'sky' ? 'on' : ''} onClick={() => switchView('sky')}>
             Небо
           </button>
-          <button className={view === 'journal' ? 'on' : ''} onClick={() => setView('journal')}>
+          <button className={view === 'journal' ? 'on' : ''} onClick={() => switchView('journal')}>
             Журнал
           </button>
-          <button className={view === 'chronicle' ? 'on' : ''} onClick={() => setView('chronicle')}>
+          <button className={view === 'chronicle' ? 'on' : ''} onClick={() => switchView('chronicle')}>
             Хроника
           </button>
-          <button className={view === 'wallet' ? 'on' : ''} onClick={() => setView('wallet')}>
+          <button className={view === 'wallet' ? 'on' : ''} onClick={() => switchView('wallet')}>
             ✨ {balance}
           </button>
         </nav>
@@ -281,7 +316,9 @@ export default function App() {
 
       {view === 'sky' && !galaxy && (
         <Sky
-          store={store}
+          store={skyStore}
+          layoutFrom={store}
+          onOpenHistory={openHistory}
           onOpenGalaxy={(id) => {
             setGalaxyId(id)
             setSelectedStarId(null)
@@ -290,9 +327,10 @@ export default function App() {
       )}
       {view === 'sky' && galaxy && (
         <GalaxyView
-          store={store}
+          store={skyStore}
+          layoutFrom={store}
           skill={galaxy}
-          skills={store.skills.filter((s) => !s.archived)}
+          skills={skyStore.skills.filter((s) => !s.archived)}
           selectedStarId={selectedStarId}
           onSelectStar={setSelectedStarId}
           onSwitch={(id) => {
@@ -303,10 +341,15 @@ export default function App() {
             setGalaxyId(null)
             setSelectedStarId(null)
           }}
-          onAddStar={(parentStarId) => setStarModal({ skillId: galaxy.id, defaultParentStarId: parentStarId })}
-          onLightStar={handleLight}
-          onUnlightStar={(starId) => dispatch({ type: 'unlightStar', starId })}
-          onEditStar={(star) => setStarModal({ skillId: star.skillId, star })}
+          onOpenHistory={openHistory}
+          asOfDay={inPast && shownDay !== null ? shownDay : undefined}
+          // в прошлом — только просмотр: действий нет, кнопки правки не рендерятся
+          actions={inPast ? undefined : {
+            onAddStar: (parentStarId) => setStarModal({ skillId: galaxy.id, defaultParentStarId: parentStarId }),
+            onLightStar: handleLight,
+            onUnlightStar: (starId) => dispatch({ type: 'unlightStar', starId }),
+            onEditStar: (star) => setStarModal({ skillId: star.skillId, star }),
+          }}
         />
       )}
       {view === 'journal' && (
@@ -359,6 +402,18 @@ export default function App() {
           onOpenQuest={(q) => setQuestModal({ quest: q })}
         />
       )}
+      {view === 'sky' && shownDay !== null && historyFirst !== null && (
+        <TimelineBar
+          key={historyFirst} // смена нижней границы (вход в галактику) сбрасывает ▶
+          first={historyFirst}
+          today={today}
+          day={shownDay}
+          marks={historyMarks}
+          summary={historySummary}
+          onChange={setHistoryDay}
+          onClose={() => setHistoryDay(null)}
+        />
+      )}
 
       {panelSkill && (
         <SkillPanel
@@ -384,7 +439,7 @@ export default function App() {
           }}
           onOpenGalaxy={() => {
             setSkillPanelId(null)
-            setView('sky')
+            switchView('sky')
             setGalaxyId(panelSkill.id)
             setSelectedStarId(null)
           }}
