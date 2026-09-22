@@ -90,7 +90,7 @@ export const nodes = [
       'src/hooks/usePanZoom.ts',
     ],
     entrypoints: ['<Sky/> из App.tsx (вкладка «Небо»)', '<GalaxyView/> из App.tsx (галактика навыка)', '<TimelineBar/> из App.tsx (полоса истории неба)'],
-    tests: ['src/components/skyColors.test.ts'],
+    tests: ['src/components/skyColors.test.ts', 'src/components/skyHistory.test.tsx'],
     constraints: [
       'Никакого Math.random() в рендере — позиции из seeded PRNG (logic/layout)',
       "sky-seeds 'questlog-milky'/'questlog-sky' — вечные соли PRNG, ренейм перерисует небо",
@@ -342,7 +342,7 @@ export const nodes = [
     kind: 'core',
     role: 'Небо на любую прошлую дату: проекция skills/stars/quests/xpLog по игровому дню, созвездие прошлого в сегодняшних координатах, границы, засечки и подписи полосы времени',
     files: ['src/logic/timeline.ts'],
-    entrypoints: ['skyAsOf(store, day)', 'constellationAsOf(full, pastStars)', 'timelineBounds/timelineMarks/timelineMonths', 'skyTotals'],
+    entrypoints: ['skyAsOf(store, day)', 'constellationAsOf(full, pastStars)', 'timelineBounds/timelineMarks/timelineMonths', 'clampTimelineDay(day, first, today)', 'timelineTicks(marks, first, last)', 'skyTotals'],
     tests: ['src/logic/timeline.test.ts'],
     constraints: [
       'История выводится из нынешнего store (createdAt, litAt, xpLog.day): формат v4 не меняется; это приближение, не снимок',

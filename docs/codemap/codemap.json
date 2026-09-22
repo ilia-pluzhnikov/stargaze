@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-21T19:21:44.810Z",
-  "generated_from_commit": "299b4bb006b63f703406f1992c83183c81db90b6",
+  "generated_at": "2026-09-22T03:20:51.762Z",
+  "generated_from_commit": "60c09e3251d719cfd0957b0443f0f763b3d34d86",
   "scope": [
     "src/",
     "cli/",
@@ -82,7 +82,8 @@
         "<TimelineBar/> из App.tsx (полоса истории неба)"
       ],
       "tests": [
-        "src/components/skyColors.test.ts"
+        "src/components/skyColors.test.ts",
+        "src/components/skyHistory.test.tsx"
       ],
       "constraints": [
         "Никакого Math.random() в рендере — позиции из seeded PRNG (logic/layout)",
@@ -533,6 +534,8 @@
         "skyAsOf(store, day)",
         "constellationAsOf(full, pastStars)",
         "timelineBounds/timelineMarks/timelineMonths",
+        "clampTimelineDay(day, first, today)",
+        "timelineTicks(marks, first, last)",
         "skyTotals"
       ],
       "tests": [
@@ -593,7 +596,7 @@
           "symbol": "export function isCalendarDay"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-storage",

@@ -1,10 +1,10 @@
 {
-  "commit": "299b4bb006b63f703406f1992c83183c81db90b6",
+  "commit": "60c09e3251d719cfd0957b0443f0f763b3d34d86",
   "working_tree_dirty": true,
   "dirty_files": [
     "ocs/codemap/model.mjs"
   ],
-  "generated_at": "2026-09-21T19:21:44.810Z",
+  "generated_at": "2026-09-22T03:20:51.762Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -27,7 +27,7 @@
     "tsconfig.json",
     "tsconfig.node.json"
   ],
-  "scanned_files": 76,
+  "scanned_files": 77,
   "fingerprint_algorithm": "sha256(sorted(\"<path>\u0000\" + sha256(file bytes; текст нормализован к LF)))",
   "modules": {
     "web-app": {
@@ -40,7 +40,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "8ecfb2692d88a8f15d98ff16f3cd1d00e6e4f4abd80d6a210c4329e96de79c98"
+      "fingerprint": "5a6353281da0c5bdea72b6500fec14924eaad708508143bc1ac2cd230f00c129"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -56,9 +56,10 @@
         "src/components/skyColors.test.ts",
         "src/components/skyColors.ts",
         "src/components/skyGlyphs.ts",
+        "src/components/skyHistory.test.tsx",
         "src/hooks/usePanZoom.ts"
       ],
-      "fingerprint": "8a98ae11530e3cafc2fe6b8068e26f863b954f53b59893b4f32804d1ebbae9be"
+      "fingerprint": "86bf37b2198a48acbb8d73cf511c890ef237023b795a2ac3e09dd7ba2a9d0a3f"
     },
     "web-panels": {
       "path": "src/components/Journal.tsx",
@@ -172,7 +173,7 @@
         "src/logic/timeline.test.ts",
         "src/logic/timeline.ts"
       ],
-      "fingerprint": "8da7cb8ec63f334ba14f8927ef4534c1edc681a61fe0aa2e391f3a453c1df67d"
+      "fingerprint": "37929d9d85e05ca2a74cb71c54a9aa179c6974270bdf122c50b28949f23e5c54"
     },
     "core-model": {
       "path": "src/types.ts",
@@ -243,16 +244,14 @@
     }
   },
   "previous": {
-    "commit": "8461152a3abb69d4e86e1427789a8799ec584a1f",
-    "generated_at": "2026-09-21T16:56:29.375Z",
+    "commit": "299b4bb006b63f703406f1992c83183c81db90b6",
+    "generated_at": "2026-09-21T19:21:44.810Z",
     "changed_modules": [
       "web-app",
       "web-sky",
-      "core-model"
-    ],
-    "new_modules": [
       "core-timeline"
     ],
+    "new_modules": [],
     "removed_modules": []
   },
   "unknowns": [
