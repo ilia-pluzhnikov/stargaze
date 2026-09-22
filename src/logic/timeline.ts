@@ -92,6 +92,13 @@ export function timelineBounds(store: SkyStore, skillId?: string): { first: stri
   return days.length ? { first: days.reduce((a, b) => (a < b ? a : b)) } : null
 }
 
+/** День полосы, зажатый в [first, today]. Зажим к today — последний: при first > today (навык
+ * с createdAt из будущего — импорт, расхождение часов) результат — today, а не будущая дата. */
+export function clampTimelineDay(day: string, first: string, today: string): string {
+  const notBefore = day < first ? first : day
+  return notBefore > today ? today : notBefore
+}
+
 /** Засечка полосы времени: зажжённая звезда или взятый ранг. */
 export interface TimelineMark {
   day: string
@@ -131,6 +138,24 @@ export function timelineMarks(store: SkyStore, skillId?: string): TimelineMark[]
   }
   // sort устойчив: в одном дне сначала звёзды, потом ранги
   return [...starMarks, ...rankMarks].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0))
+}
+
+/** Засечки дорожки: одна на день. Дни вне [first, last] отброшены, порядок входа сохранён
+ * (`timelineMarks` уже отдаёт по дню, внутри дня — сначала звёзды, потом ранги);
+ * `rank` — есть ли в дне взятый ранг. */
+export function timelineTicks(marks: TimelineMark[], first: string, last: string): { day: string; rank: boolean; marks: TimelineMark[] }[] {
+  const byDay = new Map<string, { day: string; rank: boolean; marks: TimelineMark[] }>()
+  for (const m of marks) {
+    if (m.day < first || m.day > last) continue
+    let tick = byDay.get(m.day)
+    if (!tick) {
+      tick = { day: m.day, rank: false, marks: [] }
+      byDay.set(m.day, tick)
+    }
+    tick.marks.push(m)
+    if (m.kind === 'rank') tick.rank = true
+  }
+  return [...byDay.values()]
 }
 
 /** Сводка полосы: звёзды неархивных навыков (на проекции — существовавшие на дату). */

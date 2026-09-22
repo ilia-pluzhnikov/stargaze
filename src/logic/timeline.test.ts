@@ -3,7 +3,16 @@ import type { Quest, Skill, SkyStore, StarComponent, XpEvent } from '../types'
 import { layoutConstellation } from './layout'
 import { skillXpTotal } from './selectors'
 import { isRankAchieved, skillStars } from './stars'
-import { constellationAsOf, skyAsOf, skyTotals, timelineBounds, timelineMarks, timelineMonths } from './timeline'
+import {
+  clampTimelineDay,
+  constellationAsOf,
+  skyAsOf,
+  skyTotals,
+  timelineBounds,
+  timelineMarks,
+  timelineMonths,
+  timelineTicks,
+} from './timeline'
 import type { TimelineMark } from './timeline'
 
 // Полдень UTC = 19:00 игрового пояса (UTC+7): тот же календарный день
@@ -212,10 +221,37 @@ describe('timelineBounds', () => {
     expect(timelineBounds(store)).toEqual({ first: '2026-06-05' })
   })
 
+  it('событие xpLog архивного навыка, более раннее, чем всё живое, границу даёт: xpLog по архиву не фильтруется', () => {
+    const store = sky({
+      skills: [skill('old', '2026-01-01', { archived: true }), skill('s1', '2026-06-05')],
+      stars: [star('a', '2026-06-07')],
+      xpLog: [{ ...xp('e1', '2026-01-03', 10), skillId: 'old' }],
+    })
+    expect(timelineBounds(store)).toEqual({ first: '2026-01-03' })
+  })
+
   it('со skillId — день создания навыка; нет такого навыка → null', () => {
     const store = sky({ skills: [skill('s1', '2026-06-05'), skill('s2', '2026-07-01')], xpLog: [xp('e1', '2026-06-02', 10)] })
     expect(timelineBounds(store, 's2')).toEqual({ first: '2026-07-01' })
     expect(timelineBounds(store, 'nope')).toBeNull()
+  })
+})
+
+describe('clampTimelineDay', () => {
+  it('день внутри диапазона не меняется, границы включены', () => {
+    expect(clampTimelineDay('2026-06-10', '2026-06-01', '2026-06-20')).toBe('2026-06-10')
+    expect(clampTimelineDay('2026-06-01', '2026-06-01', '2026-06-20')).toBe('2026-06-01')
+    expect(clampTimelineDay('2026-06-20', '2026-06-01', '2026-06-20')).toBe('2026-06-20')
+  })
+
+  it('ниже first → first', () => expect(clampTimelineDay('2026-05-31', '2026-06-01', '2026-06-20')).toBe('2026-06-01'))
+
+  it('выше today → today', () => expect(clampTimelineDay('2026-06-21', '2026-06-01', '2026-06-20')).toBe('2026-06-20'))
+
+  it('first > today (навык с createdAt из будущего) → today: зажим к today — последний', () => {
+    expect(clampTimelineDay('2026-06-10', '2026-07-01', '2026-06-20')).toBe('2026-06-20')
+    expect(clampTimelineDay('2026-06-25', '2026-07-01', '2026-06-20')).toBe('2026-06-20')
+    expect(clampTimelineDay('2026-07-05', '2026-07-01', '2026-06-20')).toBe('2026-06-20')
   })
 })
 
@@ -273,6 +309,35 @@ describe('timelineMarks', () => {
   it('звезда, зажжённая раньше создания навыка, даёт засечки в день, когда стала видна на небе', () => {
     const store = sky({ skills: [skill('s1', '2026-06-10')], stars: [star('a', '2026-06-01', { litAt: at('2026-06-02') })] })
     expect(timelineMarks(store).map((m) => `${m.kind}:${m.day}`)).toEqual(['star:2026-06-10', 'rank:2026-06-10'])
+  })
+})
+
+describe('timelineTicks', () => {
+  const mark = (day: string, kind: TimelineMark['kind'], label: string): TimelineMark => ({ day, kind, skillId: 's1', label })
+
+  it('пустой вход → []', () => expect(timelineTicks([], '2026-06-01', '2026-06-30')).toEqual([]))
+
+  it('несколько событий одного дня — одна засечка: rank: true, порядок marks сохранён', () => {
+    const a = mark('2026-06-05', 'star', 'A1')
+    const b = mark('2026-06-10', 'star', 'A2')
+    const c = mark('2026-06-10', 'star', 'B1')
+    const d = mark('2026-06-10', 'rank', 'ранг D · s1')
+    expect(timelineTicks([a, b, c, d], '2026-06-01', '2026-06-30')).toEqual([
+      { day: '2026-06-05', rank: false, marks: [a] },
+      { day: '2026-06-10', rank: true, marks: [b, c, d] },
+    ])
+  })
+
+  it('события вне [first, last] отброшены, границы включены', () => {
+    const marks = ['2026-05-31', '2026-06-01', '2026-06-30', '2026-07-01'].map((day) => mark(day, 'star', day))
+    expect(timelineTicks(marks, '2026-06-01', '2026-06-30').map((t) => t.day)).toEqual(['2026-06-01', '2026-06-30'])
+  })
+
+  it('вход не мутируется', () => {
+    const marks = [mark('2026-06-10', 'star', 'A2'), mark('2026-06-10', 'rank', 'ранг D · s1')]
+    const snapshot = JSON.parse(JSON.stringify(marks))
+    timelineTicks(marks, '2026-06-01', '2026-06-30')
+    expect(marks).toEqual(snapshot)
   })
 })
 
