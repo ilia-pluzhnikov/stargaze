@@ -10,6 +10,9 @@
 
 ## Запуск за минуту
 
+Куда ставить — на ноутбук или на VPS — зависит от того, где живёт твой
+агент: [INSTALL.md](INSTALL.md). Ниже — локальный запуск.
+
 Нужен [Node.js](https://nodejs.org) 22.12 или новее (проверить: `node -v`).
 
 ```bash
@@ -36,9 +39,9 @@ docker run -d --name stargaze -p 127.0.0.1:8643:8643 \
 Одно ядро — три головы:
 
 - **Веб** — небо, журнал квестов, кошелёк наград.
-- **CLI** — та же логика из терминала: `node dist-node/cli.js status`
-  (в Docker: `docker exec stargaze node cli.js status`). Этим же путём
-  ходят агенты.
+- **CLI** — та же логика из терминала: `node dist-node/cli.js status
+  --store ~/.stargaze/store.json` (в Docker путь задан в образе:
+  `docker exec stargaze node cli.js status`). Этим же путём ходят агенты.
 - **HTTP API** — `GET /api/store`, `POST /api/action` — для интеграций.
 
 ## Агент как гейм-мастер
@@ -51,7 +54,8 @@ docker run -d --name stargaze -p 127.0.0.1:8643:8643 \
 
 ## Свой сервер
 
-VPS с HTTPS и basic auth — [DEPLOY.md](DEPLOY.md).
+VPS с HTTPS и basic auth — [DEPLOY.md](DEPLOY.md). Reverse proxy там
+Caddy, но это пример: требования к прокси и замены — в том же файле.
 
 ## Разработка
 
