@@ -50,7 +50,8 @@ docker run -d --name stargaze -p 127.0.0.1:8643:8643 \
 игру: предлагает квесты (`propose-quest`), принимает результаты
 (`complete <id> --result "…"`), назначает награды и цены. Справка по
 командам: `node dist-node/cli.js` без аргументов. MCP-сервер — в планах
-([CHANGELOG](CHANGELOG.md)).
+([CHANGELOG](CHANGELOG.md)). С чего начать и как играть, чтобы небо
+работало, — [GUIDE.md](GUIDE.md).
 
 ## Свой сервер
 

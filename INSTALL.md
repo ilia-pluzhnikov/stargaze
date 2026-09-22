@@ -92,3 +92,5 @@ docker exec stargaze node cli.js propose-quest --title "…" --type short --xp 4
 - Переезд между путями: экспорт на старом месте, импорт на новом —
   кнопка «Данные» в вебе или `cli.js export <файл>` / `cli.js import
   <файл>`. Импорт заменяет всё состояние целиком.
+
+Поставил — дальше [GUIDE.md](GUIDE.md): с чего начать и как играть.
