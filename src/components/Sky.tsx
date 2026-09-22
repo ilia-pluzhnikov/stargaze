@@ -10,7 +10,9 @@ import { CosmosBackdrop } from './CosmosBackdrop'
 
 interface Props {
   store: SkyStore
-  /** Сегодняшнее небо для раскладки; нет = то же, что store. В режиме истории store — проекция прошлого. */
+  /** Сегодняшнее небо для раскладки; нет = то же, что store. В режиме истории store — проекция прошлого.
+   * Предусловие: всё, что рисуется из store, есть в layoutFrom (навыки и звёзды store ⊆ layoutFrom) —
+   * `skyAsOf` это гарантирует. */
   layoutFrom?: SkyStore
   onOpenGalaxy: (skillId: string) => void
   /** Открыть полосу истории; нет = кнопки нет (полоса уже открыта или прошлого ещё нет). */

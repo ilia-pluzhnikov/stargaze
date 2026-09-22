@@ -7,7 +7,7 @@ import { recurringDashboard } from './logic/recurring'
 import { addDays, formatDayWithDow } from './logic/dates'
 import { charLevel, skillLevel } from './logic/xp'
 import { charXpTotal, questDoneOnDay, skillXpTotal } from './logic/selectors'
-import { skyAsOf, skyTotals, timelineBounds, timelineMarks } from './logic/timeline'
+import { clampTimelineDay, skyAsOf, skyTotals, timelineBounds, timelineMarks } from './logic/timeline'
 import { Sky } from './components/Sky'
 import { GalaxyView } from './components/GalaxyView'
 import { Journal } from './components/Journal'
@@ -18,6 +18,8 @@ import { Wallet } from './components/Wallet'
 import { TimelineBar } from './components/TimelineBar'
 import { CharacterModal, CompleteQuestModal, DataModal, MoveDueDateModal, QuestModal, SkillModal, StarModal, WishlistModal } from './components/Modals'
 import { LevelUpOverlay } from './components/LevelUpOverlay'
+
+type View = 'sky' | 'journal' | 'chronicle' | 'wallet'
 
 interface Toast {
   id: number
@@ -33,7 +35,7 @@ let toastSeq = 1
 
 export default function App() {
   const [store, dispatch, mode] = useStore()
-  const [view, setView] = useState<'sky' | 'journal' | 'chronicle' | 'wallet'>('sky')
+  const [view, setView] = useState<View>('sky')
   const [skillPanelId, setSkillPanelId] = useState<string | null>(null)
   const [galaxyId, setGalaxyId] = useState<string | null>(null)
   const [selectedStarId, setSelectedStarId] = useState<string | null>(null)
@@ -237,11 +239,7 @@ export default function App() {
   const historyFirst = useMemo(() => timelineBounds(store, galaxyKey)?.first ?? null, [store, galaxyKey])
   const canOpenHistory = historyFirst !== null && historyFirst < today // прошлого ещё нет — показывать нечего
   // день полосы зажат в [первый день, сегодня]: вход в галактику поднимает нижнюю границу
-  const shownDay =
-    historyDay === null || historyFirst === null ? null
-    : historyDay < historyFirst ? historyFirst
-    : historyDay > today ? today
-    : historyDay
+  const shownDay = historyDay === null || historyFirst === null ? null : clampTimelineDay(historyDay, historyFirst, today)
   const historyOpen = shownDay !== null
   const inPast = shownDay !== null && shownDay < today
   const skyStore: SkyStore = useMemo(
@@ -256,9 +254,11 @@ export default function App() {
     () => ({ level: charLevel(charXpTotal(skyStore.xpLog)).level, ...skyTotals(skyStore) }),
     [skyStore],
   )
-  const openHistory = !historyOpen && canOpenHistory ? () => setHistoryDay(today) : undefined
+  // «сегодня» — на момент клика, а не рендера: вкладка, простоявшая через игровую полночь,
+  // иначе открыла бы полосу на «вчера» в режиме просмотра
+  const openHistory = !historyOpen && canOpenHistory ? () => setHistoryDay(todayInGameTz()) : undefined
   /** Уход с неба закрывает историю: нельзя забыть, что смотришь прошлое. */
-  const switchView = (next: 'sky' | 'journal' | 'chronicle' | 'wallet') => {
+  const switchView = (next: View) => {
     setView(next)
     if (next !== 'sky') setHistoryDay(null)
   }
@@ -439,7 +439,7 @@ export default function App() {
           }}
           onOpenGalaxy={() => {
             setSkillPanelId(null)
-            setView('sky')
+            switchView('sky')
             setGalaxyId(panelSkill.id)
             setSelectedStarId(null)
           }}

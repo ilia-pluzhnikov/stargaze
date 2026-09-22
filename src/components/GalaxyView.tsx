@@ -33,7 +33,8 @@ export interface GalaxyActions {
 
 interface GalaxyViewProps {
   store: SkyStore
-  /** Сегодняшнее небо для раскладки; нет = то же, что store. */
+  /** Сегодняшнее небо для раскладки; нет = то же, что store. Предусловие: всё, что рисуется из
+   * store, есть в layoutFrom (навыки и звёзды store ⊆ layoutFrom) — `skyAsOf` это гарантирует. */
   layoutFrom?: SkyStore
   skill: Skill
   skills: Skill[] // неархивные, канонический порядок store.skills — лента и листание
@@ -89,6 +90,7 @@ export function GalaxyView({
         const dx = B.x - A.x
         const dy = B.y - A.y
         const len = Math.hypot(dx, dy) || 1
+        // ?? 0.5 — страховка: constellation.nodes — подмножество full.nodes, ветка недостижима по построению
         const bow = ((bows.get(B.star.id) ?? 0.5) - 0.5) * Math.min(16, len * 0.12)
         return {
           d: `M${A.x.toFixed(1)} ${A.y.toFixed(1)} Q${(mx - (dy / len) * bow).toFixed(1)} ${(my + (dx / len) * bow).toFixed(1)} ${B.x.toFixed(1)} ${B.y.toFixed(1)}`,
@@ -109,6 +111,9 @@ export function GalaxyView({
   // ── подсветка ранга по клику в легенде ──
   const [highlightTier, setHighlightTier] = useState<Tier | null>(null)
   useEffect(() => setHighlightTier(null), [skill.id])
+  // Подсветка действует, только пока ранг есть в легенде: в прошлом, где его звёзд ещё не было,
+  // снять её было бы нечем. Само состояние не сбрасываем — с возвратом ранга вернётся и подсветка
+  const activeTier = highlightTier && legend.some((l) => l.tier === highlightTier) ? highlightTier : null
 
   // ── данные нижнего HUD ──
   const [hoverStarId, setHoverStarId] = useState<string | null>(null)
@@ -232,7 +237,7 @@ export function GalaxyView({
             const twDur = (2.6 + twRng() * 2.6).toFixed(2)
             const twDelay = (twRng() * 4).toFixed(2)
             const haloR = (lit ? 22 : isTarget ? 11 + (prog ?? 0.15) * 8 : 9) * scale
-            const dimmed = highlightTier !== null && star.tier !== highlightTier
+            const dimmed = activeTier !== null && star.tier !== activeTier
             return (
               <g key={star.id} className="star-g" opacity={dimmed ? 0.35 : 1} transform={`translate(${x}, ${y})`}
                 onClick={() => onSelectStar(star.id)}

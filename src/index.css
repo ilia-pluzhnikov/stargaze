@@ -1474,7 +1474,6 @@ button.chronicle-quest-title:focus-visible { outline: 2px solid var(--accent); o
   padding: 0; border: none; border-radius: 0; background: transparent; cursor: pointer;
 }
 .timeline-range:focus { outline: none; }
-.timeline-range:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .timeline-range::-webkit-slider-runnable-track { height: 2px; border-radius: 1px; background: var(--line-hover); }
 .timeline-range::-moz-range-track { height: 2px; border-radius: 1px; background: var(--line-hover); }
 .timeline-range::-webkit-slider-thumb {
@@ -1485,6 +1484,14 @@ button.chronicle-quest-title:focus-visible { outline: 2px solid var(--accent); o
 .timeline-range::-moz-range-thumb {
   width: 16px; height: 16px; border: none; border-radius: 50%;
   background: var(--accent); box-shadow: var(--glow-accent);
+}
+/* фокус с клавиатуры — кольцо внутри бегунка: рамка вокруг всего input заходила на ряд засечек
+   и перечёркивала их, а бегунок занимает всю высоту input — наружу кольцу расти некуда */
+.timeline-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 4px var(--night-1), var(--glow-accent);
+}
+.timeline-range:focus-visible::-moz-range-thumb {
+  box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 4px var(--night-1), var(--glow-accent);
 }
 .timeline-months {
   position: relative; height: 14px; margin-top: 2px; overflow: hidden;

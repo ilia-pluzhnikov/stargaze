@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { addDays, diffDays, formatDayLong } from '../logic/dates'
-import { timelineMonths } from '../logic/timeline'
+import { timelineMonths, timelineTicks } from '../logic/timeline'
 import type { TimelineMark } from '../logic/timeline'
 
 interface Props {
@@ -76,18 +76,15 @@ export function TimelineBar({ first, today, day, marks, summary, onChange, onClo
   }
 
   // несколько событий одного дня — одна засечка; title перечисляет их
-  const ticks = useMemo(() => {
-    const byDay = new Map<string, TimelineMark[]>()
-    for (const m of marks) {
-      if (m.day < first || m.day > today) continue
-      byDay.set(m.day, [...(byDay.get(m.day) ?? []), m])
-    }
-    return [...byDay.entries()].map(([d, list]) => ({
-      day: d,
-      rank: list.some((m) => m.kind === 'rank'),
-      title: [formatDayLong(d), ...list.map((m) => `${m.kind === 'rank' ? '▲' : '✦'} ${m.label}`)].join('\n'),
-    }))
-  }, [marks, first, today])
+  const ticks = useMemo(
+    () =>
+      timelineTicks(marks, first, today).map((t) => ({
+        day: t.day,
+        rank: t.rank,
+        title: [formatDayLong(t.day), ...t.marks.map((m) => `${m.kind === 'rank' ? '▲' : '✦'} ${m.label}`)].join('\n'),
+      })),
+    [marks, first, today],
+  )
 
   const months = useMemo(() => {
     const shown: { day: string; label: string; pct: number }[] = []
@@ -108,12 +105,12 @@ export function TimelineBar({ first, today, day, marks, summary, onChange, onClo
           {' · '}<span className="lv">ур. {summary.level}</span>
           {' · '}горит {summary.starsLit} из {summary.starsTotal}
         </div>
-        <button onClick={togglePlay} disabled={span === 0}
+        <button type="button" onClick={togglePlay} disabled={span === 0}
           title={playing ? 'Пауза' : 'Проиграть рост неба до сегодня'}
           aria-label={playing ? 'Пауза' : 'Проиграть рост неба до сегодня'}>
           {playing ? '⏸' : '▶'}
         </button>
-        <button onClick={onClose} title="Закрыть историю и вернуться в сегодня" aria-label="Закрыть историю">✕</button>
+        <button type="button" onClick={onClose} title="Закрыть историю и вернуться в сегодня" aria-label="Закрыть историю">✕</button>
       </div>
       <div className="timeline-ticks">
         {ticks.map((t) => (
