@@ -3,7 +3,9 @@ import type { Store } from '../types'
 import { reducer, type Action } from '../logic/store'
 import { loadStoredStore, STORE_KEY } from '../logic/migrate'
 import { fetchServerStore, postAction, probeServer } from '../logic/api'
-import { appendQueue, drainQueue, lastServerSeen, loadQueue, markServerSeen } from '../logic/sync'
+import {
+  appendQueue, drainQueue, lastServerSeen, loadQueue, markServerSeen, sendNow, type WholeStoreAction,
+} from '../logic/sync'
 import { seedStore } from '../data/seed'
 
 const POLL_MS = 30_000
@@ -24,6 +26,15 @@ export function useStore() {
   // Не null — пробинг провалился, а этот браузер бывал на сервере: на экране копия,
   // правки на сервер не попадут. Значение — время последней связи (для баннера)
   const [offlineSince, setOfflineSince] = useState<string | null>(null)
+  // Сколько действий ждут отправки — счётчик в шапке: видно и «сервер отвалился посреди
+  // сессии», и «сейчас улетит очередь, оставшаяся с прошлой сессии»
+  const [pending, setPending] = useState(() => {
+    try {
+      return loadQueue(localStorage).length
+    } catch {
+      return 0
+    }
+  })
   const serverMode = useRef(false)
   const flushing = useRef(false)
   const storeJson = useRef('')
@@ -44,6 +55,7 @@ export function useStore() {
       }
     } finally {
       flushing.current = false
+      setPending(loadQueue(localStorage).length)
     }
   }, [])
 
@@ -128,16 +140,35 @@ export function useStore() {
     }
   }, [refresh, flush])
 
+  // Импорт и сброс сюда не принимаются (тип): они идут через replaceStore, мимо очереди
   const dispatch = useCallback(
-    (action: Action) => {
+    (action: Exclude<Action, WholeStoreAction>) => {
       dispatchLocal(action) // оптимистично — интерфейс не ждёт сеть
       if (serverMode.current) {
         appendQueue(localStorage, action)
+        setPending(loadQueue(localStorage).length)
         void flush()
       }
     },
     [flush],
   )
 
-  return [store, dispatch, mode, offlineSince] as const
+  /** Импорт и сброс заменяют весь store — мимо очереди (см. sendNow): сразу или отказ.
+   * Не оптимистично: при отказе мир на экране не меняется, а UI сообщает. */
+  const replaceStore = useCallback(
+    async (action: WholeStoreAction): Promise<boolean> => {
+      if (!serverMode.current) {
+        dispatchLocal(action)
+        return true
+      }
+      if (loadQueue(localStorage).length > 0) await flush()
+      const canon = await sendNow(localStorage, action, postAction)
+      if (!canon) return false
+      dispatchLocal({ type: 'importStore', store: canon })
+      return true
+    },
+    [flush],
+  )
+
+  return { store, dispatch, mode, offlineSince, pending, replaceStore }
 }

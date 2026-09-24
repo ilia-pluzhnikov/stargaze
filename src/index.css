@@ -116,6 +116,9 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   white-space: nowrap;
 }
 
+/* Действия ждут отправки на сервер */
+.pending-badge { color: var(--gold); border-color: rgba(240, 160, 80, 0.45); }
+
 /* Локальный режим браузера, который бывал на сервере: копия вместо канона — крупно, не в title */
 .offline-banner {
   flex: 0 0 auto;

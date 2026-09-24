@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { Store } from '../types'
 import type { Action } from './store'
 import {
-  appendQueue, drainQueue, lastServerSeen, LEGACY_QUEUE_KEY, loadQueue, markServerSeen, QUEUE_KEY, SERVER_SEEN_KEY, type KV,
+  appendQueue, drainQueue, lastServerSeen, LEGACY_QUEUE_KEY, loadQueue, markServerSeen, QUEUE_KEY, sendNow, SERVER_SEEN_KEY,
+  type KV, type WholeStoreAction,
 } from './sync'
 
 const fakeKv = (): KV & { data: Map<string, string> } => {
@@ -186,5 +187,35 @@ describe('отметка связи с сервером', () => {
   it('хранилище бросает (квота, приватный режим) → молча, без исключения', () => {
     expect(() => markServerSeen(brokenKv, at)).not.toThrow()
     expect(lastServerSeen(brokenKv)).toBeNull()
+  })
+})
+
+describe('sendNow: замена всего store мимо очереди', () => {
+  // Импорт и сброс, доставленные через месяцы из очереди, затёрли бы весь канон
+  const reset: WholeStoreAction = { type: 'resetToSeed' }
+
+  it('сервер принял → канон, очередь не тронута', async () => {
+    const kv = fakeKv()
+    expect(await sendNow(kv, reset, async () => storeAfterA)).toBe(storeAfterA)
+    expect(loadQueue(kv)).toEqual([])
+  })
+  it('сервер недоступен → null, действие НЕ оседает в очереди', async () => {
+    const kv = fakeKv()
+    expect(await sendNow(kv, reset, async () => null)).toBeNull()
+    expect(loadQueue(kv)).toEqual([])
+  })
+  it('в очереди есть старые действия → null без отправки: замена их не обгоняет', async () => {
+    const kv = fakeKv()
+    appendQueue(kv, act)
+    const calls: Action[] = []
+    const res = await sendNow(kv, reset, async (a) => (calls.push(a), storeAfterA))
+    expect(res).toBeNull()
+    expect(calls).toEqual([])
+    expect(loadQueue(kv)).toEqual([act])
+  })
+  it('legacy-очередь тоже считается', async () => {
+    const kv = fakeKv()
+    setKey(kv, LEGACY_QUEUE_KEY, [actLegacy])
+    expect(await sendNow(kv, reset, async () => storeAfterA)).toBeNull()
   })
 })

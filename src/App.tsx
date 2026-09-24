@@ -38,7 +38,7 @@ const formatSeen = (iso: string) =>
   new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 export default function App() {
-  const [store, dispatch, mode, offlineSince] = useStore()
+  const { store, dispatch, mode, offlineSince, pending, replaceStore } = useStore()
   const [view, setView] = useState<View>('sky')
   const [skillPanelId, setSkillPanelId] = useState<string | null>(null)
   const [galaxyId, setGalaxyId] = useState<string | null>(null)
@@ -274,6 +274,11 @@ export default function App() {
         {mode === 'local' && (
           <span className="mode-badge" title="Канон-сервер недоступен — данные живут в localStorage этого браузера. Подключение проверяется в фоне.">
             локальный режим
+          </span>
+        )}
+        {pending > 0 && (
+          <span className="mode-badge pending-badge" title="Действия сохранены в этом браузере и уйдут на сервер, когда он ответит">
+            в очереди: {pending}
           </span>
         )}
         <nav className="views">
@@ -542,15 +547,15 @@ export default function App() {
       {dataOpen && (
         <DataModal
           store={store}
-          onImport={(s) => {
-            dispatch({ type: 'importStore', store: s })
+          onImport={async (s) => {
             setDataOpen(false)
-            pushToast('Импорт завершён')
+            const ok = await replaceStore({ type: 'importStore', store: s })
+            pushToast(ok ? 'Импорт завершён' : 'Сервер недоступен — импорт не выполнен')
           }}
-          onReset={() => {
-            dispatch({ type: 'resetToSeed' })
+          onReset={async () => {
             setDataOpen(false)
-            pushToast('Сброшено к сиду лета')
+            const ok = await replaceStore({ type: 'resetToSeed' })
+            pushToast(ok ? 'Сброшено к сиду лета' : 'Сервер недоступен — сброс не выполнен')
           }}
           onClose={() => setDataOpen(false)}
         />

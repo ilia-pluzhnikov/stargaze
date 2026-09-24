@@ -72,6 +72,22 @@ export async function drainQueue(
   }
 }
 
+/** Действия, заменяющие весь store. В очередь не ставятся никогда: доставленные через
+ * месяцы (вкладку закрыли при лежащем сервере), они затёрли бы всё, что канон накопил
+ * после. Только сразу — или явный отказ. */
+export type WholeStoreAction = Extract<Action, { type: 'importStore' | 'resetToSeed' }>
+
+/** Отправка мимо очереди. Непустая очередь → null без отправки: замена store не обгоняет
+ * более старые действия, иначе они доиграются уже поверх нового мира. */
+export async function sendNow(
+  kv: KV,
+  action: WholeStoreAction,
+  post: (a: Action) => Promise<Store | null>,
+): Promise<Store | null> {
+  if (loadQueue(kv).length > 0) return null
+  return post(action)
+}
+
 // Отметка последней успешной связи с сервером. Есть отметка — этот браузер бывал в
 // серверном режиме, и локальный режим для него — деградация (показана копия, правки на
 // сервер не попадут), а не норма, как на localhost без API.

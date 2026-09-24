@@ -165,6 +165,8 @@ export const nodes = [
     constraints: [
       'Поллинг 30 с, ретрай очереди 5 с, ре-пробинг сервера 10 с',
       'importStore применяется только когда очередь реально опустела',
+      'Импорт и сброс (WholeStoreAction) — мимо очереди через replaceStore: сразу или отказ; dispatch их не принимает по типу',
+      'Счётчик очереди в шапке — «в очереди: N», пока есть неотправленные действия',
       'Персист в localStorage в обоих режимах: в серверном это копия последнего канона',
       'Локальный режим браузера, бывавшего на сервере (отметка stargaze.server-seen), — баннер «копия, правки не попадут», а не тихий бейдж',
     ],
@@ -173,6 +175,7 @@ export const nodes = [
       { path: 'src/hooks/useStore.ts', symbol: 'const POLL_MS = 30_000' },
       { path: 'src/hooks/useStore.ts', symbol: 'dispatchLocal(action) // оптимистично' },
       { path: 'src/hooks/useStore.ts', symbol: 'if (!cancelled) setOfflineSince(lastServerSeen(localStorage))' },
+      { path: 'src/hooks/useStore.ts', symbol: 'const canon = await sendNow(localStorage, action, postAction)' },
     ],
   },
   {
@@ -190,6 +193,7 @@ export const nodes = [
       'Гейт серверного режима — /api/store с валидацией, а не /api/health',
       'Адрес /api/* — от location.origin: относительный путь наследует userinfo документа (https://user:pass@host/), и fetch бросает TypeError',
       '4xx на действие выбрасывает его из очереди (иначе очередь застрянет навечно)',
+      'sendNow не обгоняет очередь: непустая — отказ без отправки',
     ],
     evidence: [
       { path: 'src/logic/sync.ts', symbol: "export const QUEUE_KEY = 'stargaze.queue.v2'" },
@@ -654,7 +658,7 @@ export const flows = [
       { node: 'core-storage', action: 'withStore под mkdir-локом — сериализация с сервером', evidence: { path: 'src/logic/storage.ts', symbol: 'acquireLock(path, opts)' } },
       { node: 'store-json', action: 'Канон обновлён на дроплете', evidence: { path: 'src/logic/storage.ts', symbol: 'saveStore' } },
       { node: 'web-usestore', action: 'Открытая вкладка подхватывает изменение поллингом 30 с', evidence: { path: 'src/hooks/useStore.ts', symbol: 'const POLL_MS = 30_000' } },
-      { node: 'web-app', action: 'UI перерисовывается новым каноном', evidence: { path: 'src/App.tsx', symbol: 'const [store, dispatch, mode, offlineSince] = useStore()' } },
+      { node: 'web-app', action: 'UI перерисовывается новым каноном', evidence: { path: 'src/App.tsx', symbol: 'const { store, dispatch, mode, offlineSince, pending, replaceStore } = useStore()' } },
     ],
     outcome: 'Правки агента и веба идут в один файл без гонок; веб узнаёт о них без перезагрузки',
   },
