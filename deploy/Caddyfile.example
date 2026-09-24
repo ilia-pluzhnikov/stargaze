@@ -19,11 +19,28 @@ import /etc/caddy/conf.d/*.caddy
 	}
 	respond @badActionOrigin 403
 
-	basic_auth {
+	# Вход устройства (DEPLOY.md): браузер ТВ забывает basic auth при каждом
+	# перезапуске, постоянную cookie — нет. /?device=<токен> ставит cookie на
+	# год и уводит на чистый URL; с ней пароль не спрашивается. Гейт длины
+	# держит вход закрытым без STARGAZE_DEVICE_TOKEN: пустой токен иначе
+	# совпал бы с пустым ?device= и пустой cookie.
+	@deviceLink expression `size("{$STARGAZE_DEVICE_TOKEN}") >= 32 && {query.device} == "{$STARGAZE_DEVICE_TOKEN}"`
+	header @deviceLink Set-Cookie "__Host-stargaze_device={$STARGAZE_DEVICE_TOKEN}; Path=/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax"
+	redir @deviceLink / 302
+
+	@noDevice not expression `size("{$STARGAZE_DEVICE_TOKEN}") >= 32 && {cookie.__Host-stargaze_device} == "{$STARGAZE_DEVICE_TOKEN}"`
+	basic_auth @noDevice {
 		{$STARGAZE_BASIC_USER} {$STARGAZE_PASSWORD_HASH}
 	}
 
-	log
+	log {
+		# токен из ссылки устройства в лог не пишем; Cookie Caddy режет сам
+		format filter {
+			request>uri query {
+				delete device
+			}
+		}
+	}
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"

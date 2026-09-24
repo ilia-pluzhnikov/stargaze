@@ -21,6 +21,7 @@ services:
       STARGAZE_ACME_EMAIL: "${STARGAZE_ACME_EMAIL:-}"
       STARGAZE_BASIC_USER: "${STARGAZE_BASIC_USER:-}"
       STARGAZE_PASSWORD_HASH: "${STARGAZE_PASSWORD_HASH:-}"
+      STARGAZE_DEVICE_TOKEN: "${STARGAZE_DEVICE_TOKEN:-}" # вход устройства; пусто — выключен
       STARGAZE_UPSTREAM: "stargaze:8643" # контейнеры в одной docker-сети
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
