@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Store } from '../types'
 import type { Action } from './store'
-import { appendQueue, drainQueue, LEGACY_QUEUE_KEY, loadQueue, QUEUE_KEY, type KV } from './sync'
+import {
+  appendQueue, drainQueue, lastServerSeen, LEGACY_QUEUE_KEY, loadQueue, markServerSeen, QUEUE_KEY, SERVER_SEEN_KEY, type KV,
+} from './sync'
 
 const fakeKv = (): KV & { data: Map<string, string> } => {
   const data = new Map<string, string>()
@@ -159,5 +161,30 @@ describe('drainQueue', () => {
     expect(calls).toEqual([actLegacy, actB])
     expect(loadQueue(kv)).toEqual([])
     expect(result).toEqual({ last: storeAfterB, drained: true })
+  })
+})
+
+describe('отметка связи с сервером', () => {
+  const at = '2026-09-25T01:00:00.000Z'
+  const brokenKv: KV = {
+    getItem: () => { throw new Error('SecurityError') },
+    setItem: () => { throw new Error('QuotaExceededError') },
+    removeItem: () => {},
+  }
+
+  it('браузер ни разу не видел сервер → null', () => expect(lastServerSeen(fakeKv())).toBeNull())
+  it('mark → last roundtrip', () => {
+    const kv = fakeKv()
+    markServerSeen(kv, at)
+    expect(lastServerSeen(kv)).toBe(at)
+  })
+  it('мусор в ключе → null: баннер не покажет Invalid Date', () => {
+    const kv = fakeKv()
+    kv.setItem(SERVER_SEEN_KEY, 'не дата')
+    expect(lastServerSeen(kv)).toBeNull()
+  })
+  it('хранилище бросает (квота, приватный режим) → молча, без исключения', () => {
+    expect(() => markServerSeen(brokenKv, at)).not.toThrow()
+    expect(lastServerSeen(brokenKv)).toBeNull()
   })
 })

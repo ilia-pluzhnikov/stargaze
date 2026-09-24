@@ -71,3 +71,26 @@ export async function drainQueue(
     writeQueueKey(kv, key, readQueueKey(kv, key).slice(1)) // перечитать: за время POST могли дописать
   }
 }
+
+// Отметка последней успешной связи с сервером. Есть отметка — этот браузер бывал в
+// серверном режиме, и локальный режим для него — деградация (показана копия, правки на
+// сервер не попадут), а не норма, как на localhost без API.
+export const SERVER_SEEN_KEY = 'stargaze.server-seen'
+
+export function markServerSeen(kv: KV, at: string): void {
+  try {
+    kv.setItem(SERVER_SEEN_KEY, at)
+  } catch {
+    // квота/приватный режим — без отметки баннер просто не покажется
+  }
+}
+
+/** ISO-время последней связи или null: не бывал на сервере, мусор в ключе, хранилище недоступно. */
+export function lastServerSeen(kv: KV): string | null {
+  try {
+    const at = kv.getItem(SERVER_SEEN_KEY)
+    return at && !Number.isNaN(Date.parse(at)) ? at : null
+  } catch {
+    return null
+  }
+}

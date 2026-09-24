@@ -1,13 +1,15 @@
 {
-  "commit": "1d59f15d79af5eb036b43b9ab7e1bb860e6e756a",
+  "commit": "eaa98686ae3dca8b176f75ff76c579a732b165b8",
   "working_tree_dirty": true,
   "dirty_files": [
     "docs/codemap/model.mjs",
-    "src/logic/api.test.ts",
-    "src/logic/api.ts",
-    "tsconfig.node.json"
+    "src/App.tsx",
+    "src/hooks/useStore.ts",
+    "src/index.css",
+    "src/logic/sync.test.ts",
+    "src/logic/sync.ts"
   ],
-  "generated_at": "2026-09-24T18:55:22.365Z",
+  "generated_at": "2026-09-24T19:00:50.107Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -43,7 +45,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "5a6353281da0c5bdea72b6500fec14924eaad708508143bc1ac2cd230f00c129"
+      "fingerprint": "314b7b587af0ab21c5e459e765345718a695be4f8a2845d5a6317ef26745c420"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -91,7 +93,7 @@
       "files": [
         "src/hooks/useStore.ts"
       ],
-      "fingerprint": "dcf61c5f0eabb0fc57b14c850125e36d5235a81f9e37bba7ee1b079b8e697c8e"
+      "fingerprint": "c6a0f1b2e96f7021a2d450ab856b008d25702d40468cf7066aadaad2648f4ce4"
     },
     "web-sync": {
       "path": "src/logic/sync.ts",
@@ -102,7 +104,7 @@
         "src/logic/sync.test.ts",
         "src/logic/sync.ts"
       ],
-      "fingerprint": "cda1b70c2eff54980cbcd872eea6af1e33fbfe7d32d371e4b9576932e0235a00"
+      "fingerprint": "bfefe7a6d37e783ceb18d97e2c9120838d56c5608c7961b9c1f3597c05ade63c"
     },
     "core-store": {
       "path": "src/logic/store.ts",
@@ -248,11 +250,12 @@
     }
   },
   "previous": {
-    "commit": "60c09e3251d719cfd0957b0443f0f763b3d34d86",
-    "generated_at": "2026-09-22T03:20:51.762Z",
+    "commit": "1d59f15d79af5eb036b43b9ab7e1bb860e6e756a",
+    "generated_at": "2026-09-24T18:55:22.365Z",
     "changed_modules": [
-      "web-sync",
-      "infra-deploy"
+      "web-app",
+      "web-usestore",
+      "web-sync"
     ],
     "new_modules": [],
     "removed_modules": []
@@ -263,7 +266,7 @@
     "web-modals: прямых тестов нет",
     "web-usestore: прямых тестов нет",
     "store-json: внешняя система — файлов в репозитории нет, доказательства косвенные (src/logic/storage.ts, src/logic/storage.ts)",
-    "browser-localstorage: внешняя система — файлов в репозитории нет, доказательства косвенные (src/logic/migrate.ts, src/logic/sync.ts)",
+    "browser-localstorage: внешняя система — файлов в репозитории нет, доказательства косвенные (src/logic/migrate.ts, src/logic/sync.ts, src/logic/sync.ts)",
     "infra-deploy: прямых тестов нет"
   ]
 }
