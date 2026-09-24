@@ -1,5 +1,5 @@
 {
-  "commit": "eaa98686ae3dca8b176f75ff76c579a732b165b8",
+  "commit": "f8e4f03f729ed6dc5e0efb61b2060375ac886527",
   "working_tree_dirty": true,
   "dirty_files": [
     "docs/codemap/model.mjs",
@@ -9,7 +9,7 @@
     "src/logic/sync.test.ts",
     "src/logic/sync.ts"
   ],
-  "generated_at": "2026-09-24T19:00:50.107Z",
+  "generated_at": "2026-09-24T19:06:40.366Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -45,7 +45,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "314b7b587af0ab21c5e459e765345718a695be4f8a2845d5a6317ef26745c420"
+      "fingerprint": "45a956cb02edf9a3aaaa5d2494b46fe8e231a4a2156658aec51d921c9b1956fc"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -93,7 +93,7 @@
       "files": [
         "src/hooks/useStore.ts"
       ],
-      "fingerprint": "c6a0f1b2e96f7021a2d450ab856b008d25702d40468cf7066aadaad2648f4ce4"
+      "fingerprint": "845fcb836bc89ba3e2489ff77e7b85265f4116c1f98d9e1fda858839473b5c85"
     },
     "web-sync": {
       "path": "src/logic/sync.ts",
@@ -104,7 +104,7 @@
         "src/logic/sync.test.ts",
         "src/logic/sync.ts"
       ],
-      "fingerprint": "bfefe7a6d37e783ceb18d97e2c9120838d56c5608c7961b9c1f3597c05ade63c"
+      "fingerprint": "b769cb8033798338cbf2dbd1f6a7bac047e7635e58ddfd03b015abc08d4766ae"
     },
     "core-store": {
       "path": "src/logic/store.ts",
@@ -250,8 +250,8 @@
     }
   },
   "previous": {
-    "commit": "1d59f15d79af5eb036b43b9ab7e1bb860e6e756a",
-    "generated_at": "2026-09-24T18:55:22.365Z",
+    "commit": "eaa98686ae3dca8b176f75ff76c579a732b165b8",
+    "generated_at": "2026-09-24T19:00:50.107Z",
     "changed_modules": [
       "web-app",
       "web-usestore",

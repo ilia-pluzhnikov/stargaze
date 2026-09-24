@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-24T19:00:50.107Z",
-  "generated_from_commit": "eaa98686ae3dca8b176f75ff76c579a732b165b8",
+  "generated_at": "2026-09-24T19:06:40.366Z",
+  "generated_from_commit": "f8e4f03f729ed6dc5e0efb61b2060375ac886527",
   "scope": [
     "src/",
     "cli/",
@@ -205,6 +205,8 @@
       "constraints": [
         "Поллинг 30 с, ретрай очереди 5 с, ре-пробинг сервера 10 с",
         "importStore применяется только когда очередь реально опустела",
+        "Импорт и сброс (WholeStoreAction) — мимо очереди через replaceStore: сразу или отказ; dispatch их не принимает по типу",
+        "Счётчик очереди в шапке — «в очереди: N», пока есть неотправленные действия",
         "Персист в localStorage в обоих режимах: в серверном это копия последнего канона",
         "Локальный режим браузера, бывавшего на сервере (отметка stargaze.server-seen), — баннер «копия, правки не попадут», а не тихий бейдж"
       ],
@@ -224,6 +226,10 @@
         {
           "path": "src/hooks/useStore.ts",
           "symbol": "if (!cancelled) setOfflineSince(lastServerSeen(localStorage))"
+        },
+        {
+          "path": "src/hooks/useStore.ts",
+          "symbol": "const canon = await sendNow(localStorage, action, postAction)"
         }
       ],
       "changed_since_previous": true
@@ -252,7 +258,8 @@
         "Пишем только в stargaze.queue.v2; legacy questlog.queue.v2 дренируется первым и вечно",
         "Гейт серверного режима — /api/store с валидацией, а не /api/health",
         "Адрес /api/* — от location.origin: относительный путь наследует userinfo документа (https://user:pass@host/), и fetch бросает TypeError",
-        "4xx на действие выбрасывает его из очереди (иначе очередь застрянет навечно)"
+        "4xx на действие выбрасывает его из очереди (иначе очередь застрянет навечно)",
+        "sendNow не обгоняет очередь: непустая — отказ без отправки"
       ],
       "evidence": [
         {
@@ -1795,7 +1802,7 @@
           "action": "UI перерисовывается новым каноном",
           "evidence": {
             "path": "src/App.tsx",
-            "symbol": "const [store, dispatch, mode, offlineSince] = useStore()"
+            "symbol": "const { store, dispatch, mode, offlineSince, pending, replaceStore } = useStore()"
           }
         }
       ],
