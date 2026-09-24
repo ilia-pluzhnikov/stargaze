@@ -165,12 +165,14 @@ export const nodes = [
     constraints: [
       'Поллинг 30 с, ретрай очереди 5 с, ре-пробинг сервера 10 с',
       'importStore применяется только когда очередь реально опустела',
-      'В локальном режиме персист в localStorage; в серверном канон — на сервере',
+      'Персист в localStorage в обоих режимах: в серверном это копия последнего канона',
+      'Локальный режим браузера, бывавшего на сервере (отметка stargaze.server-seen), — баннер «копия, правки не попадут», а не тихий бейдж',
     ],
     evidence: [
       { path: 'src/hooks/useStore.ts', symbol: 'export function useStore' },
       { path: 'src/hooks/useStore.ts', symbol: 'const POLL_MS = 30_000' },
       { path: 'src/hooks/useStore.ts', symbol: 'dispatchLocal(action) // оптимистично' },
+      { path: 'src/hooks/useStore.ts', symbol: 'if (!cancelled) setOfflineSince(lastServerSeen(localStorage))' },
     ],
   },
   {
@@ -473,17 +475,18 @@ export const nodes = [
     path: null,
     external: true,
     kind: 'datastore',
-    role: 'Хранилище локального режима и офлайн-очереди: stargaze.v4 / stargaze.queue.v2 (+ вечные ключи прежних версий: stargaze.v3, questlog.*)',
+    role: 'Копия store (в серверном режиме — последний канон), офлайн-очередь и отметка связи: stargaze.v4 / stargaze.queue.v2 / stargaze.server-seen (+ вечные ключи прежних версий: stargaze.v3, questlog.*)',
     files: [],
-    entrypoints: ['stargaze.v4', 'stargaze.queue.v2', 'stargaze.v3 / questlog.v3 / questlog.queue.v2 (только чтение)'],
+    entrypoints: ['stargaze.v4', 'stargaze.queue.v2', 'stargaze.server-seen', 'stargaze.v3 / questlog.v3 / questlog.queue.v2 (только чтение)'],
     tests: [],
     constraints: [
       'questlog.v1/v2 не читаются и не удаляются — бэкапы',
-      'В серверном режиме localStorage остаётся бэкапом, канон не мержится обратно',
+      'Правки локального режима канон не мержит: при подъёме API refresh замещает их каноном',
     ],
     evidence: [
       { path: 'src/logic/migrate.ts', symbol: "export const STORE_KEY = 'stargaze.v4'" },
       { path: 'src/logic/sync.ts', symbol: "export const LEGACY_QUEUE_KEY = 'questlog.queue.v2'" },
+      { path: 'src/logic/sync.ts', symbol: "export const SERVER_SEEN_KEY = 'stargaze.server-seen'" },
     ],
   },
   {
@@ -557,7 +560,7 @@ export const edges = [
   // — состояние и синхронизация
   { from: 'web-usestore', to: 'core-store', type: 'calls', evidence: [{ path: 'src/hooks/useStore.ts', symbol: 'useReducer(reducer, undefined, load)' }] },
   { from: 'web-usestore', to: 'web-sync', type: 'calls', evidence: [{ path: 'src/hooks/useStore.ts', symbol: 'await drainQueue(localStorage, postAction)' }] },
-  { from: 'web-usestore', to: 'browser-localstorage', type: 'writes', evidence: [{ path: 'src/hooks/useStore.ts', symbol: 'localStorage.setItem(STORE_KEY, JSON.stringify(store))' }] },
+  { from: 'web-usestore', to: 'browser-localstorage', type: 'writes', evidence: [{ path: 'src/hooks/useStore.ts', symbol: 'localStorage.setItem(STORE_KEY, storeJson.current)' }] },
   { from: 'web-usestore', to: 'browser-localstorage', type: 'reads', evidence: [{ path: 'src/hooks/useStore.ts', symbol: 'loadStoredStore(localStorage)' }] },
   { from: 'web-sync', to: 'server', type: 'calls', evidence: [{ path: 'src/logic/api.ts', symbol: "fetch(apiUrl('/api/action'), { method: 'POST', body: JSON.stringify(action) })" }] },
   { from: 'web-sync', to: 'core-store', type: 'imports', evidence: [{ path: 'src/logic/api.ts', symbol: "import type { Action } from './store'" }] },
@@ -632,13 +635,13 @@ export const flows = [
     name: 'Локальный режим (API недоступен)',
     trigger: 'Статическая раздача без API (npm run dev, любой статический хостинг) или недоступный /api/store',
     steps: [
-      { node: 'web-usestore', action: 'probeServer() вернул false → mode=local, фоновый ре-пробинг раз в 10 с', evidence: { path: 'src/hooks/useStore.ts', symbol: 'if (!(await probeServer()) || cancelled) return' } },
+      { node: 'web-usestore', action: 'probeServer() вернул false → mode=local, фоновый ре-пробинг раз в 10 с; бывал на сервере → баннер с временем последней связи', evidence: { path: 'src/hooks/useStore.ts', symbol: 'if (!cancelled) setOfflineSince(lastServerSeen(localStorage))' } },
       { node: 'web-sync', action: 'probeServer: /api/store недоступен или невалиден → false', evidence: { path: 'src/logic/api.ts', symbol: 'export async function probeServer' } },
       { node: 'core-store', action: 'Действия применяются только локально', evidence: { path: 'src/logic/store.ts', symbol: 'export function reducer' } },
-      { node: 'browser-localstorage', action: 'Персист в stargaze.v4 на каждое изменение', evidence: { path: 'src/hooks/useStore.ts', symbol: 'localStorage.setItem(STORE_KEY, JSON.stringify(store))' } },
+      { node: 'browser-localstorage', action: 'Персист в stargaze.v4 на каждое изменение', evidence: { path: 'src/hooks/useStore.ts', symbol: 'localStorage.setItem(STORE_KEY, storeJson.current)' } },
       { node: 'core-validate', action: 'При старте store читается из stargaze.v4 → stargaze.v3 → questlog.v3 с миграцией', evidence: { path: 'src/logic/migrate.ts', symbol: 'export function loadStoredStore' } },
     ],
-    outcome: 'Автономная копия в браузере; при подъёме API очередь доигрывается, канон замещает локальную версию',
+    outcome: 'Автономная копия в браузере (после серверного режима — последний канон); при подъёме API канон замещает локальную версию',
   },
   {
     id: 'flow-cli-agent',
@@ -651,7 +654,7 @@ export const flows = [
       { node: 'core-storage', action: 'withStore под mkdir-локом — сериализация с сервером', evidence: { path: 'src/logic/storage.ts', symbol: 'acquireLock(path, opts)' } },
       { node: 'store-json', action: 'Канон обновлён на дроплете', evidence: { path: 'src/logic/storage.ts', symbol: 'saveStore' } },
       { node: 'web-usestore', action: 'Открытая вкладка подхватывает изменение поллингом 30 с', evidence: { path: 'src/hooks/useStore.ts', symbol: 'const POLL_MS = 30_000' } },
-      { node: 'web-app', action: 'UI перерисовывается новым каноном', evidence: { path: 'src/App.tsx', symbol: 'const [store, dispatch, mode] = useStore()' } },
+      { node: 'web-app', action: 'UI перерисовывается новым каноном', evidence: { path: 'src/App.tsx', symbol: 'const [store, dispatch, mode, offlineSince] = useStore()' } },
     ],
     outcome: 'Правки агента и веба идут в один файл без гонок; веб узнаёт о них без перезагрузки',
   },

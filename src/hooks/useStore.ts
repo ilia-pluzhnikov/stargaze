@@ -3,7 +3,7 @@ import type { Store } from '../types'
 import { reducer, type Action } from '../logic/store'
 import { loadStoredStore, STORE_KEY } from '../logic/migrate'
 import { fetchServerStore, postAction, probeServer } from '../logic/api'
-import { appendQueue, drainQueue, loadQueue } from '../logic/sync'
+import { appendQueue, drainQueue, lastServerSeen, loadQueue, markServerSeen } from '../logic/sync'
 import { seedStore } from '../data/seed'
 
 const POLL_MS = 30_000
@@ -21,6 +21,9 @@ function load(): Store {
 export function useStore() {
   const [store, dispatchLocal] = useReducer(reducer, undefined, load)
   const [mode, setMode] = useState<'local' | 'server'>('local')
+  // Не null — пробинг провалился, а этот браузер бывал на сервере: на экране копия,
+  // правки на сервер не попадут. Значение — время последней связи (для баннера)
+  const [offlineSince, setOfflineSince] = useState<string | null>(null)
   const serverMode = useRef(false)
   const flushing = useRef(false)
   const storeJson = useRef('')
@@ -49,6 +52,7 @@ export function useStore() {
     if (!serverMode.current) return
     if (loadQueue(localStorage).length > 0) return void flush()
     const server = await fetchServerStore()
+    if (server) markServerSeen(localStorage, new Date().toISOString())
     // За время ожидания могли дописать в очередь — тогда сервер уже не канон
     if (loadQueue(localStorage).length > 0) return
     if (server && JSON.stringify(server) !== storeJson.current) {
@@ -60,7 +64,8 @@ export function useStore() {
   // Без повторных попыток вкладка, открытая до подъёма ssh-туннеля, навсегда
   // залипала на localStorage-сиде («всё пусто», канон при этом цел).
   // Правки, сделанные в локальном режиме до переключения, канон не мержит —
-  // refresh замещает их серверной версией (localStorage остаётся бэкапом).
+  // refresh замещает их серверной версией. Поэтому браузеру, который бывал на
+  // сервере, локальный режим показывает баннер (offlineSince), а не тихий бейдж.
   useEffect(() => {
     let cancelled = false
     let probing = false
@@ -68,9 +73,15 @@ export function useStore() {
       if (cancelled || serverMode.current || probing) return
       probing = true
       try {
-        if (!(await probeServer()) || cancelled) return
+        if (!(await probeServer())) {
+          if (!cancelled) setOfflineSince(lastServerSeen(localStorage))
+          return
+        }
+        if (cancelled) return
         serverMode.current = true
+        markServerSeen(localStorage, new Date().toISOString())
         setMode('server')
+        setOfflineSince(null)
         await flush() // остаток очереди с прошлой сессии
         await refresh()
       } finally {
@@ -90,11 +101,11 @@ export function useStore() {
     }
   }, [flush, refresh])
 
-  // Локальный режим: персист в localStorage, как раньше. Серверный: канон на сервере.
+  // Персист в localStorage в обоих режимах. В серверном это копия последнего канона:
+  // отвалится сервер — вкладка покажет её, а не реликт давней локальной сессии.
   useEffect(() => {
-    if (serverMode.current) return
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(store))
+      localStorage.setItem(STORE_KEY, storeJson.current)
     } catch {
       // квота/приватный режим — молча живём в памяти
     }
@@ -128,5 +139,5 @@ export function useStore() {
     [flush],
   )
 
-  return [store, dispatch, mode] as const
+  return [store, dispatch, mode, offlineSince] as const
 }

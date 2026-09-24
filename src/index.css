@@ -116,6 +116,18 @@ input:disabled, select:disabled, textarea:disabled { color: var(--faint); opacit
   white-space: nowrap;
 }
 
+/* Локальный режим браузера, который бывал на сервере: копия вместо канона — крупно, не в title */
+.offline-banner {
+  flex: 0 0 auto;
+  padding: 8px 18px;
+  background: rgba(239, 68, 68, 0.12);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.45);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+  z-index: 19;
+}
+
 .views { display: flex; gap: 4px; }
 .views button {
   padding: 6px 14px;

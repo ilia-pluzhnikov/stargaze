@@ -33,8 +33,12 @@ interface LevelUp {
 
 let toastSeq = 1
 
+/** «23 сент., 14:05» — время последней связи с сервером в баннере локального режима */
+const formatSeen = (iso: string) =>
+  new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+
 export default function App() {
-  const [store, dispatch, mode] = useStore()
+  const [store, dispatch, mode, offlineSince] = useStore()
   const [view, setView] = useState<View>('sky')
   const [skillPanelId, setSkillPanelId] = useState<string | null>(null)
   const [galaxyId, setGalaxyId] = useState<string | null>(null)
@@ -313,6 +317,12 @@ export default function App() {
           <button onClick={() => setDataOpen(true)}>Данные</button>
         </div>
       </header>
+      {offlineSince && (
+        <div className="offline-banner" role="status">
+          Нет связи с сервером. На экране копия из этого браузера — последняя синхронизация{' '}
+          {formatSeen(offlineSince)}. Правки отсюда на сервер не попадут.
+        </div>
+      )}
 
       {view === 'sky' && !galaxy && (
         <Sky
