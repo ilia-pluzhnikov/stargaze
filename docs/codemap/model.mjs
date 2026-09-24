@@ -182,16 +182,18 @@ export const nodes = [
     role: 'HTTP-клиент /api/*, офлайн-очередь действий (двухисточниковый дренаж)',
     files: ['src/logic/api.ts', 'src/logic/sync.ts'],
     entrypoints: ['probeServer/fetchServerStore/postAction', 'loadQueue/appendQueue/drainQueue'],
-    tests: ['src/logic/sync.test.ts'],
+    tests: ['src/logic/sync.test.ts', 'src/logic/api.test.ts'],
     constraints: [
       "Пишем только в stargaze.queue.v2; legacy questlog.queue.v2 дренируется первым и вечно",
       'Гейт серверного режима — /api/store с валидацией, а не /api/health',
+      'Адрес /api/* — от location.origin: относительный путь наследует userinfo документа (https://user:pass@host/), и fetch бросает TypeError',
       '4xx на действие выбрасывает его из очереди (иначе очередь застрянет навечно)',
     ],
     evidence: [
       { path: 'src/logic/sync.ts', symbol: "export const QUEUE_KEY = 'stargaze.queue.v2'" },
       { path: 'src/logic/sync.ts', symbol: 'export async function drainQueue' },
       { path: 'src/logic/api.ts', symbol: 'export async function probeServer' },
+      { path: 'src/logic/api.ts', symbol: 'const apiUrl = (path: string) => location.origin + path' },
     ],
   },
   {
@@ -557,7 +559,7 @@ export const edges = [
   { from: 'web-usestore', to: 'web-sync', type: 'calls', evidence: [{ path: 'src/hooks/useStore.ts', symbol: 'await drainQueue(localStorage, postAction)' }] },
   { from: 'web-usestore', to: 'browser-localstorage', type: 'writes', evidence: [{ path: 'src/hooks/useStore.ts', symbol: 'localStorage.setItem(STORE_KEY, JSON.stringify(store))' }] },
   { from: 'web-usestore', to: 'browser-localstorage', type: 'reads', evidence: [{ path: 'src/hooks/useStore.ts', symbol: 'loadStoredStore(localStorage)' }] },
-  { from: 'web-sync', to: 'server', type: 'calls', evidence: [{ path: 'src/logic/api.ts', symbol: "fetch('/api/action', { method: 'POST', body: JSON.stringify(action) })" }] },
+  { from: 'web-sync', to: 'server', type: 'calls', evidence: [{ path: 'src/logic/api.ts', symbol: "fetch(apiUrl('/api/action'), { method: 'POST', body: JSON.stringify(action) })" }] },
   { from: 'web-sync', to: 'core-store', type: 'imports', evidence: [{ path: 'src/logic/api.ts', symbol: "import type { Action } from './store'" }] },
   { from: 'web-sync', to: 'core-validate', type: 'imports', evidence: [{ path: 'src/logic/api.ts', symbol: "import { validateStore } from './validate'" }] },
   { from: 'web-sync', to: 'browser-localstorage', type: 'writes', evidence: [{ path: 'src/logic/sync.ts', symbol: 'kv.setItem(key, JSON.stringify(queue))' }] },

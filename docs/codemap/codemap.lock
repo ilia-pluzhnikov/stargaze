@@ -1,10 +1,13 @@
 {
-  "commit": "60c09e3251d719cfd0957b0443f0f763b3d34d86",
+  "commit": "1d59f15d79af5eb036b43b9ab7e1bb860e6e756a",
   "working_tree_dirty": true,
   "dirty_files": [
-    "ocs/codemap/model.mjs"
+    "docs/codemap/model.mjs",
+    "src/logic/api.test.ts",
+    "src/logic/api.ts",
+    "tsconfig.node.json"
   ],
-  "generated_at": "2026-09-22T03:20:51.762Z",
+  "generated_at": "2026-09-24T18:55:22.365Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -27,7 +30,7 @@
     "tsconfig.json",
     "tsconfig.node.json"
   ],
-  "scanned_files": 77,
+  "scanned_files": 78,
   "fingerprint_algorithm": "sha256(sorted(\"<path>\u0000\" + sha256(file bytes; текст нормализован к LF)))",
   "modules": {
     "web-app": {
@@ -94,11 +97,12 @@
       "path": "src/logic/sync.ts",
       "external": false,
       "files": [
+        "src/logic/api.test.ts",
         "src/logic/api.ts",
         "src/logic/sync.test.ts",
         "src/logic/sync.ts"
       ],
-      "fingerprint": "a2e4d04ee15c4f7e00ba54c23b9dd9fd481f6473f4517b578518a4016fd81694"
+      "fingerprint": "cda1b70c2eff54980cbcd872eea6af1e33fbfe7d32d371e4b9576932e0235a00"
     },
     "core-store": {
       "path": "src/logic/store.ts",
@@ -240,16 +244,15 @@
         "deploy/docker-compose.yml",
         "deploy/stargaze-wrapper.sh"
       ],
-      "fingerprint": "f830877888756a47b498808610758d7391a8a53272ad5847c3049cd40246297b"
+      "fingerprint": "87efdd27684cfa489a90bf34b19c0c17f386d10d735c1c3e988ca209ae436e8d"
     }
   },
   "previous": {
-    "commit": "299b4bb006b63f703406f1992c83183c81db90b6",
-    "generated_at": "2026-09-21T19:21:44.810Z",
+    "commit": "60c09e3251d719cfd0957b0443f0f763b3d34d86",
+    "generated_at": "2026-09-22T03:20:51.762Z",
     "changed_modules": [
-      "web-app",
-      "web-sky",
-      "core-timeline"
+      "web-sync",
+      "infra-deploy"
     ],
     "new_modules": [],
     "removed_modules": []
