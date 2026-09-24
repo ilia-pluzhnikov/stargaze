@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-22T03:20:51.762Z",
-  "generated_from_commit": "60c09e3251d719cfd0957b0443f0f763b3d34d86",
+  "generated_at": "2026-09-24T18:55:22.365Z",
+  "generated_from_commit": "1d59f15d79af5eb036b43b9ab7e1bb860e6e756a",
   "scope": [
     "src/",
     "cli/",
@@ -54,7 +54,7 @@
           "symbol": "base: './'"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-sky",
@@ -110,7 +110,7 @@
           "symbol": "export function usePanZoom"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-panels",
@@ -240,11 +240,13 @@
         "loadQueue/appendQueue/drainQueue"
       ],
       "tests": [
-        "src/logic/sync.test.ts"
+        "src/logic/sync.test.ts",
+        "src/logic/api.test.ts"
       ],
       "constraints": [
         "Пишем только в stargaze.queue.v2; legacy questlog.queue.v2 дренируется первым и вечно",
         "Гейт серверного режима — /api/store с валидацией, а не /api/health",
+        "Адрес /api/* — от location.origin: относительный путь наследует userinfo документа (https://user:pass@host/), и fetch бросает TypeError",
         "4xx на действие выбрасывает его из очереди (иначе очередь застрянет навечно)"
       ],
       "evidence": [
@@ -259,9 +261,13 @@
         {
           "path": "src/logic/api.ts",
           "symbol": "export async function probeServer"
+        },
+        {
+          "path": "src/logic/api.ts",
+          "symbol": "const apiUrl = (path: string) => location.origin + path"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "core-store",
@@ -557,7 +563,7 @@
           "symbol": "export function constellationAsOf"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-model",
@@ -849,7 +855,7 @@
           "symbol": "container_name: stargaze"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     }
   ],
   "edges": [
@@ -1179,7 +1185,7 @@
       "evidence": [
         {
           "path": "src/logic/api.ts",
-          "symbol": "fetch('/api/action', { method: 'POST', body: JSON.stringify(action) })"
+          "symbol": "fetch(apiUrl('/api/action'), { method: 'POST', body: JSON.stringify(action) })"
         }
       ]
     },

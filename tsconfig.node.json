@@ -6,5 +6,5 @@
     "types": ["node"]
   },
   "include": ["cli", "server", "src/logic", "src/types.ts", "src/data"],
-  "exclude": ["src/logic/api.ts"]
+  "exclude": ["src/logic/api.ts", "src/logic/api.test.ts"]
 }
