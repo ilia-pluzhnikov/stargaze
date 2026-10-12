@@ -61,19 +61,20 @@ describe('constellationPlacements', () => {
     }
   })
 
-  it('закрепляет Казну в центре, не сдвигая остальные созвездия', () => {
-    const plain = constellationPlacements(skills)
-    const withTreasury = constellationPlacements(skills.map((skill, i) => (
-      i === 4 ? { ...skill, name: 'Казна' } : skill
-    )))
-
-    expect(withTreasury.get('skill-4')).toMatchObject({
-      x: MAIN_QUEST_ANCHOR.x,
-      y: MAIN_QUEST_ANCHOR.y,
-    })
-    for (const skill of skills) {
-      if (skill.id !== 'skill-4') expect(withTreasury.get(skill.id)).toEqual(plain.get(skill.id))
+  it('закрепляет Финансы по постоянному id независимо от названия', () => {
+    const fixture = skills.map((skill, i) => i === 4 ? { ...skill, id: 's_treasury' } : skill)
+    const before = constellationPlacements(fixture.map((skill) => ({ ...skill, name: 'Казна' })))
+    for (const name of ['Финансы', 'Finance', '', undefined]) {
+      const after = constellationPlacements(fixture.map((skill) => ({ ...skill, name })))
+      expect(after.get('s_treasury')).toMatchObject({ x: MAIN_QUEST_ANCHOR.x, y: MAIN_QUEST_ANCHOR.y })
+      expect([...after]).toEqual([...before])
     }
+  })
+
+  it('название Казна у другого навыка не меняет его якорь', () => {
+    const plain = constellationPlacements(skills)
+    const renamed = constellationPlacements(skills.map((skill) => ({ ...skill, name: 'Казна' })))
+    expect([...renamed]).toEqual([...plain])
   })
 
   it('близкие оттенки, включая переход 359° → 1°, образуют кластер', () => {

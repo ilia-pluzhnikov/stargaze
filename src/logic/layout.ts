@@ -119,9 +119,9 @@ export function constellationPlacements(skills: SkySkill[]): Map<string, SkyPlac
     result.set(id, placement)
   }
 
-  // Казна — смысловой центр обзорного неба. Перезаписываем только её якорь:
-  // распределение остальных навыков и цветовые кластеры не пересчитываются.
-  const treasury = unique.find((skill) => skill.name?.trim().toLocaleLowerCase('ru-RU').startsWith('казна'))
+  // Финансы — смысловой центр обзорного неба. Постоянный id сохраняет якорь
+  // при переименовании; остальные навыки и цветовые кластеры не пересчитываются.
+  const treasury = unique.find((skill) => skill.id === 's_treasury')
   if (treasury) {
     result.set(treasury.id, {
       x: MAIN_QUEST_ANCHOR.x,
