@@ -1,6 +1,6 @@
 import type { Store } from '../types'
 import { isCalendarDay } from './dates'
-import { dayInGameTz, gameTzOffset } from './sparks'
+import { dayInGameTz, gameTzOffset, provisionForQuest, settlementDay } from './sparks'
 import { ACTION_TYPES, type Action } from './store'
 
 // Граница API. Агент-гейм-мастер ходит в игру только через POST /api/action, и
@@ -80,7 +80,9 @@ const ID_FIELDS: readonly string[] = ['questId', 'skillId', 'starId', 'itemId']
 
 /** Почему payload не годится по форме — текст для 400; null = форма верна.
  * Проверяет обязательные поля и примитивные типы ровно по union Action;
- * необязательные — только тип, если поле есть. Сущности внутри не разбирает. */
+ * необязательные — только тип, если поле есть. null в необязательном поле —
+ * «поля нет»: так его шлют агенты (`None` в Python); перед редьюсером его
+ * убирает dropNullOptionals. Сущности внутри не разбирает. */
 export function actionShapeError(x: unknown): string | null {
   if (typeof x !== 'object' || x === null || Array.isArray(x)) return 'ожидается объект действия { type, … }'
   const a = x as Record<string, unknown>
@@ -92,7 +94,7 @@ export function actionShapeError(x: unknown): string | null {
     const optional = spec.endsWith('?')
     const kind = (optional ? spec.slice(0, -1) : spec) as Kind
     const v = a[field]
-    if (v === undefined) {
+    if (v === undefined || (optional && v === null)) {
       if (optional) continue
       // частая ошибка агента: id сущности под общим именем
       if (ID_FIELDS.includes(field) && a.id !== undefined) return `${type}: поле называется ${field}, не id`
@@ -101,6 +103,15 @@ export function actionShapeError(x: unknown): string | null {
     if (!fits(kind, v)) return `${type}: ${field} — ${EXPECTED[kind]}`
   }
   return null
+}
+
+/** Действие без необязательных полей со значением null — после actionShapeError.
+ * Редьюсер ждёт «поля нет», а не null: `evidence: null` осел бы в звезду. */
+export function dropNullOptionals(action: Action): Action {
+  const out: Record<string, unknown> = { ...action }
+  for (const [field, spec] of Object.entries(SHAPES[action.type]) as [string, string][])
+    if (spec.endsWith('?') && out[field] === null) delete out[field]
+  return out as Action
 }
 
 /** Отказ сдачи квеста: текст и, где есть, перечень того, что держит сдачу. */
@@ -126,17 +137,23 @@ export function completeQuestRefusal(store: Store, action: Extract<Action, { typ
   if (quest.status === 'done') return null
   const summary = action.result?.summary
   if (typeof summary !== 'string' || !summary.trim()) return { error: 'нужен итог: result.summary' }
-  if (action.force) return null
-  const dod = (quest.definitionOfDone ?? []).filter((d) => !d.done).map((d) => d.text)
-  if (dod.length > 0) return { error: `квест «${quest.title}» не завершён: незакрытые пункты DoD`, dod }
-  const open = store.quests.filter((c) => c.parentQuestId === quest.id && c.status === 'active')
-  if (open.length > 0)
-    return { error: `эпик «${quest.title}» не завершён: активные подквесты`, children: open.map((c) => ({ id: c.id, title: c.title })) }
+  if (!action.force) {
+    const dod = (quest.definitionOfDone ?? []).filter((d) => !d.done).map((d) => d.text)
+    if (dod.length > 0) return { error: `квест «${quest.title}» не завершён: незакрытые пункты DoD`, dod }
+    const open = store.quests.filter((c) => c.parentQuestId === quest.id && c.status === 'active')
+    if (open.length > 0)
+      return { error: `эпик «${quest.title}» не завершён: активные подквесты`, children: open.map((c) => ({ id: c.id, title: c.title })) }
+  }
+  // мусорный ts у контракта со сроком: день расчёта не вычислить, долг уходит в NaN — редьюсер
+  // отказывает и при force. Без этой ветки агент получил бы 200 «не применилось» без причины
+  const tz = gameTzOffset(store)
+  if (!Number.isFinite(provisionForQuest(quest, settlementDay(action.day, action.ts, tz), tz)))
+    return { error: `ts «${action.ts}» не читается как ISO-момент — день расчёта не вычислить` }
   return null
 }
 
 /** Изменило ли действие store. Ссылочного равенства мало: часть веток редьюсера
- * пересобирает store и на no-op (updateSkill/unlightStar/archiveSkill с чужим id),
+ * пересобирает store и на no-op (unlightStar/archiveSkill с чужим id, setCharacter тем же),
  * поэтому срезы с новой ссылкой сравниваются по содержимому. */
 export function storeChanged(prev: Store, next: Store): boolean {
   if (prev === next) return false

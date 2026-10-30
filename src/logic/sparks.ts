@@ -18,9 +18,10 @@ export const XP_REWARD_MAX = 1000        // технический предел 
 const CAP_DAYS = Math.round(DRAIN_CAP / DRAIN_RATE) // 10
 const MOVE_FEE_DEN = Math.round(1 / MOVE_FEE_RATE)  // 10
 
-// Момент ISO: дата (10 симв.) + T + часы:минуты (секунды/доли не влияют на день,
-// не захватываем) + опциональный офсет ('Z' или '+HH:MM'/'-HH:MM').
-const ISO_MOMENT_RE = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/
+// Момент ISO: дата (10 симв.) + T или пробел (RFC 3339; так печатает `str(datetime)` в
+// Python) + часы:минуты (секунды/доли не влияют на день, не захватываем) + опциональный
+// офсет ('Z' или '+HH:MM'/'-HH:MM').
+const ISO_MOMENT_RE = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/
 
 /** Смещение офсета в минутах: '+07:00' → 420, '-07:00' → −420. */
 function offsetMinutes(designator: string | undefined): number {

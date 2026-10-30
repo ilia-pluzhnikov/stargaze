@@ -160,6 +160,19 @@ describe('редьюсер: лишние поля payload не оседают в
     expect(updated.skills[0]).toEqual({ ...skill, name: 'Тайский язык' })
   })
 
+  it('updateSkill: archived/createdAt из payload не берутся — архив только через archiveSkill', () => {
+    const s = base()
+    const hidden = reducer(s, { type: 'updateSkill', skill: { ...skill, name: 'Новое', archived: true, createdAt: 'T9' } })
+    expect(hidden.skills[0]).toEqual({ ...skill, name: 'Новое' })
+    const archived = base({ skills: [{ ...skill, archived: true }] })
+    expect(reducer(archived, { type: 'updateSkill', skill: { ...skill, archived: false } }).skills[0].archived).toBe(true)
+  })
+
+  it('updateSkill чужого id — тот же store', () => {
+    const s = base()
+    expect(reducer(s, { type: 'updateSkill', skill: { ...skill, id: 'нет-такого' } })).toBe(s)
+  })
+
   it('addStar/updateStar: лишнее отбрасывается, все поля и заморозка skillId/litAt/evidence на месте', () => {
     const added = reducer(base(), { type: 'addStar', star: withExtra(fullStar, { lit: true }) })
     expect(added.stars.find((c) => c.id === 'c_full')).toEqual(fullStar)

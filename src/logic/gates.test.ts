@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Quest, Store } from '../types'
-import { actionShapeError, completeQuestRefusal, storeChanged } from './gates'
+import { actionShapeError, completeQuestRefusal, dropNullOptionals, storeChanged } from './gates'
 import { ACTION_TYPES, reducer, type Action } from './store'
 
 const TS = '2026-10-30T05:00:00.000Z' // игровой день 2026-10-30 (UTC+7)
@@ -127,12 +127,38 @@ describe('actionShapeError: отказы', () => {
     expect(actionShapeError({ type: 'adjustSparks', amount: '5', note: 'н', day: DAY, ts: TS })).toBe('adjustSparks: amount — ожидается число')
   })
 
-  it('необязательное поле, если есть, — своего типа (null не «нет поля»)', () => {
+  it('необязательное поле, если есть, — своего типа', () => {
     const c = { type: 'completeQuest', questId: 'q1', day: DAY, ts: TS }
     expect(actionShapeError({ ...c, result: 'готово' })).toBe('completeQuest: result — ожидается объект')
     expect(actionShapeError({ ...c, force: 'yes' })).toBe('completeQuest: force — ожидается true или false')
     expect(actionShapeError({ type: 'purchaseItem', itemId: 'w1', day: DAY, ts: TS, opId: 7 })).toBe('purchaseItem: opId — ожидается строка')
-    expect(actionShapeError({ type: 'lightStar', starId: 'c1', ts: TS, evidence: null })).toBe('lightStar: evidence — ожидается строка')
+    expect(actionShapeError({ type: 'lightStar', starId: 'c1', ts: TS, evidence: 5 })).toBe('lightStar: evidence — ожидается строка')
+  })
+
+  // агент на Python шлёт None там, где поля нет
+  it('null в необязательном поле — «поля нет»; в обязательном — не тот тип', () => {
+    const c = { type: 'completeQuest', questId: 'h1', day: DAY, ts: TS }
+    expect(actionShapeError({ ...c, result: null, force: null })).toBeNull()
+    expect(actionShapeError({ type: 'purchaseItem', itemId: 'w1', day: DAY, ts: TS, opId: null })).toBeNull()
+    expect(actionShapeError({ type: 'lightStar', starId: 'c1', ts: TS, evidence: null })).toBeNull()
+    expect(actionShapeError({ ...c, ts: null })).toBe('completeQuest: ts — ожидается строка ISO-времени')
+    expect(actionShapeError({ type: 'rejectQuest', questId: null })).toBe('rejectQuest: questId — ожидается строка-id')
+  })
+})
+
+describe('dropNullOptionals', () => {
+  it('убирает null из необязательных полей, остальное не трогает', () => {
+    const a = { type: 'completeQuest', questId: 'h1', day: DAY, ts: TS, result: null, force: null } as unknown as Action
+    expect(dropNullOptionals(a)).toEqual({ type: 'completeQuest', questId: 'h1', day: DAY, ts: TS })
+    const p = { type: 'purchaseItem', itemId: 'w1', day: DAY, ts: TS, opId: 'op1' } as Action
+    expect(dropNullOptionals(p)).toEqual(p)
+  })
+
+  it('lightStar с evidence: null зажигает звезду без evidence', () => {
+    const a = { type: 'lightStar', starId: 'c1', ts: TS, evidence: null } as unknown as Action
+    const star = reducer(base(), dropNullOptionals(a)).stars[0]
+    expect(star.litAt).toBe(TS)
+    expect(star.evidence).toBeUndefined() // без drop было бы null
   })
 })
 
@@ -208,6 +234,21 @@ describe('completeQuestRefusal', () => {
     expect(completeQuestRefusal(s, complete({ questId: 'h1', day: '2026-10-31', ts: 'T1' }))).toBeNull()
   })
 
+  // редьюсер отказывает и при force: день расчёта не вычислить, провизия уходит в NaN
+  it('контракт со сроком и нечитаемым ts → отказ с причиной (и при force)', () => {
+    const s = base([quest('q1', { dueDate: '2026-10-20' })])
+    const r = refused(s, complete({ ts: 'вчера вечером' }))
+    expect(r.error).toBe('ts «вчера вечером» не читается как ISO-момент — день расчёта не вычислить')
+    expect(refused(s, complete({ ts: 'вчера вечером', force: true })).error).toMatch(/^ts «вчера вечером»/)
+    // итог проверяется раньше — как в редьюсере
+    expect(completeQuestRefusal(s, complete({ ts: 'вчера вечером', result: undefined }))?.error).toBe('нужен итог: result.summary')
+  })
+
+  it('нечитаемый ts без срока — не отказ: провизии нет', () => {
+    const s = base([quest('q1')])
+    expect(completeQuestRefusal(s, complete({ ts: 'вчера вечером' }))).toBeNull()
+  })
+
   it('идемпотентные и тихие no-op — не отказ', () => {
     const s = base([
       quest('done', { status: 'done', result: { summary: 'было' } }),
@@ -250,7 +291,6 @@ describe('storeChanged', () => {
   it('пересобранный, но тот же store — не изменён', () => {
     const s = base()
     const cases: Action[] = [
-      { type: 'updateSkill', skill: { ...s.skills[0], id: 'нет-такого' } },
       { type: 'unlightStar', starId: 'c1' }, // не зажжена: litAt/evidence = undefined
       { type: 'archiveSkill', skillId: 'нет-такого' },
       { type: 'setCharacter', character: { name: 'И', avatar: '🧙' } },

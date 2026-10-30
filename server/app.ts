@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFileSync } from 'node:fs'
 import { extname, resolve, sep } from 'node:path'
 import { reducer, type Action } from '../src/logic/store'
-import { actionShapeError, completeQuestRefusal, storeChanged, type CompleteRefusal } from '../src/logic/gates'
+import { actionShapeError, completeQuestRefusal, dropNullOptionals, storeChanged, type CompleteRefusal } from '../src/logic/gates'
 import { loadStore, StoreValidationError, withStore } from '../src/logic/storage'
 import { gameTzOffset, settlementDay, sparksBalance, todayInGameTz } from '../src/logic/sparks'
 import {
@@ -187,7 +187,7 @@ export function createApp({ storePath, publicDir, allowedOrigins }: AppOptions):
       }
       const shapeError = actionShapeError(parsed)
       if (shapeError) return json(res, 400, { error: shapeError })
-      const action = parsed as Action
+      const action = dropNullOptionals(parsed as Action)
       // применилось ли — заголовком, тело остаётся каноном (на него опирается веб):
       // агенту не нужно перечитывать store, чтобы отличить запись от тихого no-op
       let applied = false

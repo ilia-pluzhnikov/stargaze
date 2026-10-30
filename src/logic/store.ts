@@ -279,7 +279,11 @@ export function reducer(store: Store, action: Action): Store {
     case 'addSkill':
       return { ...store, skills: [...store.skills, pickSkill(action.skill)] }
     case 'updateSkill': {
-      const next = pickSkill(action.skill)
+      const prev = store.skills.find((s) => s.id === action.skill.id)
+      if (!prev) return store
+      // archived/createdAt пишет только редьюсер: иначе archived: true в payload спрятал бы
+      // навык мимо гейта archiveSkill (активные контракты), а false — разархивировал бы
+      const next = pickSkill({ ...action.skill, archived: prev.archived, createdAt: prev.createdAt })
       return { ...store, skills: store.skills.map((s) => (s.id === next.id ? next : s)) }
     }
     case 'archiveSkill':
