@@ -253,9 +253,9 @@ describe('API: экономика искр', () => {
       const res = await post(base, { type: 'moveDueDate', questId: 'q1', to: '2026-09-25', day: DAY, ts: '2026-10-05T05:00:00.000Z' })
       expect(res.status).toBe(422)
     }))
-  // payload без ts: гейт не имеет права падать 500 — отказ должен приехать от
-  // validateStore внятным списком (ledger[].ts и dueDateHistory[].ts — не строки)
-  it('payload без ts → 422 от валидации, а не 500', () =>
+  // payload без ts: гейт не имеет права падать 500 — отказ приезжает от проверки
+  // формы внятным текстом, до гейтов и редьюсера
+  it('payload без ts → 400 от формы, а не 500', () =>
     withApp({ ...fixture(), ledger: [{ id: 'l1', ts: TS, day: DAY, kind: 'adjust', amount: 500, note: 'сид' }] },
       async (base, storePath) => {
         const before = readFileSync(storePath, 'utf8')
@@ -266,7 +266,8 @@ describe('API: экономика искр', () => {
           { type: 'completeQuest', questId: 'q1', day: DAY, result: { summary: 'итог' } },
         ]) {
           const res = await post(base, action)
-          expect(res.status, action.type).toBe(422)
+          expect(res.status, action.type).toBe(400)
+          expect(((await res.json()) as { error: string }).error).toBe(`${action.type}: нет поля ts`)
         }
         expect(readFileSync(storePath, 'utf8')).toBe(before)
       }))
@@ -295,9 +296,152 @@ describe('API: экономика искр', () => {
     withApp({ ...fixture(), ledger: [{ id: 'l1', ts: TS, day: DAY, kind: 'adjust', amount: 200, note: 'сид' }] }, async (base) => {
       const first = await post(base, { type: 'purchaseItem', itemId: 'w1', day: DAY, ts: TS, opId: 'op1' })
       expect(first.status).toBe(200)
+      expect(first.headers.get('stargaze-applied')).toBe('1')
       const replay = await post(base, { type: 'purchaseItem', itemId: 'w1', day: DAY, ts: TS, opId: 'op1' })
       expect(replay.status).toBe(200)
+      expect(replay.headers.get('stargaze-applied')).toBe('0')
       const store = (await replay.json()) as Store
       expect(store.ledger!.filter((e) => e.opId === 'op1')).toHaveLength(1)
+    }))
+})
+
+describe('API: честные ответы /api/action', () => {
+  const TS = '2026-10-30T05:00:00.000Z' // игровой день 2026-10-30
+  const DAY = '2026-10-30'
+  const contract = (id: string, extra: object = {}) =>
+    ({ id, title: `Контракт ${id}`, type: 'short', skillId: 's1', xpReward: 40, status: 'active', createdAt: TS, ...extra })
+  const fixture = (): Store => ({
+    version: 4, character: { name: 'И', avatar: '🧙' },
+    skills: [{ id: 's1', emoji: '⚔️', name: 'Навык', wantStatement: '', hue: 200, archived: false, createdAt: TS }],
+    stars: [],
+    xpLog: [],
+    quests: [
+      contract('q1'),
+      contract('q_dod', { definitionOfDone: [{ text: 'Черновик', done: true }, { text: 'Ревью' }, { text: 'Публикация' }] }),
+      { id: 'h1', title: 'Зарядка', type: 'repeating', skillId: 's1', xpReward: 10, status: 'active', createdAt: TS },
+    ] as Store['quests'],
+  })
+
+  async function withApp(fn: (base: string, storePath: string) => Promise<void>) {
+    const dir = mkdtempSync(join(tmpdir(), 'honest-api-'))
+    const storePath = join(dir, 'store.json')
+    writeFileSync(storePath, JSON.stringify(fixture()), 'utf8')
+    const app = createApp({ storePath, publicDir: dir })
+    await new Promise<void>((resolve) => app.listen(0, '127.0.0.1', () => resolve()))
+    const { port } = app.address() as AddressInfo
+    try {
+      await fn(`http://127.0.0.1:${port}`, storePath)
+    } finally {
+      await new Promise((resolve) => app.close(resolve))
+    }
+  }
+  const post = (base: string, action: unknown) =>
+    fetch(`${base}/api/action`, { method: 'POST', body: typeof action === 'string' ? action : JSON.stringify(action) })
+  const errorOf = async (r: Response) => ((await r.json()) as { error: string }).error
+
+  it('форма payload → 400 с причиной, store не тронут, без заголовка Applied', () =>
+    withApp(async (base, storePath) => {
+      const before = readFileSync(storePath, 'utf8')
+      const cases: [unknown, string][] = [
+        ['[1,2]', 'ожидается объект действия { type, … }'],
+        [{ questId: 'q1' }, 'нет поля type'],
+        [{ type: 'взлом' }, 'неизвестное действие «взлом»'],
+        [{ type: 'completeQuest', id: 'q1', day: DAY, ts: TS, result: { summary: 'итог' } }, 'completeQuest: поле называется questId, не id'],
+        [{ type: 'archiveSkill', id: 's1' }, 'archiveSkill: поле называется skillId, не id'],
+        [{ type: 'acceptQuest', questId: 'q1' }, 'acceptQuest: нет поля ts'],
+        [{ type: 'rejectQuest', questId: 42 }, 'rejectQuest: questId — ожидается строка-id'],
+        [{ type: 'completeQuest', questId: 'h1', day: '30.10.2026', ts: TS }, 'completeQuest: day — ожидается день YYYY-MM-DD'],
+        [{ type: 'moveDueDate', questId: 'q1', to: 'завтра', day: DAY, ts: TS }, 'moveDueDate: to — ожидается день YYYY-MM-DD'],
+        [{ type: 'addQuest', quest: null }, 'addQuest: quest — ожидается объект'],
+        [{ type: 'spendSparks', amount: '10', note: 'кофе', day: DAY, ts: TS }, 'spendSparks: amount — ожидается число'],
+        [{ type: 'completeQuest', questId: 'q1', day: DAY, ts: TS, result: 'готово' }, 'completeQuest: result — ожидается объект'],
+        [{ type: 'completeQuest', questId: 'q1', day: DAY, ts: TS, result: { summary: 'итог' }, force: 'да' }, 'completeQuest: force — ожидается true или false'],
+      ]
+      for (const [action, error] of cases) {
+        const r = await post(base, action)
+        expect(r.status, error).toBe(400)
+        expect(r.headers.get('stargaze-applied'), error).toBeNull()
+        expect(await errorOf(r)).toBe(error)
+      }
+      expect(readFileSync(storePath, 'utf8')).toBe(before)
+    }))
+
+  it('Stargaze-Applied: 1 на записи, 0 на повторе той же сдачи; тело — канон в обоих случаях', () =>
+    withApp(async (base) => {
+      const action = { type: 'completeQuest', questId: 'q1', day: DAY, ts: TS, result: { summary: 'итог' } }
+      const first = await post(base, action)
+      expect(first.status).toBe(200)
+      expect(first.headers.get('stargaze-applied')).toBe('1')
+      const afterFirst = (await first.json()) as Store
+      expect(afterFirst.quests.find((q) => q.id === 'q1')!.status).toBe('done')
+      // повторная сдача уже сданного — идемпотентный no-op, а не ошибка
+      const again = await post(base, action)
+      expect(again.status).toBe(200)
+      expect(again.headers.get('stargaze-applied')).toBe('0')
+      expect(await again.json()).toEqual(afterFirst)
+    }))
+
+  it('Stargaze-Applied: 0 на тихих no-op: вторая отметка за день, чужой id', () =>
+    withApp(async (base, storePath) => {
+      const mark = { type: 'completeQuest', questId: 'h1', day: DAY, ts: TS }
+      expect((await post(base, mark)).headers.get('stargaze-applied')).toBe('1')
+      const before = readFileSync(storePath, 'utf8')
+      for (const action of [
+        mark,
+        { type: 'completeQuest', questId: 'нет-такого', day: DAY, ts: TS },
+        // редьюсер пересобирает store и на чужом id — заголовок смотрит на содержимое
+        { type: 'updateSkill', skill: { ...fixture().skills[0], id: 'нет-такого' } },
+        { type: 'archiveSkill', skillId: 'нет-такого' },
+      ]) {
+        const r = await post(base, action)
+        expect(r.status, action.type).toBe(200)
+        expect(r.headers.get('stargaze-applied'), action.type).toBe('0')
+      }
+      // no-op не переписывает файл
+      expect(readFileSync(storePath, 'utf8')).toBe(before)
+    }))
+
+  it('сдача контракта без итога → 422 «нужен итог: result.summary»', () =>
+    withApp(async (base, storePath) => {
+      const before = readFileSync(storePath, 'utf8')
+      for (const result of [undefined, { summary: '  ' }, {}]) {
+        const r = await post(base, { type: 'completeQuest', questId: 'q1', day: DAY, ts: TS, result })
+        expect(r.status).toBe(422)
+        expect(await errorOf(r)).toBe('нужен итог: result.summary')
+      }
+      expect(readFileSync(storePath, 'utf8')).toBe(before)
+    }))
+
+  it('сдача с открытым DoD без force → 422 с перечнем пунктов; с force → 200', () =>
+    withApp(async (base, storePath) => {
+      const before = readFileSync(storePath, 'utf8')
+      const action = { type: 'completeQuest', questId: 'q_dod', day: DAY, ts: TS, result: { summary: 'итог' } }
+      const r = await post(base, action)
+      expect(r.status).toBe(422)
+      const body = (await r.json()) as { error: string; dod: string[] }
+      expect(body.error).toMatch(/DoD/)
+      expect(body.dod).toEqual(['Ревью', 'Публикация'])
+      expect(readFileSync(storePath, 'utf8')).toBe(before)
+      const forced = await post(base, { ...action, force: true })
+      expect(forced.status).toBe(200)
+      expect(forced.headers.get('stargaze-applied')).toBe('1')
+    }))
+
+  it('отметка привычки наперёд → 422, store не тронут', () =>
+    withApp(async (base, storePath) => {
+      const before = readFileSync(storePath, 'utf8')
+      const r = await post(base, { type: 'completeQuest', questId: 'h1', day: '2026-10-31', ts: TS })
+      expect(r.status).toBe(422)
+      expect(await errorOf(r)).toMatch(/^отметка наперёд/)
+      expect(readFileSync(storePath, 'utf8')).toBe(before)
+    }))
+
+  it('порядок как в редьюсере: архивный квест без итога — тихий no-op, а не 422', () =>
+    withApp(async (base) => {
+      const a = await post(base, { type: 'archiveQuest', questId: 'q1', day: DAY, ts: TS })
+      expect(a.headers.get('stargaze-applied')).toBe('1')
+      const r = await post(base, { type: 'completeQuest', questId: 'q1', day: DAY, ts: TS })
+      expect(r.status).toBe(200)
+      expect(r.headers.get('stargaze-applied')).toBe('0')
     }))
 })
