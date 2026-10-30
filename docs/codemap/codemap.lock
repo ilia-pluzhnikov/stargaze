@@ -1,14 +1,16 @@
 {
-  "commit": "63fa7c7adce19ec57565cd8a5c6b9de84e7c6be9",
+  "commit": "8ef42034675bc6ecb583ccf6c7081bd11641eb6d",
   "working_tree_dirty": true,
   "dirty_files": [
-    "ocs/codemap/model.mjs",
-    "src/App.tsx",
-    "src/hooks/useStore.ts",
-    "src/logic/sync.test.ts",
-    "src/logic/sync.ts"
+    "PI.md",
+    "CHANGELOG.md",
+    "CLAUDE.md",
+    "docs/codemap/codemap.html",
+    "docs/codemap/codemap.json",
+    "docs/codemap/codemap.lock",
+    "docs/codemap/model.mjs"
   ],
-  "generated_at": "2026-10-30T11:59:31.022Z",
+  "generated_at": "2026-10-30T12:43:10.115Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -31,7 +33,7 @@
     "tsconfig.json",
     "tsconfig.node.json"
   ],
-  "scanned_files": 78,
+  "scanned_files": 84,
   "fingerprint_algorithm": "sha256(sorted(\"<path>\u0000\" + sha256(file bytes; текст нормализован к LF)))",
   "modules": {
     "web-app": {
@@ -44,7 +46,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "c7bce8ded0dc84aa509e5ac595c73b2aa61687fac225a1111ab6310cb6033bb2"
+      "fingerprint": "a2b9e0630b657d6b1e0a3843dd36ee85b8d6b3575b61e6814490aba0c360e804"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -63,7 +65,7 @@
         "src/components/skyHistory.test.tsx",
         "src/hooks/usePanZoom.ts"
       ],
-      "fingerprint": "86bf37b2198a48acbb8d73cf511c890ef237023b795a2ac3e09dd7ba2a9d0a3f"
+      "fingerprint": "9df0cd861f85368cd83c61ea7d330c563a1e26d0345ff22e2d01952fb3db092c"
     },
     "web-panels": {
       "path": "src/components/Journal.tsx",
@@ -76,7 +78,7 @@
         "src/components/SkillPanel.tsx",
         "src/components/Wallet.tsx"
       ],
-      "fingerprint": "7be4fa670729cb86e05e10e1e7ee41ec13ec0b080fb4684eada627322ea42d55"
+      "fingerprint": "0ceed086ab7621aa7a5130b58ee3d07dec0c9f13f99f5b329509053c09bc3a8b"
     },
     "web-modals": {
       "path": "src/components/Modals.tsx",
@@ -84,7 +86,7 @@
       "files": [
         "src/components/Modals.tsx"
       ],
-      "fingerprint": "ec6e99f7a335204e7ad9a24b250abd052c5f608916a79a3d7cecda80646c37fc"
+      "fingerprint": "95b845654fdce2e6225a6d9819d35a966fd65f1c15bec95378980834eecb5c77"
     },
     "web-usestore": {
       "path": "src/hooks/useStore.ts",
@@ -103,7 +105,7 @@
         "src/logic/sync.test.ts",
         "src/logic/sync.ts"
       ],
-      "fingerprint": "5479170dd8cf717757685a1ed7ef22b7ec84da35329b599bbdc410c459b64575"
+      "fingerprint": "d85df4520c2615037c7f9878a20d468af68af9a647c9b0d6114bef2220785df0"
     },
     "core-store": {
       "path": "src/logic/store.ts",
@@ -112,10 +114,30 @@
         "src/data/seed.test.ts",
         "src/data/seed.ts",
         "src/logic/economy.test.ts",
+        "src/logic/entityKeys.test.ts",
+        "src/logic/entityKeys.ts",
         "src/logic/store.test.ts",
         "src/logic/store.ts"
       ],
-      "fingerprint": "90eff0a7c4d4c9d926072a90fd8d7b4fee34413822acaec8b61dbe9d871f6c0b"
+      "fingerprint": "3f6b254f22d9d42818bc81de8afbc110f5f7933721e67a2dc060fb862d38ab63"
+    },
+    "core-gates": {
+      "path": "src/logic/gates.ts",
+      "external": false,
+      "files": [
+        "src/logic/gates.test.ts",
+        "src/logic/gates.ts"
+      ],
+      "fingerprint": "9cc5cb32ae9cf7491a22f69cf137e1371e14056d12f7e6ef4802c8d66fdb76dd"
+    },
+    "core-views": {
+      "path": "src/logic/views.ts",
+      "external": false,
+      "files": [
+        "src/logic/views.test.ts",
+        "src/logic/views.ts"
+      ],
+      "fingerprint": "1c4168a44784cce079479c1bf51e60f946d1554c855ad8fe4a3c1f7feec21b2e"
     },
     "core-sparks": {
       "path": "src/logic/sparks.ts",
@@ -125,7 +147,7 @@
         "src/logic/sparks.test.ts",
         "src/logic/sparks.ts"
       ],
-      "fingerprint": "f55f486c2019ece20416f283e3a1c92c1416e8c0c3c92fb5a6b8aef4d129c198"
+      "fingerprint": "6c124761284c98a334103511a7836c20101d7fc907036b0b03e81d6ca9cba89d"
     },
     "core-stars": {
       "path": "src/logic/stars.ts",
@@ -160,7 +182,7 @@
         "src/logic/validate.test.ts",
         "src/logic/validate.ts"
       ],
-      "fingerprint": "54d67f0b145fcb4d8a47c6f9014b2aff197325730f0ec353b14eeeca9f1a382a"
+      "fingerprint": "772a14295b8fa65e9e2474f0b8cee704d9cea18f96b4f5348b40bab531615e2f"
     },
     "core-layout": {
       "path": "src/logic/layout.ts",
@@ -178,7 +200,7 @@
         "src/logic/timeline.test.ts",
         "src/logic/timeline.ts"
       ],
-      "fingerprint": "37929d9d85e05ca2a74cb71c54a9aa179c6974270bdf122c50b28949f23e5c54"
+      "fingerprint": "506735213eac07296cb16907f829e5fcdaf7b8efb752498add3e0818eb96c754"
     },
     "core-model": {
       "path": "src/types.ts",
@@ -188,7 +210,7 @@
         "src/logic/dates.ts",
         "src/types.ts"
       ],
-      "fingerprint": "0c907dacd9ee0c859a9431dfd3fbfa7d1839758c7c41d8ba019ed42be0f4d51e"
+      "fingerprint": "f92416afb04b156b25b41c975f2cc7449885a762419af0eb59c892a3a5094d28"
     },
     "core-storage": {
       "path": "src/logic/storage.ts",
@@ -207,7 +229,7 @@
         "server/app.ts",
         "server/main.ts"
       ],
-      "fingerprint": "5b79d5c20a604118d693ed32674fea3656b1bcfb5110a7bdcc662d8d34ef8859"
+      "fingerprint": "b7f3ef724a44e96b4d3a4c14d9d5ad2f49ee6dbd866f34654258aa925cc285ab"
     },
     "cli": {
       "path": "cli/app.ts",
@@ -220,7 +242,7 @@
         "cli/main.ts",
         "cli/smoke.test.ts"
       ],
-      "fingerprint": "e8cf7cd76733d889fba441018d2e2bf4987ca31ce06725b75197c40ef0258f9e"
+      "fingerprint": "1343443fe491dad1c6e6bd6afa92b50c73ce0e7e66f4b7d39ee64595d9980010"
     },
     "store-json": {
       "path": null,
@@ -249,15 +271,9 @@
     }
   },
   "previous": {
-    "commit": "f8e4f03f729ed6dc5e0efb61b2060375ac886527",
-    "generated_at": "2026-09-24T19:06:40.366Z",
-    "changed_modules": [
-      "web-app",
-      "web-usestore",
-      "web-sync",
-      "core-layout",
-      "infra-deploy"
-    ],
+    "commit": "8ef42034675bc6ecb583ccf6c7081bd11641eb6d",
+    "generated_at": "2026-10-30T12:42:57.063Z",
+    "changed_modules": [],
     "new_modules": [],
     "removed_modules": []
   },

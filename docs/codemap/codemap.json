@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-30T11:59:31.022Z",
-  "generated_from_commit": "63fa7c7adce19ec57565cd8a5c6b9de84e7c6be9",
+  "generated_at": "2026-10-30T12:43:10.115Z",
+  "generated_from_commit": "8ef42034675bc6ecb583ccf6c7081bd11641eb6d",
   "scope": [
     "src/",
     "cli/",
@@ -34,7 +34,7 @@
       "constraints": [
         "base: './' — относительные пути, сборка раздаётся из любой подпапки; с диска (file://) не открывается — модульный скрипт блокируется CORS",
         "Без UI-библиотек и Tailwind: вся тема в src/index.css",
-        "«Сегодня» берётся из игрового пояса UTC+7 (todayInGameTz), не из локального дня браузера"
+        "«Сегодня» берётся из пояса мира (todayInGameTz(gameTzOffset), по умолчанию UTC+7), не из локального дня браузера"
       ],
       "evidence": [
         {
@@ -43,7 +43,7 @@
         },
         {
           "path": "src/App.tsx",
-          "symbol": "const today = todayInGameTz()"
+          "symbol": "const today = todayInGameTz(tz)"
         },
         {
           "path": "src/main.tsx",
@@ -54,7 +54,7 @@
           "symbol": "base: './'"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-sky",
@@ -236,7 +236,7 @@
           "symbol": "const canon = await sendNow(localStorage, action, postAction)"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-sync",
@@ -284,7 +284,7 @@
           "symbol": "const apiUrl = (path: string) => location.origin + path"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-store",
@@ -292,20 +292,22 @@
       "path": "src/logic/store.ts",
       "kind": "core",
       "tier": 3,
-      "role": "Единственный мутатор состояния: union Action на 27 типов, append-only xpLog и ledger, гейты DoD/подквестов/заморозки",
+      "role": "Единственный мутатор состояния: union Action на 28 типов, append-only xpLog и ledger, гейты DoD/подквестов/заморозки",
       "external": false,
       "files": [
         "src/logic/store.ts",
+        "src/logic/entityKeys.ts",
         "src/data/seed.ts"
       ],
       "entrypoints": [
         "reducer(store, action)",
         "ACTION_TYPES (контракт API)",
-        "seedStore()"
+        "seedStore(tzOffsetMin?)"
       ],
       "tests": [
         "src/logic/store.test.ts",
         "src/logic/economy.test.ts",
+        "src/logic/entityKeys.test.ts",
         "src/data/seed.test.ts"
       ],
       "constraints": [
@@ -313,7 +315,9 @@
         "ledger — второй append-only контур; баланс не хранится, вычисляется",
         "updateQuest морозит условия принятого контракта (xpReward/type/createdAt/dueDate)",
         "claimedAt/skippedDod/skippedQuestIds пишет только редьюсер — не payload",
-        "Отказ гейта в ядре = no-op (возврат того же объекта), строгая ошибка — на границе CLI/API"
+        "Отказ гейта в ядре = no-op (возврат того же объекта), строгая ошибка — на границе CLI/API",
+        "Сущности из payload кладутся по белому списку ключей типа (entityKeys): лишнее молча отбрасывается, удалённое поле формата daysOfWeek проходит насквозь ради 422",
+        "setGameTz меняет пояс мира; resetToSeed пояс сохраняет"
       ],
       "evidence": [
         {
@@ -327,6 +331,94 @@
         {
           "path": "src/data/seed.ts",
           "symbol": "export function seedStore"
+        },
+        {
+          "path": "src/logic/entityKeys.ts",
+          "symbol": "export const pickQuest"
+        },
+        {
+          "path": "src/logic/entityKeys.ts",
+          "symbol": "satisfies Record<keyof Quest, true>"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "core-gates",
+      "name": "Граница API: форма, отказы, факт записи",
+      "path": "src/logic/gates.ts",
+      "kind": "core",
+      "tier": 3,
+      "role": "Ответ ядра на «почему не применилось»: форма payload (400), отказ completeQuest с причиной (422), Stargaze-Applied",
+      "external": false,
+      "files": [
+        "src/logic/gates.ts"
+      ],
+      "entrypoints": [
+        "actionShapeError(x)",
+        "completeQuestRefusal(store, action)",
+        "storeChanged(prev, next)"
+      ],
+      "tests": [
+        "src/logic/gates.test.ts"
+      ],
+      "constraints": [
+        "Форма выводится из union Action, полнота — компайл-проверкой (SHAPES)",
+        "Каждый отказ completeQuestRefusal — no-op редьюсера на том же действии; порядок проверок — как в редьюсере",
+        "Stargaze-Applied — по содержимому, не по ссылке: редьюсер пересобирает store и на no-op"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/gates.ts",
+          "symbol": "export function actionShapeError"
+        },
+        {
+          "path": "src/logic/gates.ts",
+          "symbol": "export function completeQuestRefusal"
+        },
+        {
+          "path": "src/logic/gates.ts",
+          "symbol": "export function storeChanged"
+        }
+      ],
+      "changed_since_previous": false
+    },
+    {
+      "id": "core-views",
+      "name": "Срезы чтения (cli --json ≡ GET /api/*)",
+      "path": "src/logic/views.ts",
+      "kind": "core",
+      "tier": 3,
+      "role": "Машинные срезы команд чтения: статус, кошелёк, квесты, карточка, навыки, ранги, звёзды, статистика, витрина",
+      "external": false,
+      "files": [
+        "src/logic/views.ts"
+      ],
+      "entrypoints": [
+        "statusView/walletView/questsView/questView/…(store, today)",
+        "resolveIdPrefix",
+        "ViewError"
+      ],
+      "tests": [
+        "src/logic/views.test.ts"
+      ],
+      "constraints": [
+        "«Сегодня» — только параметром; срез его не вычисляет",
+        "Форма JSON — публичный контракт (API.md): меняется только вместе с API.md и тестами",
+        "Код отказа (ViewError) выбирает голова: CLI — exit 1/2, сервер — 400/404/409"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/views.ts",
+          "symbol": "export class ViewError"
+        },
+        {
+          "path": "src/logic/views.ts",
+          "symbol": "export function statusView"
+        },
+        {
+          "path": "src/logic/views.ts",
+          "symbol": "export function resolveIdPrefix"
         }
       ],
       "changed_since_previous": false
@@ -337,7 +429,7 @@
       "path": "src/logic/sparks.ts",
       "kind": "core",
       "tier": 4,
-      "role": "Баланс, провизии, капание за просрочку, комиссия переноса, неустойка отмены, игровой пояс UTC+7 и день расчёта",
+      "role": "Баланс, провизии, капание за просрочку, комиссия переноса, неустойка отмены, игровой пояс мира (tzOffsetMin, по умолчанию UTC+7) и день расчёта",
       "external": false,
       "files": [
         "src/logic/sparks.ts"
@@ -369,7 +461,11 @@
         },
         {
           "path": "src/logic/sparks.ts",
-          "symbol": "export const GAME_TZ_OFFSET_H"
+          "symbol": "export const DEFAULT_TZ_OFFSET_MIN"
+        },
+        {
+          "path": "src/logic/sparks.ts",
+          "symbol": "export function gameTzOffset"
         },
         {
           "path": "src/logic/sparks.ts",
@@ -540,7 +636,7 @@
           "symbol": "export function mulberry32"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-timeline",
@@ -672,7 +768,7 @@
       "path": "server/app.ts",
       "kind": "service",
       "tier": 2,
-      "role": "node:http поверх того же ядра: GET /api/health, GET /api/store, POST /api/action, раздача статики",
+      "role": "node:http поверх того же ядра: GET /api/health, GET /api/store, GET-срезы чтения (= cli --json), POST /api/action с честными ответами, раздача статики",
       "external": false,
       "files": [
         "server/app.ts",
@@ -687,8 +783,8 @@
       ],
       "constraints": [
         "Bind только 127.0.0.1:8643 — наружу торчит Caddy",
-        "Ровно пять гейтов дают 422 (подквесты, нехватка искр, звезда-якорь не зажжена, перенос в прошлое, archiveSkill с контрактами); прочие отказы — тихий 200",
-        "Поля payload — questId/skillId/itemId по типам Action; неверное поле = тихий no-op 200",
+        "422 — гейты: подквесты, нехватка искр, звезда-якорь не зажжена, перенос в прошлое, archiveSkill с контрактами, у completeQuest ещё итог, открытый DoD и отметка наперёд; прочие no-op — 200 с Stargaze-Applied: 0",
+        "Поля payload — questId/skillId/itemId по типам Action; неверная форма (в том числе id вместо questId) — 400 с причиной",
         "День расчёта в гейтах — settlementDay(day, ts), как в редьюсере",
         "env STARGAZE_* с вечным фолбэком на QUESTLOG_*"
       ],
@@ -718,7 +814,7 @@
       "path": "cli/app.ts",
       "kind": "cli",
       "tier": 0,
-      "role": "32 команды поверх ядра: статус, персонаж, квесты, карточка, звёзды, кошелёк, перенос и отмена, импорт/экспорт, serve — этим ходит агент-гейм-мастер",
+      "role": "33 команды поверх ядра: статус, персонаж, квесты, карточка, звёзды, кошелёк, перенос и отмена, импорт/экспорт, serve — этим ходит агент-гейм-мастер",
       "external": false,
       "files": [
         "cli/app.ts",
@@ -736,8 +832,7 @@
       ],
       "constraints": [
         "cancel показывает неустойку и требует --yes",
-        "complete short/mid/long требует --result; --force фиксирует пропущенное в result",
-        "Известные дефекты: resolveId матчит startsWith (точный id не выигрывает); quests --today игнорирует dueDate"
+        "complete short/mid/long требует --result; --force фиксирует пропущенное в result"
       ],
       "evidence": [
         {
@@ -877,7 +972,7 @@
           "symbol": "container_name: stargaze"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     }
   ],
   "edges": [
@@ -1470,12 +1565,89 @@
     },
     {
       "from": "server",
+      "to": "core-gates",
+      "type": "calls",
+      "evidence": [
+        {
+          "path": "server/app.ts",
+          "symbol": "const shapeError = actionShapeError(parsed)"
+        }
+      ]
+    },
+    {
+      "from": "server",
+      "to": "core-views",
+      "type": "calls",
+      "evidence": [
+        {
+          "path": "server/app.ts",
+          "symbol": "return json(res, 200, route(store, serverToday(store), query))"
+        }
+      ]
+    },
+    {
+      "from": "core-gates",
+      "to": "core-store",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/gates.ts",
+          "symbol": "import { ACTION_TYPES, type Action } from './store'"
+        }
+      ]
+    },
+    {
+      "from": "core-gates",
+      "to": "core-sparks",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/gates.ts",
+          "symbol": "import { dayInGameTz, gameTzOffset } from './sparks'"
+        }
+      ]
+    },
+    {
+      "from": "core-views",
+      "to": "core-sparks",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/views.ts",
+          "symbol": "} from './sparks'"
+        }
+      ]
+    },
+    {
+      "from": "core-views",
+      "to": "core-progress",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/views.ts",
+          "symbol": "from './selectors'"
+        }
+      ]
+    },
+    {
+      "from": "core-views",
+      "to": "core-stars",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/views.ts",
+          "symbol": "from './stars'"
+        }
+      ]
+    },
+    {
+      "from": "server",
       "to": "core-store",
       "type": "calls",
       "evidence": [
         {
           "path": "server/app.ts",
-          "symbol": "return reducer(s, action)"
+          "symbol": "const next = reducer(s, action)"
         }
       ]
     },
@@ -1497,7 +1669,7 @@
       "evidence": [
         {
           "path": "server/app.ts",
-          "symbol": "sparksBalance(s, settlementDay(action.day, action.ts))"
+          "symbol": "sparksBalance(s, settlementDay(action.day, action.ts, gameTzOffset(s)))"
         }
       ]
     },
@@ -1547,12 +1719,12 @@
     },
     {
       "from": "cli",
-      "to": "core-stars",
+      "to": "core-views",
       "type": "imports",
       "evidence": [
         {
           "path": "cli/app.ts",
-          "symbol": "from '../src/logic/stars'"
+          "symbol": "from '../src/logic/views'"
         }
       ]
     },
@@ -1668,10 +1840,10 @@
         },
         {
           "node": "server",
-          "action": "Гейты (подквесты, экономика) → 422 либо reducer под локом",
+          "action": "Форма payload → 400; гейты сдачи и экономики → 422; иначе reducer под локом",
           "evidence": {
             "path": "server/app.ts",
-            "symbol": "throw new ChildrenGateError"
+            "symbol": "if (refusal) throw new CompleteGateError(refusal)"
           }
         },
         {
