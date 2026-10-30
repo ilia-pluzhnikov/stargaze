@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Quest, QuestResult, Skill, StarComponent, Store, Tier } from '../types'
 import { CHARACTER_AVATAR_MAX } from '../types'
 import { characterError, reducer, type Action } from './store'
+import { validateStore } from './validate'
 
 const base = (): Store => ({
   version: 4,
@@ -520,5 +521,52 @@ describe('персонаж', () => {
     expect(characterError({ name: 'Илья', avatar: 'я'.repeat(CHARACTER_AVATAR_MAX + 1) }))
       .toBe(`Аватар — один эмодзи (до ${CHARACTER_AVATAR_MAX} юнитов)`)
     expect(characterError(null)).toBe('Персонаж: ожидается { name, avatar }')
+  })
+})
+
+describe('игровой пояс: setGameTz', () => {
+  const setTz = (s: Store, offsetMin: unknown) => reducer(s, { type: 'setGameTz', offsetMin: offsetMin as number })
+
+  it('годный офсет пишется в store, store остаётся валидным', () => {
+    const s = setTz(base(), 300)
+    expect(s.tzOffsetMin).toBe(300)
+    expect(validateStore(s)).toEqual([])
+    expect(setTz(s, -210).tzOffsetMin).toBe(-210)
+    expect(setTz(s, 420).tzOffsetMin).toBe(420) // возврат к +7 — явный, а не стирание поля
+  })
+  it('мусор — no-op: не целое, не кратное 15, вне диапазона, не число', () => {
+    const s = base()
+    for (const bad of [300.5, 310, 900, -735, NaN, '300', undefined, null]) expect(setTz(s, bad), String(bad)).toBe(s)
+  })
+  it('тот же пояс — no-op; без поля действует +7, поэтому 420 тоже no-op', () => {
+    const s = base()
+    expect(setTz(s, 420)).toBe(s)
+    const five = setTz(s, 300)
+    expect(setTz(five, 300)).toBe(five)
+  })
+  it('сброс к сиду сохраняет пояс мира; без поля сид его не заводит', () => {
+    expect(reducer(setTz(base(), 300), { type: 'resetToSeed' }).tzOffsetMin).toBe(300)
+    expect('tzOffsetMin' in reducer(base(), { type: 'resetToSeed' })).toBe(false)
+  })
+
+  // 18:30 UTC 09-10: в +7 это уже 01:30 09-11, в +5 — ещё 23:30 09-10
+  const LATE = '2026-09-10T18:30:00.000Z'
+  const habitWorld = (tzOffsetMin?: number): Store => ({
+    ...base(), quests: [quest('h1', null)], ...(tzOffsetMin !== undefined ? { tzOffsetMin } : {}),
+  })
+  const tick = (s: Store, day: string) => reducer(s, { type: 'completeQuest', questId: 'h1', day, ts: LATE })
+
+  it('окно выплат привычки — в поясе мира: «вчера» по +5 платит, по +7 это позавчера', () => {
+    const five = tick(habitWorld(300), '2026-09-09')
+    expect(five.xpLog).toHaveLength(1)
+    expect(five.ledger?.map((e) => e.kind)).toEqual(['earn'])
+    const seven = tick(habitWorld(), '2026-09-09')
+    expect(seven.xpLog).toHaveLength(1) // бэкфилл роста легален
+    expect(seven.ledger).toBeUndefined() // а денег за позавчера нет
+  })
+  it('отметка наперёд — по поясу мира: 09-11 при +5 ещё завтра (no-op), при +7 уже сегодня', () => {
+    const five = habitWorld(300)
+    expect(tick(five, '2026-09-11')).toBe(five)
+    expect(tick(habitWorld(), '2026-09-11').ledger?.map((e) => e.kind)).toEqual(['earn'])
   })
 })

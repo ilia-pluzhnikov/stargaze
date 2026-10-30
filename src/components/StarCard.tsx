@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { Quest, StarComponent, XpEvent } from '../types'
 import { netForQuest, questDoneOnDay } from '../logic/selectors'
-import { todayInGameTz } from '../logic/sparks'
 import { rarityVar } from './skyColors'
 
 export interface StarCardActions {
@@ -21,17 +20,19 @@ interface Props {
   xp: number
   /** Действия правки; нет = только просмотр (небо в режиме истории). */
   actions?: StarCardActions
+  /** Игровой «сегодня» из App (пояс мира). */
+  today: string
   /** День проекции в режиме истории; нет = сегодня. */
   asOfDay?: string
   onClose: () => void
 }
 
-export function StarCard({ star, parent, childrenCount, unlitAncestors, quests, xpLog, xp, actions, asOfDay, onClose }: Props) {
+export function StarCard({ star, parent, childrenCount, unlitAncestors, quests, xpLog, xp, actions, today, asOfDay, onClose }: Props) {
   const [evidence, setEvidence] = useState('')
   const [cascade, setCascade] = useState(true)
   const [confirmUnlight, setConfirmUnlight] = useState(false)
   const lit = !!star.litAt
-  const day = asOfDay ?? todayInGameTz() // тот же игровой день, что в App: галочка «сделано» не должна расходиться с журналом
+  const day = asOfDay ?? today // тот же игровой день, что в App: галочка «сделано» не должна расходиться с журналом
   // В прошлом истории статусов нет: «контракт сдан на дату» выводится из xpLog проекции
   const questDone = (q: Quest) =>
     q.type === 'repeating' ? questDoneOnDay(xpLog, q.id, day) : asOfDay ? netForQuest(xpLog, q.id) > 0 : q.status === 'done'

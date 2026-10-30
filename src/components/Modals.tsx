@@ -3,7 +3,7 @@ import type { Character, Quest, QuestDodItem, QuestResource, QuestResult, QuestT
 import { QUEST_TYPE_LABEL, TIERS, WISHLIST_EMOJI_MAX } from '../types'
 import { characterError, genId } from '../logic/store'
 import { isCalendarDay, todayKey } from '../logic/dates'
-import { FREE_MOVES_PER_7D, moveFeeFor, movesUsedIn7d, provisionForQuest } from '../logic/sparks'
+import { FREE_MOVES_PER_7D, gameTzOffset, moveFeeFor, movesUsedIn7d, provisionForQuest } from '../logic/sparks'
 import { migrateStore } from '../logic/migrate'
 import { validateStore } from '../logic/validate'
 import { childrenOf, skillStars } from '../logic/stars'
@@ -934,7 +934,7 @@ export function MoveDueDateModal({ quest, store, today, onConfirm, onClose }: Mo
   const used = movesUsedIn7d(store, today)
   const freeLeft = Math.max(0, FREE_MOVES_PER_7D - used)
   const fee = freeLeft > 0 ? 0 : moveFeeFor(quest)
-  const provision = provisionForQuest(quest, today)
+  const provision = provisionForQuest(quest, today, gameTzOffset(store))
   // isCalendarDay, а не регулярка: те же три условия, что у редьюсера. На нативном
   // input type="date" 2026-02-31 недостижим, но на webOS-фолбэке в текст кнопка
   // включилась бы, а тост соврал бы об успехе поверх no-op'а ядра

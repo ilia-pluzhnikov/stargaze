@@ -12,7 +12,7 @@ import {
   skillXpTotal,
   weekActivity,
 } from '../logic/selectors'
-import { provisionForQuest } from '../logic/sparks'
+import { gameTzOffset, provisionForQuest } from '../logic/sparks'
 import { charLevel, skillLevel } from '../logic/xp'
 import { QuestRow } from './QuestRow'
 
@@ -143,7 +143,7 @@ export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, o
               parentRef={parentRefOf(q)}
               progress={epicProgress(store.quests, q.id)}
               childQuests={questChildren(store.quests, q.id)}
-              provision={provisionForQuest(q, today)}
+              provision={provisionForQuest(q, today, gameTzOffset(store))}
               onOpenQuest={(id) => setExpandedId(id)}
               expanded={expandedId === q.id}
               onToggleExpand={() => setExpandedId((cur) => (cur === q.id ? null : q.id))}
@@ -170,7 +170,7 @@ export function Journal({ store, today, onComplete, onUncomplete, onEditQuest, o
                     parentRef={parentRefOf(q)}
                     progress={epicProgress(store.quests, q.id)}
                     childQuests={questChildren(store.quests, q.id)}
-                    provision={provisionForQuest(q, today)}
+                    provision={provisionForQuest(q, today, gameTzOffset(store))}
                     onOpenQuest={(id) => setExpandedId(id)}
                     expanded={expandedId === q.id}
                     onToggleExpand={() => setExpandedId((cur) => (cur === q.id ? null : q.id))}

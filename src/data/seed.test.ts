@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { seedStore } from './seed'
 import { validateStore } from '../logic/validate'
-import { dayInGameTz } from '../logic/sparks'
+import { dayInGameTz, DEFAULT_TZ_OFFSET_MIN } from '../logic/sparks'
 
 describe('демо-сид', () => {
   it('версия 4, валиден по validateStore, расписаний нет', () => {
@@ -42,7 +42,7 @@ describe('демо-сид', () => {
 
   it('дедлайны не в прошлом — демо не встречает пользователя просрочкой', () => {
     const s = seedStore()
-    const today = dayInGameTz(new Date().toISOString())
+    const today = dayInGameTz(new Date().toISOString(), DEFAULT_TZ_OFFSET_MIN)
     for (const q of s.quests) if (q.dueDate) expect(q.dueDate >= today).toBe(true)
   })
 })

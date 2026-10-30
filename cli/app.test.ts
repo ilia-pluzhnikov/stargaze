@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { seedStore } from '../src/data/seed'
 import { addDays } from '../src/logic/dates'
-import { dayInGameTz } from '../src/logic/sparks'
+import { dayInGameTz, DEFAULT_TZ_OFFSET_MIN } from '../src/logic/sparks'
 import { saveStore, loadStore } from '../src/logic/storage'
 import { reducer } from '../src/logic/store'
 import type { Store, Tier } from '../src/types'
@@ -707,7 +707,7 @@ describe('CLI: экономика искр', () => {
   }
   // Тот же день, что берёт CLI (ctx.today) — игровой пояс, а не пояс машины:
   // с todayKey() фикстуры разъезжались бы с CLI везде, кроме UTC+7.
-  const gameToday = () => dayInGameTz(new Date().toISOString())
+  const gameToday = () => dayInGameTz(new Date().toISOString(), DEFAULT_TZ_OFFSET_MIN)
   // Фикстура пишется напрямую (не через seedStore): дедлайн в будущем ⇒ провизия 0
   // на любой машине, поэтому тесты не зависят ни от пояса, ни от текущей даты.
   const fixture = (): Store => ({
@@ -971,7 +971,7 @@ describe('вишлист без цены (CLI)', () => {
   it('смоук спеки: add без цены → buy-ошибка → wishlist-edit --price → buy', () => {
     // Используем fixture без провизий (дата в будущем)
     const p = join(mkdtempSync(join(tmpdir(), 'sparks-cli-')), 'store.json')
-    const gameToday = () => dayInGameTz(new Date().toISOString())
+    const gameToday = () => dayInGameTz(new Date().toISOString(), DEFAULT_TZ_OFFSET_MIN)
     writeFileSync(p, JSON.stringify({
       version: 4,
       character: { name: 'И', avatar: '🧙' },
@@ -1073,7 +1073,7 @@ describe('вишлист без цены (CLI)', () => {
 })
 
 describe('quests --today и status уважают dueDate', () => {
-  const gameToday = () => dayInGameTz(new Date().toISOString())
+  const gameToday = () => dayInGameTz(new Date().toISOString(), DEFAULT_TZ_OFFSET_MIN)
 
   it('--today: будущий short скрыт, просроченный mid виден', () => {
     const p = tmpStore()
@@ -1096,7 +1096,7 @@ describe('quests --today и status уважают dueDate', () => {
 })
 
 describe('привычки без расписания (CLI)', () => {
-  const gameToday = () => dayInGameTz(new Date().toISOString())
+  const gameToday = () => dayInGameTz(new Date().toISOString(), DEFAULT_TZ_OFFSET_MIN)
   const habit = (p: string) => loadStore(p).quests.find((q) => q.type === 'repeating' && q.status === 'active')!
 
   it('add-quest --days → код 2 с текстом про удаление, квест не добавлен', () => {

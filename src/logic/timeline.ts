@@ -1,19 +1,19 @@
 import type { Skill, SkyStore, StarComponent } from '../types'
 import type { Constellation, ConstellationNode } from './layout'
 import { addDays } from './dates'
-import { dayInGameTz } from './sparks'
+import { dayInGameTz, gameTzOffset } from './sparks'
 import { isRankAchieved, skillTiers } from './stars'
 
 // История неба выводится из нынешнего store: createdAt/litAt звёзд, createdAt навыков и
 // day событий xpLog. Это приближение («сегодняшняя структура, отфильтрованная по времени»),
 // не снимок: погашенные и удалённые звёзды, прежние названия и родители невосстановимы.
-// Единица времени — игровой день 'YYYY-MM-DD' (UTC+7).
+// Единица времени — игровой день 'YYYY-MM-DD' в поясе мира (`gameTzOffset`, по умолчанию UTC+7).
 
 /** Навыки и звёзды, существовавшие на конец игрового дня `day`. */
-function starsAsOf(skillsIn: Skill[], starsIn: StarComponent[], day: string): { skills: Skill[]; stars: StarComponent[] } {
-  const skills = skillsIn.filter((s) => dayInGameTz(s.createdAt) <= day)
+function starsAsOf(skillsIn: Skill[], starsIn: StarComponent[], day: string, tz: number): { skills: Skill[]; stars: StarComponent[] } {
+  const skills = skillsIn.filter((s) => dayInGameTz(s.createdAt, tz) <= day)
   const skillIds = new Set(skills.map((s) => s.id))
-  const alive = starsIn.filter((s) => skillIds.has(s.skillId) && dayInGameTz(s.createdAt) <= day)
+  const alive = starsIn.filter((s) => skillIds.has(s.skillId) && dayInGameTz(s.createdAt, tz) <= day)
   const aliveIds = new Set(alive.map((s) => s.id))
   const byId = new Map(starsIn.map((s) => [s.id, s]))
 
@@ -33,7 +33,7 @@ function starsAsOf(skillsIn: Skill[], starsIn: StarComponent[], day: string): { 
   const stars = alive.map((s): StarComponent => {
     const { litAt, evidence, ...rest } = s
     const base = { ...rest, parentStarId: survivingParent(s) }
-    if (litAt === undefined || dayInGameTz(litAt) > day) return base
+    if (litAt === undefined || dayInGameTz(litAt, tz) > day) return base
     return evidence === undefined ? { ...base, litAt } : { ...base, litAt, evidence }
   })
   return { skills, stars }
@@ -42,13 +42,16 @@ function starsAsOf(skillsIn: Skill[], starsIn: StarComponent[], day: string): { 
 /** Небо на конец игрового дня `day`. Вход не мутируется; к результату применимы все обычные
  * селекторы (`isRankAchieved`, `galaxyStats`, `starProgress`, `skillXpTotal`, `charXpTotal`). */
 export function skyAsOf(store: SkyStore, day: string): SkyStore {
+  const tz = gameTzOffset(store)
   return {
-    ...starsAsOf(store.skills, store.stars, day),
+    ...starsAsOf(store.skills, store.stars, day, tz),
     // истории статусов квестов нет — «сделанность» на дату потребитель выводит из xpLog
-    quests: store.quests.filter((q) => dayInGameTz(q.createdAt) <= day),
+    quests: store.quests.filter((q) => dayInGameTz(q.createdAt, tz) <= day),
     // именно day, не ts: отметка привычки задним числом и её откат несут один day —
     // пара всегда по одну сторону среза
     xpLog: store.xpLog.filter((e) => e.day <= day),
+    // пояс — свойство мира, не времени: проекция несёт его дальше
+    ...(store.tzOffsetMin !== undefined ? { tzOffsetMin: store.tzOffsetMin } : {}),
   }
 }
 
@@ -78,15 +81,16 @@ export function constellationAsOf(full: Constellation, pastStars: StarComponent[
  * неархивных навыков и их звёзд и дней событий xpLog. Со skillId: день создания этого навыка
  * (раньше галактики не существовало). null — истории нет или навыка нет. */
 export function timelineBounds(store: SkyStore, skillId?: string): { first: string } | null {
+  const tz = gameTzOffset(store)
   if (skillId !== undefined) {
     const skill = store.skills.find((s) => s.id === skillId)
-    return skill ? { first: dayInGameTz(skill.createdAt) } : null
+    return skill ? { first: dayInGameTz(skill.createdAt, tz) } : null
   }
   const live = store.skills.filter((s) => !s.archived)
   const liveIds = new Set(live.map((s) => s.id))
   const days = [
-    ...live.map((s) => dayInGameTz(s.createdAt)),
-    ...store.stars.filter((s) => liveIds.has(s.skillId)).map((s) => dayInGameTz(s.createdAt)),
+    ...live.map((s) => dayInGameTz(s.createdAt, tz)),
+    ...store.stars.filter((s) => liveIds.has(s.skillId)).map((s) => dayInGameTz(s.createdAt, tz)),
     ...store.xpLog.map((e) => e.day),
   ]
   return days.length ? { first: days.reduce((a, b) => (a < b ? a : b)) } : null
@@ -114,22 +118,23 @@ const laterDay = (a: string, b: string) => (a > b ? a : b)
  * «не взят → взят»; кандидаты — только дни зажиганий: порог растёт лишь с добавлением звёзд,
  * стать взятым в другой день ранг не может. Брался, терялся и брался снова — засечек две. */
 export function timelineMarks(store: SkyStore, skillId?: string): TimelineMark[] {
+  const tz = gameTzOffset(store)
   const starMarks: TimelineMark[] = []
   const rankMarks: TimelineMark[] = []
   for (const skill of store.skills) {
     if (skill.archived || (skillId !== undefined && skill.id !== skillId)) continue
     const own = store.stars.filter((s) => s.skillId === skill.id)
-    const skillDay = dayInGameTz(skill.createdAt)
+    const skillDay = dayInGameTz(skill.createdAt, tz)
     const litDays = new Set<string>()
     for (const s of own) {
       if (!s.litAt) continue
-      const day = laterDay(laterDay(dayInGameTz(s.litAt), dayInGameTz(s.createdAt)), skillDay)
+      const day = laterDay(laterDay(dayInGameTz(s.litAt, tz), dayInGameTz(s.createdAt, tz)), skillDay)
       litDays.add(day)
       starMarks.push({ day, kind: 'star', skillId: skill.id, label: s.title })
     }
     for (const day of [...litDays].sort()) {
-      const now = starsAsOf([skill], own, day).stars
-      const before = starsAsOf([skill], own, addDays(day, -1)).stars
+      const now = starsAsOf([skill], own, day, tz).stars
+      const before = starsAsOf([skill], own, addDays(day, -1), tz).stars
       for (const tier of skillTiers(now, skill.id)) {
         if (isRankAchieved(now, skill.id, tier) && !isRankAchieved(before, skill.id, tier))
           rankMarks.push({ day, kind: 'rank', skillId: skill.id, label: `ранг ${tier} · ${skill.name}` })

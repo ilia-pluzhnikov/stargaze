@@ -372,3 +372,29 @@ describe('timelineMonths', () => {
     expect(timelineMonths('2026-06-14', '2026-06-13')).toEqual([])
   })
 })
+
+describe('история неба в поясе мира', () => {
+  // 18:30 UTC 06-10: в +7 это уже 06-11, в +5 — ещё 06-10
+  const LATE = '2026-06-10T18:30:00.000Z'
+  const world = (tzOffsetMin?: number): SkyStore => sky({
+    stars: [star('a', '2026-06-01', { createdAt: LATE, litAt: LATE })],
+    ...(tzOffsetMin !== undefined ? { tzOffsetMin } : {}),
+  })
+
+  it('день создания и зажигания — по поясу из store', () => {
+    expect(skyAsOf(world(300), '2026-06-10').stars.map((s) => s.litAt)).toEqual([LATE])
+    expect(skyAsOf(world(), '2026-06-10').stars).toEqual([]) // по +7 звезды ещё нет
+    const marks = (s: SkyStore) => timelineMarks(s).map((m) => `${m.kind}:${m.day}`)
+    expect(marks(world(300))).toEqual(['star:2026-06-10', 'rank:2026-06-10'])
+    expect(marks(world())).toEqual(['star:2026-06-11', 'rank:2026-06-11'])
+  })
+  it('нижняя граница полосы — по поясу из store', () => {
+    const s = (tzOffsetMin?: number) => sky({ skills: [skill('s1', '2026-06-01', { createdAt: LATE })], ...(tzOffsetMin !== undefined ? { tzOffsetMin } : {}) })
+    expect(timelineBounds(s(300))).toEqual({ first: '2026-06-10' })
+    expect(timelineBounds(s())).toEqual({ first: '2026-06-11' })
+  })
+  it('проекция несёт пояс дальше; без поля — не заводит его', () => {
+    expect(skyAsOf(world(300), '2026-06-10').tzOffsetMin).toBe(300)
+    expect('tzOffsetMin' in skyAsOf(world(), '2026-06-10')).toBe(false)
+  })
+})

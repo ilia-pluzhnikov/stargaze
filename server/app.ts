@@ -6,7 +6,7 @@ import { extname, resolve, sep } from 'node:path'
 import { reducer, type Action } from '../src/logic/store'
 import { actionShapeError, completeQuestRefusal, storeChanged, type CompleteRefusal } from '../src/logic/gates'
 import { loadStore, StoreValidationError, withStore } from '../src/logic/storage'
-import { settlementDay, sparksBalance, todayInGameTz } from '../src/logic/sparks'
+import { gameTzOffset, settlementDay, sparksBalance, todayInGameTz } from '../src/logic/sparks'
 import {
   QUEST_FILTERS, ViewError, parseWeeks, questView, questsView, ranksView, skillsView, starsView, statsView, statusView,
   walletView, wishlistView, type QuestFilter,
@@ -43,10 +43,10 @@ const MIME: Record<string, string> = {
 }
 const BODY_LIMIT = 1_000_000
 
-/** «Сегодня» маршрутов чтения — одна точка на весь сервер. Игровой день, как
- * ctx.today у CLI: иначе GET /api/<команда> разошёлся бы с `cli.js <команда> --json`. */
-function serverToday(): string {
-  return todayInGameTz()
+/** «Сегодня» маршрутов чтения — одна точка на весь сервер. Игровой день в поясе мира,
+ * как ctx.today у CLI: иначе GET /api/<команда> разошёлся бы с `cli.js <команда> --json`. */
+function serverToday(store: Store): string {
+  return todayInGameTz(gameTzOffset(store))
 }
 
 /** Маршрут чтения: store, «сегодня» и query → срез ядра (logic/views). */
@@ -154,7 +154,7 @@ export function createApp({ storePath, publicDir, allowedOrigins }: AppOptions):
       return json(res, code, { error: code === 503 ? 'store не инициализирован: stargaze import <file>' : String(e) })
     }
     try {
-      return json(res, 200, route(store, serverToday(), query))
+      return json(res, 200, route(store, serverToday(store), query))
     } catch (e) {
       if (!(e instanceof ViewError)) throw e
       return json(res, VIEW_ERROR_STATUS[e.kind], { error: e.message, ...(e.matches ? { matches: e.matches } : {}) })
@@ -204,7 +204,7 @@ export function createApp({ storePath, publicDir, allowedOrigins }: AppOptions):
             const replay = Boolean(action.opId && (s.ledger ?? []).some((e) => e.opId === action.opId))
             if (item?.kind === 'small' && !item.archived && item.price !== undefined && !replay) {
               // день расчёта — как в редьюсере: иначе устаревший day дал бы 200 поверх тихого no-op
-              const balance = sparksBalance(s, settlementDay(action.day, action.ts))
+              const balance = sparksBalance(s, settlementDay(action.day, action.ts, gameTzOffset(s)))
               if (!Number.isFinite(balance))
                 throw new EconomyGateError('баланс не вычислим — проверь day/ts в payload')
               if (balance < item.price)
@@ -214,7 +214,7 @@ export function createApp({ storePath, publicDir, allowedOrigins }: AppOptions):
           if (action.type === 'spendSparks') {
             const replay = Boolean(action.opId && (s.ledger ?? []).some((e) => e.opId === action.opId))
             if (!replay && Number.isInteger(action.amount) && action.amount > 0) {
-              const balance = sparksBalance(s, settlementDay(action.day, action.ts))
+              const balance = sparksBalance(s, settlementDay(action.day, action.ts, gameTzOffset(s)))
               if (!Number.isFinite(balance))
                 throw new EconomyGateError('баланс не вычислим — проверь day/ts в payload')
               if (balance < action.amount)
@@ -227,7 +227,7 @@ export function createApp({ storePath, publicDir, allowedOrigins }: AppOptions):
             if (item?.kind === 'big' && !item.claimedAt && star && !star.litAt)
               throw new EconomyGateError(`звезда «${star.title}» (${star.id}) ещё не зажжена`)
           }
-          if (action.type === 'moveDueDate' && action.to < settlementDay(action.day, action.ts))
+          if (action.type === 'moveDueDate' && action.to < settlementDay(action.day, action.ts, gameTzOffset(s)))
             throw new EconomyGateError('перенос дедлайна в прошлое запрещён')
           if (action.type === 'archiveSkill') {
             const contracts = s.quests

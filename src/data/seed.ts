@@ -1,14 +1,17 @@
 import type { LedgerEvent, Quest, Skill, StarComponent, Store, WishlistItem } from '../types'
-import { dayInGameTz } from '../logic/sparks'
+import { dayInGameTz, gameTzOffset } from '../logic/sparks'
 
 // Демо-мир первого запуска: вымышленный персонаж и нейтральные навыки.
 // Дедлайны считаются от текущего дня: сид генерируется один раз (первый
 // запуск) и дальше живёт в store, а статичные даты протухли бы и встречали
 // бы нового пользователя просрочками и капанием искр.
 
-export function seedStore(): Store {
+/** tzOffsetMin — пояс мира, который сид наследует (сброс к сиду его не теряет);
+ * нет — поле не пишется, действует умолчание. */
+export function seedStore(tzOffsetMin?: number): Store {
   const ts = new Date().toISOString()
-  const inDays = (n: number) => dayInGameTz(new Date(Date.now() + n * 86_400_000).toISOString())
+  const tz = gameTzOffset({ tzOffsetMin })
+  const inDays = (n: number) => dayInGameTz(new Date(Date.now() + n * 86_400_000).toISOString(), tz)
 
   const skill = (id: string, emoji: string, name: string, hue: number, wantStatement: string): Skill =>
     ({ id, emoji, name, hue, wantStatement, archived: false, createdAt: ts })
@@ -37,7 +40,7 @@ export function seedStore(): Store {
   const startCapital: LedgerEvent = {
     id: 'l_seed_start',
     ts,
-    day: dayInGameTz(ts),
+    day: dayInGameTz(ts, tz),
     kind: 'adjust',
     amount: 150,
     note: 'Стартовые искры демо-мира',
@@ -114,5 +117,6 @@ export function seedStore(): Store {
       wish('w_grinder', 'small', 'Кофемолка мечты', { emoji: '☕', originalPrice: '≈ 8 000 ₽' }),
       wish('w_trip', 'big', 'Выходные в горах', { starId: 'st_h3', emoji: '🏔️' }),
     ],
+    ...(tzOffsetMin !== undefined ? { tzOffsetMin } : {}),
   }
 }

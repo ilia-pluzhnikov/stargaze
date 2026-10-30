@@ -4,7 +4,7 @@ import { isCalendarDay } from './dates'
 import { pickQuest, pickSkill, pickStar, pickWishlistItem } from './entityKeys'
 import { migrateStore } from './migrate'
 import { netForQuest, netForQuestOnDay } from './selectors'
-import { cancelFeeFor, dayInGameTz, earnWindowOk, FREE_MOVES_PER_7D, moveFeeFor, movesUsedIn7d, provisionForQuest, purchasedDays, settlementDay, sparksBalance } from './sparks'
+import { cancelFeeFor, dayInGameTz, earnWindowOk, FREE_MOVES_PER_7D, gameTzOffset, isGameTzOffset, moveFeeFor, movesUsedIn7d, provisionForQuest, purchasedDays, settlementDay, sparksBalance } from './sparks'
 import { ancestorsOf } from './stars'
 import { seedStore } from '../data/seed'
 
@@ -40,6 +40,7 @@ export type Action =
   | { type: 'spendSparks'; amount: number; note: string; day: string; ts: string; opId?: string }
   | { type: 'claimReward'; itemId: string; ts: string }
   | { type: 'adjustSparks'; amount: number; note: string; day: string; ts: string }
+  | { type: 'setGameTz'; offsetMin: number } // минуты от UTC; негодный офсет — no-op
 
 /** Все типы действий — для валидации на границе API. Полнота гарантируется компайл-проверкой ниже. */
 export const ACTION_TYPES = [
@@ -47,7 +48,7 @@ export const ACTION_TYPES = [
   'addSkill', 'updateSkill', 'archiveSkill',
   'addStar', 'updateStar', 'removeStar', 'lightStar', 'unlightStar',
   'proposeQuest', 'acceptQuest', 'rejectQuest',
-  'setCharacter', 'importStore', 'resetToSeed',
+  'setCharacter', 'importStore', 'resetToSeed', 'setGameTz',
   'moveDueDate',
   'addWishlistItem', 'updateWishlistItem', 'archiveWishlistItem',
   'purchaseItem', 'spendSparks', 'claimReward', 'adjustSparks',
@@ -106,6 +107,8 @@ function wishlistShapeOk(store: Store, item: WishlistItem, excludeId?: string): 
 }
 
 export function reducer(store: Store, action: Action): Store {
+  // игровой пояс — свойство мира: все дни из ts в редьюсере считаются по нему
+  const tz = gameTzOffset(store)
   switch (action.type) {
     case 'completeQuest': {
       const quest = store.quests.find((q) => q.id === action.questId)
@@ -115,11 +118,11 @@ export function reducer(store: Store, action: Action): Store {
         // append-only xpLog от агента с --day из будущего. Нераспознанный или нестроковый ts
         // дня не даёт — гейт молчит: денег такая отметка не получит (earnWindowOk → false),
         // а битый ts отклонит валидатор
-        const tsDay = typeof action.ts === 'string' ? dayInGameTz(action.ts) : ''
+        const tsDay = typeof action.ts === 'string' ? dayInGameTz(action.ts, tz) : ''
         if (isCalendarDay(tsDay) && action.day > tsDay) return store
         // максимум одна отметка в день
         if (netForQuestOnDay(store.xpLog, quest.id, action.day) > 0) return store
-        const pay = earnWindowOk(action.day, action.ts)
+        const pay = earnWindowOk(action.day, action.ts, tz)
           ? [ledgerEvent({ ts: action.ts, day: action.day, kind: 'earn', amount: quest.xpReward, questId: quest.id })]
           : [] // бэкфилл роста легален, бэкфилл денег — нет
         return {
@@ -147,7 +150,7 @@ export function reducer(store: Store, action: Action): Store {
       if (openChildren.length > 0) result.skippedQuestIds = openChildren.map((c) => c.id)
       const opId = genId('op')
       // сдача задним числом не уменьшает долг: вне окна «сегодня/вчера» капание считается по игровому дню ts
-      const provision = provisionForQuest(quest, settlementDay(action.day, action.ts))
+      const provision = provisionForQuest(quest, settlementDay(action.day, action.ts, tz), tz)
       // невычислимый долг — отказ, как недостоверный баланс у покупки: на мусорном ts
       // провизия уходит в NaN, `NaN > 0` ложно, и drain просто не пишется — просроченный
       // на потолок контракт заплатил бы полный R (то же fail-open, только на выплате)
@@ -260,7 +263,7 @@ export function reducer(store: Store, action: Action): Store {
         if (!action.day || !action.ts) return store
         events.push(ledgerEvent({
           ts: action.ts, day: action.day, kind: 'cancelFee',
-          amount: -cancelFeeFor(quest, settlementDay(action.day, action.ts)), questId: quest.id,
+          amount: -cancelFeeFor(quest, settlementDay(action.day, action.ts, tz), tz), questId: quest.id,
         }))
       }
       return {
@@ -379,15 +382,21 @@ export function reducer(store: Store, action: Action): Store {
       // валидность результата проверяет точка записи (storage) или вызывающая голова
       return migrateStore(action.store) as Store
     case 'resetToSeed':
-      return seedStore()
+      // пояс — где живёт игрок, а не содержимое демо-мира: сброс его не трогает
+      return seedStore(store.tzOffsetMin)
+    case 'setGameTz':
+      // дни в логах записаны при создании и не пересчитываются; сдвинутся только
+      // выводимые из ts (принятие квеста для капания) — максимум на сутки
+      if (!isGameTzOffset(action.offsetMin) || action.offsetMin === tz) return store
+      return { ...store, tzOffsetMin: action.offsetMin }
     case 'moveDueDate': {
       const quest = store.quests.find((q) => q.id === action.questId)
       if (!quest || quest.status !== 'active' || quest.type === 'repeating' || !quest.dueDate) return store
       if (!isCalendarDay(action.to)) return store
-      const settled = settlementDay(action.day, action.ts)
+      const settled = settlementDay(action.day, action.ts, tz)
       if (action.to < settled) return store // перенос в прошлое двойно считал бы просрочку
       if (action.to === quest.dueDate) return store // та же дата — no-op без траты слота
-      const provision = provisionForQuest(quest, settled)
+      const provision = provisionForQuest(quest, settled, tz)
       // окно квоты и день записи в нём — обязательно один день: на сыром day окно
       // [day−6, day] уезжает в пустоту, а запись ложится мимо окна следующего
       // переноса, и платный перенос становится бесплатным сколько угодно раз
@@ -451,7 +460,7 @@ export function reducer(store: Store, action: Action): Store {
       // единственный несгибаемый гейт: force нет. Недостоверный баланс — тоже отказ:
       // на мусорном ts день расчёта не вычисляется, провизия уходит в NaN, и
       // сравнение `NaN < price` ложно — гейт открылся бы сам собой (fail-open)
-      const balance = sparksBalance(store, settlementDay(action.day, action.ts))
+      const balance = sparksBalance(store, settlementDay(action.day, action.ts, tz))
       if (!Number.isFinite(balance) || balance < item.price) return store
       return {
         ...store,
@@ -467,7 +476,7 @@ export function reducer(store: Store, action: Action): Store {
       const note = action.note.trim()
       if (!note) return store
       if (action.opId && (store.ledger ?? []).some((e) => e.opId === action.opId)) return store
-      const balance = sparksBalance(store, settlementDay(action.day, action.ts)) // недостоверный — отказ, как у покупки
+      const balance = sparksBalance(store, settlementDay(action.day, action.ts, tz)) // недостоверный — отказ, как у покупки
       if (!Number.isFinite(balance) || balance < action.amount) return store
       return {
         ...store,

@@ -8,8 +8,8 @@ import { migrateStore } from '../src/logic/migrate'
 import { epicProgress, questChildren, questDoneOnDay } from '../src/logic/selectors'
 import { isCalendarDay } from '../src/logic/dates'
 import {
-  FREE_MOVES_PER_7D, MOVE_FEE_RATE, cancelFeeFor, dayInGameTz, moveFeeFor,
-  movesUsedIn7d, provisionForQuest, purchasedDays, sparksBalance,
+  FREE_MOVES_PER_7D, MOVE_FEE_RATE, cancelFeeFor, gameTzOffset, moveFeeFor,
+  movesUsedIn7d, provisionForQuest, purchasedDays, sparksBalance, todayInGameTz,
 } from '../src/logic/sparks'
 import { weeklyXp } from '../src/logic/stats'
 import {
@@ -49,7 +49,8 @@ interface Ctx {
   storePath: string
   json: boolean
   io: Io
-  today: string
+  /** Игровой день в поясе мира; вычисляется при первом обращении — из store. */
+  readonly today: string
 }
 
 export function runCli(argv: string[], io: Io): number {
@@ -108,7 +109,15 @@ export function runCli(argv: string[], io: Io): number {
     // машины с 00:00 до 07:00 по Бангкоку отстаёт на сутки. Отсюда идёт day и в
     // ledger (провизия, неустойка, квота переносов), и в xpLog — с todayKey()
     // консоль писала бы вчерашний день, расходясь с вебом и с фактическим игровым днём.
-    const ctx: Ctx = { storePath, json: values.json, io, today: dayInGameTz(new Date().toISOString()) }
+    // Пояс — свойство мира (store.tzOffsetMin), поэтому день лениво считается из store
+    // при первом обращении: validate и import до чтения store не доходят, им он не нужен
+    let today: string | undefined
+    const ctx: Ctx = {
+      storePath, json: values.json, io,
+      get today() {
+        return (today ??= todayInGameTz(gameTzOffset(loadStore(storePath))))
+      },
+    }
 
     switch (command) {
       case 'status':
@@ -734,7 +743,7 @@ function cmdArchive(ctx: Ctx, prefix: string | undefined, yes: boolean): number 
       2,
     )
   // цену показываем до согласия: списание необратимо (ledger append-only)
-  const fee = quest.status === 'active' && quest.type !== 'repeating' ? cancelFeeFor(quest, ctx.today) : 0
+  const fee = quest.status === 'active' && quest.type !== 'repeating' ? cancelFeeFor(quest, ctx.today, gameTzOffset(s)) : 0
   if (fee > 0 && !yes)
     throw new CliError(
       `отмена контракта «${quest.title}» спишет неустойку −${fee} ✨\n` +
@@ -792,7 +801,7 @@ function cmdMove(ctx: Ctx, prefix?: string, to?: string): number {
   if (to === quest.dueDate) throw new CliError(`дедлайн уже ${to}`, 2)
   const used = movesUsedIn7d(s, ctx.today)
   const fee = used >= FREE_MOVES_PER_7D ? moveFeeFor(quest) : 0
-  const provision = provisionForQuest(quest, ctx.today)
+  const provision = provisionForQuest(quest, ctx.today, gameTzOffset(s))
   applyOrFail(ctx, { type: 'moveDueDate', questId, to, day: ctx.today, ts: new Date().toISOString() }, 'перенос не выполнен')
   const lines = [`дедлайн ${quest.dueDate} → ${to} · ${quest.title}`]
   if (provision > 0) lines.push(`долг −${provision} ✨ зафиксирован (переехал с датой)`)

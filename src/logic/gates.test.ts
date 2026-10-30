@@ -48,6 +48,7 @@ describe('actionShapeError: валидная форма', () => {
     { type: 'spendSparks', amount: 10, note: 'кофе', day: DAY, ts: TS, opId: 'op2' },
     { type: 'claimReward', itemId: 'w2', ts: TS },
     { type: 'adjustSparks', amount: -5, note: 'поправка', day: DAY, ts: TS },
+    { type: 'setGameTz', offsetMin: 300 },
   ]
 
   it('образцы покрывают все типы действий', () => {

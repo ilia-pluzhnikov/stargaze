@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Quest, Store, WishlistItem } from '../types'
 import { LEDGER_KIND_LABEL } from '../types'
 import { formatDayShort } from '../logic/dates'
-import { ledgerTotal, provisionForQuest, provisionTotal, purchasedDays, sparksBalance } from '../logic/sparks'
+import { gameTzOffset, ledgerTotal, provisionForQuest, provisionTotal, purchasedDays, sparksBalance } from '../logic/sparks'
 import { SavingsTrack } from './SavingsTrack'
 import { WishVisual } from './WishVisual'
 import { trackModel } from '../logic/track'
@@ -40,7 +40,7 @@ export function Wallet({ store, today, onPurchase, onSpend, onClaim, onAddItem, 
 
   const balance = sparksBalance(store, today)
   const provisions = store.quests
-    .map((quest) => ({ quest, p: provisionForQuest(quest, today) }))
+    .map((quest) => ({ quest, p: provisionForQuest(quest, today, gameTzOffset(store)) }))
     .filter((x) => x.p > 0)
   const items = (store.wishlist ?? []).filter((w) => !w.archived)
   // повторяющиеся радости сверху, разовые под ними (внутри групп — порядок store)

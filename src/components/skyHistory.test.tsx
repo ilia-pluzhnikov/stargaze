@@ -37,6 +37,7 @@ const fx: SkyStore = {
 }
 const PAST = '2026-04-01' // на небе только «eng»: a1 (горит), a2 и call
 const RUN_EMPTY = '2026-06-01' // «run» уже создан, звёзд в нём ещё нет
+const TODAY = '2026-08-01' // «сегодня» App: позже всех дат fixture
 
 const noop = () => {}
 const actions: GalaxyActions = { onAddStar: noop, onLightStar: noop, onUnlightStar: noop, onEditStar: noop }
@@ -56,7 +57,7 @@ const renderGalaxy = (store: SkyStore, skillId: string, opts: GalaxyOpts = {}) =
   return renderToStaticMarkup(
     <GalaxyView store={store} layoutFrom={opts.layoutFrom} skill={current} skills={skills}
       selectedStarId={opts.selectedStarId ?? null} onSelectStar={noop} onSwitch={noop} onBack={noop}
-      actions={opts.actions} />,
+      actions={opts.actions} today={TODAY} />,
   )
 }
 

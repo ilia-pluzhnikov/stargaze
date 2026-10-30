@@ -63,6 +63,17 @@ describe('validateStore', () => {
   it('битый character', () =>
     expect(validateStore({ ...base(), character: { name: 5 } }).join()).toMatch(/character/))
 
+  it('tzOffsetMin: нет поля и годный офсет валидны', () => {
+    expect(validateStore(base())).toEqual([])
+    for (const tzOffsetMin of [300, 330, -210, 0, -720, 840]) expect(validateStore(base({ tzOffsetMin }))).toEqual([])
+  })
+  it('tzOffsetMin: не целое, не кратное 15, вне −720…840, не число — ошибка', () => {
+    for (const bad of [300.5, 310, 855, -735, '300', null, NaN]) {
+      const s = { ...base(), tzOffsetMin: bad }
+      expect(validateStore(s).join(), String(bad)).toMatch(/tzOffsetMin: ожидается целое число минут/)
+    }
+  })
+
   it('дубликат id квеста', () => {
     const s = base({ quests: [quest({ id: 'q1' }), quest({ id: 'q1' })] })
     expect(validateStore(s).join()).toMatch(/дубликат id/)
