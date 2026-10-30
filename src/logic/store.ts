@@ -1,6 +1,7 @@
 import type { Character, LedgerEvent, Quest, QuestDueDateMove, QuestResult, Skill, StarComponent, Store, WishlistItem, XpEvent } from '../types'
 import { CHARACTER_AVATAR_MAX, WISHLIST_EMOJI_MAX } from '../types'
 import { isCalendarDay } from './dates'
+import { pickQuest, pickSkill, pickStar, pickWishlistItem } from './entityKeys'
 import { migrateStore } from './migrate'
 import { netForQuest, netForQuestOnDay } from './selectors'
 import { cancelFeeFor, dayInGameTz, earnWindowOk, FREE_MOVES_PER_7D, moveFeeFor, movesUsedIn7d, provisionForQuest, purchasedDays, settlementDay, sparksBalance } from './sparks'
@@ -214,7 +215,7 @@ export function reducer(store: Store, action: Action): Store {
       }
     }
     case 'addQuest':
-      return { ...store, quests: [...store.quests, action.quest] }
+      return { ...store, quests: [...store.quests, pickQuest(action.quest)] }
     case 'updateQuest': {
       const prev = store.quests.find((q) => q.id === action.quest.id)
       if (!prev) return store
@@ -237,12 +238,14 @@ export function reducer(store: Store, action: Action): Store {
       // status двигают только доменные действия (accept/complete/uncomplete/archive):
       // иначе done воскрешается редактором и платит второй earn мимо компенсации
       // resultHistory/dueDateHistory/acceptedAt/archivedAt тоже пишет только редьюсер (как skippedDod)
-      const next: Quest = {
+      // next — из payload, а не из prev: лишнее (children/progress из `quest --json`) отсекает
+      // белый список, а мусор, осевший в prev раньше, уходит этой же правкой
+      const next = pickQuest({
         ...action.quest,
         status: prev.status, resultHistory: prev.resultHistory,
         dueDateHistory: prev.dueDateHistory, acceptedAt: prev.acceptedAt, archivedAt: prev.archivedAt,
         ...frozen,
-      }
+      })
       return { ...store, quests: store.quests.map((q) => (q.id === next.id ? next : q)) }
     }
     case 'archiveQuest': {
@@ -271,9 +274,11 @@ export function reducer(store: Store, action: Action): Store {
       }
     }
     case 'addSkill':
-      return { ...store, skills: [...store.skills, action.skill] }
-    case 'updateSkill':
-      return { ...store, skills: store.skills.map((s) => (s.id === action.skill.id ? action.skill : s)) }
+      return { ...store, skills: [...store.skills, pickSkill(action.skill)] }
+    case 'updateSkill': {
+      const next = pickSkill(action.skill)
+      return { ...store, skills: store.skills.map((s) => (s.id === next.id ? next : s)) }
+    }
     case 'archiveSkill':
       // активные контракты навыка блокируют архив: нельзя ни молча оштрафовать каждый, ни отпустить бесплатно
       if (store.quests.some((q) => q.skillId === action.skillId && q.status === 'active' && q.type !== 'repeating'))
@@ -289,7 +294,7 @@ export function reducer(store: Store, action: Action): Store {
         }),
       }
     case 'addStar': {
-      const star = action.star
+      const star = pickStar(action.star)
       if (!store.skills.some((s) => s.id === star.skillId)) return store
       if (star.parentStarId !== null) {
         const p = store.stars.find((c) => c.id === star.parentStarId)
@@ -300,7 +305,7 @@ export function reducer(store: Store, action: Action): Store {
     case 'updateStar': {
       const prev = store.stars.find((c) => c.id === action.star.id)
       if (!prev) return store
-      const next = { ...action.star, skillId: prev.skillId, litAt: prev.litAt, evidence: prev.evidence }
+      const next = pickStar({ ...action.star, skillId: prev.skillId, litAt: prev.litAt, evidence: prev.evidence })
       if (next.parentStarId !== null) {
         const p = store.stars.find((c) => c.id === next.parentStarId)
         if (!p || p.skillId !== next.skillId) return store
@@ -336,7 +341,7 @@ export function reducer(store: Store, action: Action): Store {
         ),
       }
     case 'proposeQuest': {
-      const q = action.quest
+      const q = pickQuest(action.quest)
       if (q.status !== 'proposed') return store
       if (q.skillId && !store.skills.some((s) => s.id === q.skillId)) return store
       if (q.starId && !store.stars.some((c) => c.id === q.starId)) return store
@@ -413,21 +418,22 @@ export function reducer(store: Store, action: Action): Store {
       }
     }
     case 'addWishlistItem': {
-      if ((store.wishlist ?? []).some((w) => w.id === action.item.id)) return store
+      const item = pickWishlistItem(action.item)
+      if ((store.wishlist ?? []).some((w) => w.id === item.id)) return store
       // archived ставит только archiveWishlistItem: позиция не рождается в архиве.
       // Проверка здесь, а не в форме, — иначе она съела бы легальную правку архивной позиции
-      if (action.item.archived) return store
-      if (!wishlistShapeOk(store, action.item)) return store
-      return { ...store, wishlist: [...(store.wishlist ?? []), action.item] }
+      if (item.archived) return store
+      if (!wishlistShapeOk(store, item)) return store
+      return { ...store, wishlist: [...(store.wishlist ?? []), item] }
     }
     case 'updateWishlistItem': {
       const prev = (store.wishlist ?? []).find((w) => w.id === action.item.id)
       if (!prev || prev.claimedAt) return store // полученное не переписывается
       // kind/createdAt/claimedAt/archived пишет только редьюсер — payload их не меняет
-      const next: WishlistItem = {
+      const next = pickWishlistItem({
         ...action.item, kind: prev.kind, createdAt: prev.createdAt,
         claimedAt: prev.claimedAt, archived: prev.archived,
-      }
+      })
       if (!wishlistShapeOk(store, next, next.id)) return store
       return { ...store, wishlist: (store.wishlist ?? []).map((w) => (w.id === next.id ? next : w)) }
     }
