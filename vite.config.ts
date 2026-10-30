@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 // base './' — относительные пути: сборка раздаётся из любой подпапки. С диска (file://)
@@ -8,5 +8,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'node',
+    // worktree агентов и рабочие заметки — чужие копии тестов и проверки с env, не наш набор
+    exclude: [...configDefaults.exclude, '.claude/**', '.superpowers/**'],
   },
 })
