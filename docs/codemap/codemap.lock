@@ -1,16 +1,21 @@
 {
-  "commit": "8ef42034675bc6ecb583ccf6c7081bd11641eb6d",
+  "commit": "7b21d822c7d18f78720761e536e23796d4ac19e3",
   "working_tree_dirty": true,
   "dirty_files": [
     "PI.md",
     "CHANGELOG.md",
     "CLAUDE.md",
-    "docs/codemap/codemap.html",
-    "docs/codemap/codemap.json",
-    "docs/codemap/codemap.lock",
-    "docs/codemap/model.mjs"
+    "docs/codemap/model.mjs",
+    "server/app.test.ts",
+    "server/app.ts",
+    "src/logic/entityKeys.test.ts",
+    "src/logic/gates.test.ts",
+    "src/logic/gates.ts",
+    "src/logic/sparks.test.ts",
+    "src/logic/sparks.ts",
+    "src/logic/store.ts"
   ],
-  "generated_at": "2026-10-30T12:43:10.115Z",
+  "generated_at": "2026-10-30T19:05:05.146Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -119,7 +124,7 @@
         "src/logic/store.test.ts",
         "src/logic/store.ts"
       ],
-      "fingerprint": "3f6b254f22d9d42818bc81de8afbc110f5f7933721e67a2dc060fb862d38ab63"
+      "fingerprint": "e167307ed9359ed89bf3dceb68d0f66e8fe01ad85c21c215054beca9612113a6"
     },
     "core-gates": {
       "path": "src/logic/gates.ts",
@@ -128,7 +133,7 @@
         "src/logic/gates.test.ts",
         "src/logic/gates.ts"
       ],
-      "fingerprint": "9cc5cb32ae9cf7491a22f69cf137e1371e14056d12f7e6ef4802c8d66fdb76dd"
+      "fingerprint": "1c9e89d2e76e29b1e3b466b50e98aad7485da63160c228a0352db55e0a86a884"
     },
     "core-views": {
       "path": "src/logic/views.ts",
@@ -147,7 +152,7 @@
         "src/logic/sparks.test.ts",
         "src/logic/sparks.ts"
       ],
-      "fingerprint": "6c124761284c98a334103511a7836c20101d7fc907036b0b03e81d6ca9cba89d"
+      "fingerprint": "9fc6f6e08bacc28471c3b0367f8711f0e32f9cb000ccb84264e7a6777c7fd65e"
     },
     "core-stars": {
       "path": "src/logic/stars.ts",
@@ -229,7 +234,7 @@
         "server/app.ts",
         "server/main.ts"
       ],
-      "fingerprint": "b7f3ef724a44e96b4d3a4c14d9d5ad2f49ee6dbd866f34654258aa925cc285ab"
+      "fingerprint": "952855eecc35fdda60b6792228887a2f9fa7d0dc14a4b7bc2deb8f17ce254198"
     },
     "cli": {
       "path": "cli/app.ts",
@@ -272,8 +277,13 @@
   },
   "previous": {
     "commit": "8ef42034675bc6ecb583ccf6c7081bd11641eb6d",
-    "generated_at": "2026-10-30T12:42:57.063Z",
-    "changed_modules": [],
+    "generated_at": "2026-10-30T12:43:10.115Z",
+    "changed_modules": [
+      "core-store",
+      "core-gates",
+      "core-sparks",
+      "server"
+    ],
     "new_modules": [],
     "removed_modules": []
   },

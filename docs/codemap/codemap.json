@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-30T12:43:10.115Z",
-  "generated_from_commit": "8ef42034675bc6ecb583ccf6c7081bd11641eb6d",
+  "generated_at": "2026-10-30T19:05:05.146Z",
+  "generated_from_commit": "7b21d822c7d18f78720761e536e23796d4ac19e3",
   "scope": [
     "src/",
     "cli/",
@@ -341,7 +341,7 @@
           "symbol": "satisfies Record<keyof Quest, true>"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "core-gates",
@@ -356,6 +356,7 @@
       ],
       "entrypoints": [
         "actionShapeError(x)",
+        "dropNullOptionals(action)",
         "completeQuestRefusal(store, action)",
         "storeChanged(prev, next)"
       ],
@@ -364,6 +365,7 @@
       ],
       "constraints": [
         "Форма выводится из union Action, полнота — компайл-проверкой (SHAPES)",
+        "null в необязательном поле — «поля нет»: форма его принимает, dropNullOptionals убирает до редьюсера",
         "Каждый отказ completeQuestRefusal — no-op редьюсера на том же действии; порядок проверок — как в редьюсере",
         "Stargaze-Applied — по содержимому, не по ссылке: редьюсер пересобирает store и на no-op"
       ],
@@ -381,7 +383,7 @@
           "symbol": "export function storeChanged"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "core-views",
@@ -472,7 +474,7 @@
           "symbol": "export const SPARKS_EPOCH"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "core-stars",
@@ -806,7 +808,7 @@
           "symbol": "process.env.STARGAZE_STORE ?? process.env.QUESTLOG_STORE"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "cli",
@@ -1603,7 +1605,7 @@
       "evidence": [
         {
           "path": "src/logic/gates.ts",
-          "symbol": "import { dayInGameTz, gameTzOffset } from './sparks'"
+          "symbol": "import { dayInGameTz, gameTzOffset, provisionForQuest, settlementDay } from './sparks'"
         }
       ]
     },

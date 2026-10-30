@@ -346,6 +346,7 @@ describe('API: честные ответы /api/action', () => {
     xpLog: [],
     quests: [
       contract('q1'),
+      contract('q_due', { dueDate: '2026-10-20' }),
       contract('q_dod', { definitionOfDone: [{ text: 'Черновик', done: true }, { text: 'Ревью' }, { text: 'Публикация' }] }),
       { id: 'h1', title: 'Зарядка', type: 'repeating', skillId: 's1', xpReward: 10, status: 'active', createdAt: TS },
     ] as Store['quests'],
@@ -462,6 +463,25 @@ describe('API: честные ответы /api/action', () => {
       const r = await post(base, { type: 'completeQuest', questId: 'h1', day: '2026-10-31', ts: TS })
       expect(r.status).toBe(422)
       expect(await errorOf(r)).toMatch(/^отметка наперёд/)
+      expect(readFileSync(storePath, 'utf8')).toBe(before)
+    }))
+
+  it('null в необязательном поле — как поле не прислали: 200 и запись', () =>
+    withApp(async (base) => {
+      const r = await post(base, { type: 'completeQuest', questId: 'h1', day: DAY, ts: TS, result: null, force: null })
+      expect(r.status).toBe(200)
+      expect(r.headers.get('stargaze-applied')).toBe('1')
+      const done = await post(base, { type: 'completeQuest', questId: 'q1', day: DAY, ts: TS, result: { summary: 'итог' }, force: null })
+      expect(done.status).toBe(200)
+      expect(done.headers.get('stargaze-applied')).toBe('1')
+    }))
+
+  it('контракт со сроком и нечитаемым ts → 422 с причиной, store не тронут', () =>
+    withApp(async (base, storePath) => {
+      const before = readFileSync(storePath, 'utf8')
+      const r = await post(base, { type: 'completeQuest', questId: 'q_due', day: DAY, ts: 'вчера вечером', result: { summary: 'итог' } })
+      expect(r.status).toBe(422)
+      expect(await errorOf(r)).toMatch(/^ts «вчера вечером» не читается/)
       expect(readFileSync(storePath, 'utf8')).toBe(before)
     }))
 
