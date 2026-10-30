@@ -1218,3 +1218,76 @@ describe('cli персонаж', () => {
     expect(run([]).err).toMatch(/character/)
   })
 })
+
+describe('cli: игровой пояс (tz)', () => {
+  it('без аргумента показывает умолчание +7', () => {
+    const r = run(['tz'], tmpStore())
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/игровой пояс: UTC\+07:00 \(по умолчанию\)/)
+  })
+
+  it('tz +05:00 ставит пояс, повторный показ — без «по умолчанию»', () => {
+    const p = tmpStore()
+    const r = run(['tz', '+05:00'], p)
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/UTC\+07:00 → UTC\+05:00/)
+    expect(loadStore(p).tzOffsetMin).toBe(300)
+    expect(run(['tz'], p).out).toMatch(/игровой пояс: UTC\+05:00 · игровой день \d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('отрицательный пояс — после «--»', () => {
+    const p = tmpStore()
+    // --store до «--»: после него всё — позиционные (как у adjust)
+    expect(run(['tz', '--store', p, '--', '-03:30']).code).toBe(0)
+    expect(loadStore(p).tzOffsetMin).toBe(-210)
+  })
+
+  it('--json: офсет в минутах, designator и игровой день', () => {
+    const p = tmpStore()
+    run(['tz', '+5:30'], p)
+    const j = JSON.parse(run(['tz', '--json'], p).out)
+    expect(j.tzOffsetMin).toBe(330)
+    expect(j.tz).toBe('+05:30')
+    expect(j.today).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('мусор — код 2 с форматом в тексте, store не тронут', () => {
+    const p = tmpStore()
+    const before = readFileSync(p, 'utf8')
+    for (const bad of ['+5:10', '+15:00', 'abc', '5', '']) {
+      const r = run(['tz', bad], p)
+      expect(r.code, bad).toBe(2)
+      expect(r.err).toMatch(/±ЧЧ:ММ/)
+    }
+    expect(readFileSync(p, 'utf8')).toBe(before)
+  })
+
+  it('тот же пояс — код 0 без записи', () => {
+    const p = tmpStore()
+    const before = readFileSync(p, 'utf8')
+    const r = run(['tz', '+07:00'], p)
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/UTC\+07:00 \(по умолчанию\)/)
+    expect(readFileSync(p, 'utf8')).toBe(before)
+  })
+
+  it('«сегодня» CLI — в поясе мира: отметка привычки ложится на день по +5, а не по +7', () => {
+    const p = tmpStore()
+    run(['tz', '+05:00'], p)
+    const habit = loadStore(p).quests.find((q) => q.type === 'repeating' && q.status === 'active')!
+    vi.useFakeTimers()
+    // 18:30 UTC 09-10: в +7 это уже 01:30 09-11, в +5 — ещё 23:30 09-10
+    vi.setSystemTime(new Date('2026-09-10T18:30:00.000Z'))
+    try {
+      expect(run(['complete', habit.id], p).code).toBe(0)
+      expect(JSON.parse(run(['tz', '--json'], p).out).today).toBe('2026-09-10')
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(loadStore(p).xpLog.at(-1)?.day).toBe('2026-09-10')
+  })
+
+  it('usage упоминает команду', () => {
+    expect(run([]).err).toMatch(/tz \[±ЧЧ:ММ\]/)
+  })
+})
