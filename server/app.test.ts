@@ -5,8 +5,11 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { seedStore } from '../src/data/seed'
+import { addDays } from '../src/logic/dates'
+import { todayInGameTz } from '../src/logic/sparks'
 import { saveStore } from '../src/logic/storage'
 import type { Store } from '../src/types'
+import { runCli } from '../cli/app'
 import { createApp } from './app'
 
 let server: Server | undefined
@@ -444,4 +447,150 @@ describe('API: честные ответы /api/action', () => {
       expect(r.status).toBe(200)
       expect(r.headers.get('stargaze-applied')).toBe('0')
     }))
+})
+
+describe('API: маршруты чтения', () => {
+  // «сегодня» сервера и CLI — игровой день по часам машины: мир строим от него же
+  const today = todayInGameTz()
+  const ts = new Date().toISOString()
+
+  /** Демо-мир плюс то, на чём срезы ветвятся: эпик с детьми, архив, proposed,
+   * просроченный контракт (баланс в минусе), XP и ledger свежих недель. */
+  const world = (): Store => {
+    const seed = seedStore()
+    return {
+      ...seed,
+      skills: [...seed.skills, { id: 'sk_old', emoji: '🗿', name: 'Былое', wantStatement: '', hue: 0, archived: true, createdAt: ts }],
+      quests: [
+        ...seed.quests,
+        { id: 'q_epic', title: 'Эпик', type: 'mid', skillId: 'sk_learn', xpReward: 200, dueDate: addDays(today, 20), status: 'active', createdAt: '2026-10-01T00:00:00.000Z' },
+        { id: 'q_epic_1', title: 'Шаг 1', type: 'short', skillId: 'sk_learn', xpReward: 20, parentQuestId: 'q_epic', status: 'done', result: { summary: 'ок' }, createdAt: '2026-10-01T01:00:00.000Z' },
+        { id: 'q_epic_2', title: 'Шаг 2', type: 'short', skillId: 'sk_learn', xpReward: 20, parentQuestId: 'q_epic', status: 'active', createdAt: '2026-10-01T02:00:00.000Z' },
+        { id: 'q_late', title: 'Просрочка', type: 'short', skillId: 'sk_health', xpReward: 400, dueDate: addDays(today, -15), status: 'active', createdAt: '2026-08-01T00:00:00.000Z' },
+        { id: 'q_prop', title: 'Предложение', type: 'short', skillId: null, xpReward: 15, status: 'proposed', proposalNote: 'зачем', createdAt: ts },
+        { id: 'q_gone', title: 'Архив', type: 'short', skillId: null, xpReward: 5, status: 'archived', archivedAt: ts, createdAt: ts },
+      ],
+      xpLog: [
+        { id: 'e1', ts, day: today, questId: 'q_walk', skillId: 'sk_health', amount: 15 },
+        { id: 'e2', ts, day: addDays(today, -8), questId: 'q_epic_1', skillId: 'sk_learn', amount: 20 },
+      ],
+      ledger: [...seed.ledger!, { id: 'l_earn', ts, day: today, kind: 'earn', amount: 15, questId: 'q_walk' }],
+    }
+  }
+
+  async function serve(store: Store | null) {
+    const dir = mkdtempSync(join(tmpdir(), 'sg-read-'))
+    const storePath = join(dir, 'store.json')
+    if (store) saveStore(storePath, store)
+    server = createApp({ storePath, publicDir: dir })
+    await new Promise<void>((res) => server!.listen(0, '127.0.0.1', res))
+    return { base: `http://127.0.0.1:${(server!.address() as AddressInfo).port}`, storePath }
+  }
+
+  const cli = (args: string[], storePath: string) => {
+    const out: string[] = []
+    const err: string[] = []
+    const code = runCli([...args, '--json', '--store', storePath], { out: (s) => out.push(s), err: (s) => err.push(s) })
+    return { code, out: out.join('\n'), err: err.join('\n') }
+  }
+
+  // маршрут ↔ команда CLI: ответ обязан совпасть с `--json` до байта (минус отступы)
+  const pairs: [string, string[]][] = [
+    ['/api/status', ['status']],
+    ['/api/wallet', ['wallet']],
+    ['/api/quests', ['quests']],
+    ['/api/quests?filter=today', ['quests', '--today']],
+    ['/api/quests?filter=proposed', ['quests', '--proposed']],
+    ['/api/quests?filter=all', ['quests', '--all']],
+    ['/api/quests?filter=active', ['quests']],
+    ['/api/quests/q_epic', ['quest', 'q_epic']],
+    ['/api/quests/q_run', ['quest', 'q_run']],
+    ['/api/quests/q_gone', ['quest', 'q_gone']],
+    ['/api/skills', ['skills']],
+    ['/api/ranks?skill=sk_health', ['ranks', '--skill', 'sk_health']],
+    ['/api/ranks?skill=sk_old', ['ranks', '--skill', 'sk_old']],
+    ['/api/stars', ['stars']],
+    ['/api/stars?skill=sk_cr&tier=C', ['stars', '--skill', 'sk_cr', '--tier', 'C']],
+    ['/api/stats', ['stats']],
+    ['/api/stats?weeks=2', ['stats', '--weeks', '2']],
+    ['/api/wishlist', ['wishlist']],
+  ]
+
+  it('каждый маршрут отдаёт ровно JSON `cli.js <команда> --json` на том же store', async () => {
+    const { base, storePath } = await serve(world())
+    for (const [path, args] of pairs) {
+      const r = await fetch(base + path)
+      expect(r.status, path).toBe(200)
+      expect(r.headers.get('content-type'), path).toMatch(/application\/json/)
+      const c = cli(args, storePath)
+      expect(c.code, args.join(' ')).toBe(0)
+      expect(await r.text(), path).toBe(JSON.stringify(JSON.parse(c.out)))
+    }
+  })
+
+  it('мир не вырожден: сравнение выше идёт по непустым срезам', async () => {
+    const { base } = await serve(world())
+    const get = async (path: string) => (await fetch(base + path)).json()
+    expect(((await get('/api/status')) as { sparks: { balance: number } }).sparks.balance).toBeLessThan(0)
+    expect(((await get('/api/quests?filter=today')) as { id: string }[]).map((q) => q.id)).toEqual(['q_epic_2', 'q_late'])
+    expect(await get('/api/quests/q_epic')).toMatchObject({ children: ['q_epic_1', 'q_epic_2'], progress: { done: 1, total: 2 } })
+    expect(await get('/api/quests/q_run')).toMatchObject({ id: 'q_run5k' }) // уникальный префикс
+    expect(((await get('/api/wallet')) as { provisions: unknown[] }).provisions).toHaveLength(1)
+  })
+
+  it('чтение не пишет store', async () => {
+    const { base, storePath } = await serve(world())
+    const before = readFileSync(storePath, 'utf8')
+    for (const [path] of pairs) await fetch(base + path)
+    expect(readFileSync(storePath, 'utf8')).toBe(before)
+  })
+
+  it('id квеста: не найден — 404, неоднозначный префикс — 409 с кандидатами; текст — как у CLI', async () => {
+    const { base, storePath } = await serve(world())
+    const missing = await fetch(`${base}/api/quests/q_nope`)
+    expect(missing.status).toBe(404)
+    expect(((await missing.json()) as { error: string }).error).toBe(cli(['quest', 'q_nope'], storePath).err)
+    const ambiguous = await fetch(`${base}/api/quests/q_epic_`)
+    expect(ambiguous.status).toBe(409)
+    expect(await ambiguous.json()).toEqual({
+      error: cli(['quest', 'q_epic_'], storePath).err,
+      matches: ['q_epic_1', 'q_epic_2'],
+    })
+    // точный id выигрывает у потомков-префиксов
+    expect(((await (await fetch(`${base}/api/quests/q_epic`)).json()) as { id: string }).id).toBe('q_epic')
+    expect((await fetch(`${base}/api/quests/%E0%A4%A`)).status).toBe(400)
+  })
+
+  it('кривые параметры — 400 с причиной; неизвестный навык — 404', async () => {
+    const { base, storePath } = await serve(world())
+    const cases: [string, number, string[] | null][] = [
+      ['/api/quests?filter=bogus', 400, null],
+      ['/api/ranks', 400, null],
+      ['/api/ranks?skill=', 400, null],
+      ['/api/ranks?skill=sk_nope', 404, ['ranks', '--skill', 'sk_nope']],
+      ['/api/stars?tier=Z', 400, ['stars', '--tier', 'Z']],
+      ['/api/stars?skill=sk_nope&tier=Z', 404, ['stars', '--skill', 'sk_nope', '--tier', 'Z']],
+      ['/api/stats?weeks=0', 400, ['stats', '--weeks', '0']],
+      ['/api/stats?weeks=53', 400, ['stats', '--weeks', '53']],
+    ]
+    for (const [path, status, args] of cases) {
+      const r = await fetch(base + path)
+      expect(r.status, path).toBe(status)
+      const { error } = (await r.json()) as { error: string }
+      if (args) expect(error, path).toBe(cli(args, storePath).err)
+      else expect(error, path).toBeTruthy()
+    }
+  })
+
+  it('без store — 503 на каждом маршруте, как у /api/store', async () => {
+    const { base } = await serve(null)
+    for (const [path] of pairs) expect((await fetch(base + path)).status, path).toBe(503)
+  })
+
+  it('не маршруты: /api/constructor — 404, POST /api/status — 405', async () => {
+    const { base } = await serve(world())
+    expect((await fetch(`${base}/api/constructor`)).status).toBe(404)
+    expect((await fetch(`${base}/api/quests/`)).status).toBe(404)
+    expect((await fetch(`${base}/api/status`, { method: 'POST', body: '{}' })).status).toBe(405)
+  })
 })
