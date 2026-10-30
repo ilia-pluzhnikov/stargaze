@@ -44,6 +44,8 @@ interface GalaxyViewProps {
   onBack: () => void
   /** Действия правки; нет = только просмотр (небо в режиме истории). */
   actions?: GalaxyActions
+  /** Игровой «сегодня» из App — один на все виды (пояс мира). */
+  today: string
   /** День проекции в режиме истории; нет = сегодня. */
   asOfDay?: string
   /** Открыть полосу истории; нет = кнопки нет (полоса уже открыта или прошлого ещё нет). */
@@ -60,6 +62,7 @@ export function GalaxyView({
   onSwitch,
   onBack,
   actions,
+  today,
   asOfDay,
   onOpenHistory,
 }: GalaxyViewProps) {
@@ -304,6 +307,7 @@ export function GalaxyView({
           quests={store.quests.filter((q) => q.starId === selectedStar.id && q.status !== 'archived' && q.status !== 'proposed')}
           xpLog={store.xpLog}
           xp={starXp(store.xpLog, store.quests, selectedStar.id)}
+          today={today}
           asOfDay={asOfDay}
           actions={actions && {
             onLight: (evidence, alsoIds) => actions.onLightStar(selectedStar.id, evidence, alsoIds),

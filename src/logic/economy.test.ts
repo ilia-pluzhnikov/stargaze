@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { LedgerEvent, Quest, QuestDueDateMove, Store, WishlistItem } from '../types'
 import { addDays } from './dates'
-import { emissionInDays, provisionForQuest, purchasedDays, sparksBalance } from './sparks'
+import { emissionInDays, gameTzOffset, provisionForQuest, purchasedDays, sparksBalance } from './sparks'
 import { reducer, type Action } from './store'
 import { validateStore } from './validate'
 
@@ -203,7 +203,7 @@ describe('экономика: moveDueDate', () => {
     expect(s.quests[0].dueDateHistory).toEqual([
       { from: DUE, to: addDays(DUE, 10), day, ts: tsAt(day) },
     ])
-    expect(provisionForQuest(s.quests[0], day)).toBe(0) // отсчёт с новой даты заново
+    expect(provisionForQuest(s.quests[0], day, gameTzOffset(s))).toBe(0) // отсчёт с новой даты заново
   })
   it('3 переноса бесплатны, 4-й платный −ceil(R/10) и попадает в history.fee', () => {
     const day = addDays(DUE, -1) // без просрочки, чтобы не мешал drain
@@ -299,7 +299,7 @@ describe('экономика: acceptQuest и archiveSkill', () => {
     const s = reducer(mkStore({ quests: [q] }), { type: 'acceptQuest', questId: 'q1', ts: tsAt(day) })
     expect(s.quests[0].status).toBe('active')
     expect(s.quests[0].acceptedAt).toBe(tsAt(day))
-    expect(provisionForQuest(s.quests[0], day)).toBe(0) // drainStart = день принятия
+    expect(provisionForQuest(s.quests[0], day, gameTzOffset(s))).toBe(0) // drainStart = день принятия
   })
   it('archiveSkill с активным контрактом навыка — побитовый no-op', () => {
     const skill = { id: 's1', emoji: '⚔️', name: 'Навык', wantStatement: '', hue: 200, archived: false, createdAt: tsAt('2026-09-01') }

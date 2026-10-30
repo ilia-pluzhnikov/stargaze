@@ -1,6 +1,6 @@
 import type { Store } from '../types'
 import { isCalendarDay } from './dates'
-import { dayInGameTz } from './sparks'
+import { dayInGameTz, gameTzOffset } from './sparks'
 import { ACTION_TYPES, type Action } from './store'
 
 // Граница API. Агент-гейм-мастер ходит в игру только через POST /api/action, и
@@ -53,6 +53,7 @@ const SHAPES: { [T in Action['type']]: Fields<Extract<Action, { type: T }>> } = 
   spendSparks: { amount: 'number', note: 'string', day: 'day', ts: 'ts', opId: 'string?' },
   claimReward: { itemId: 'id', ts: 'ts' },
   adjustSparks: { amount: 'number', note: 'string', day: 'day', ts: 'ts' },
+  setGameTz: { offsetMin: 'number' },
 }
 
 const EXPECTED: Record<Kind, string> = {
@@ -117,7 +118,7 @@ export function completeQuestRefusal(store: Store, action: Extract<Action, { typ
   const quest = store.quests.find((q) => q.id === action.questId)
   if (!quest || quest.status === 'archived' || quest.status === 'proposed') return null
   if (quest.type === 'repeating') {
-    const tsDay = typeof action.ts === 'string' ? dayInGameTz(action.ts) : ''
+    const tsDay = typeof action.ts === 'string' ? dayInGameTz(action.ts, gameTzOffset(store)) : ''
     if (isCalendarDay(tsDay) && action.day > tsDay)
       return { error: `отметка наперёд: день ${action.day} позже игрового дня ts (${tsDay})` }
     return null

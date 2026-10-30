@@ -4,7 +4,7 @@ import { charXpTotal, epicProgress, isDueToday, questChildren, questDoneOnDay, s
 import { charLevel, skillLevel } from './xp'
 import { currentRank, galaxySummary, isRankAchieved, rankStars, skillTiers } from './stars'
 import {
-  FREE_MOVES_PER_7D, emissionInDays, ledgerTotal, movesUsedIn7d, provisionForQuest, provisionTotal, sparksBalance,
+  FREE_MOVES_PER_7D, emissionInDays, gameTzOffset, ledgerTotal, movesUsedIn7d, provisionForQuest, provisionTotal, sparksBalance,
 } from './sparks'
 import { weeklyXp } from './stats'
 
@@ -94,7 +94,7 @@ export function walletView(store: Store, today: string): WalletView {
     ledgerTotal: ledgerTotal(store),
     provisionTotal: provisionTotal(store, today),
     provisions: store.quests
-      .map((q) => ({ questId: q.id, title: q.title, provision: provisionForQuest(q, today), cap: q.xpReward }))
+      .map((q) => ({ questId: q.id, title: q.title, provision: provisionForQuest(q, today, gameTzOffset(store)), cap: q.xpReward }))
       .filter((p) => p.provision > 0),
     moves: { used: movesUsedIn7d(store, today), free: FREE_MOVES_PER_7D },
     emission: { d7: emissionInDays(store, today, 7), d30: emissionInDays(store, today, 30) },

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { Quest, QuestDodItem, QuestResult, Skill, SkyStore, StarComponent, WishlistItem } from './types'
 import { useStore } from './hooks/useStore'
 import { genId } from './logic/store'
-import { cancelFeeFor, sparksBalance, todayInGameTz } from './logic/sparks'
+import { cancelFeeFor, gameTzOffset, sparksBalance, todayInGameTz } from './logic/sparks'
 import { recurringDashboard } from './logic/recurring'
 import { addDays, formatDayWithDow } from './logic/dates'
 import { charLevel, skillLevel } from './logic/xp'
@@ -59,9 +59,10 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [levelUps, setLevelUps] = useState<LevelUp[]>([])
 
-  // Игровой пояс, а не календарный день браузера: «сегодня» уходит и в ledger, и в
-  // xpLog — в поездке локальный день разошёлся бы с CLI и сервером
-  const today = todayInGameTz()
+  // Игровой пояс мира (store.tzOffsetMin), а не календарный день браузера: «сегодня»
+  // уходит и в ledger, и в xpLog — в поездке локальный день разошёлся бы с CLI и сервером
+  const tz = gameTzOffset(store)
+  const today = todayInGameTz(tz)
   const charInfo = charLevel(charXpTotal(store.xpLog))
   const balance = sparksBalance(store, today)
   const chronicleData = useMemo(() => {
@@ -227,7 +228,7 @@ export default function App() {
   const questFrozen = Boolean(questModalQuest && questModalQuest.status !== 'proposed' && questModalQuest.type !== 'repeating')
   // неустойку платит только живой контракт: done и archived уходят в архив бесплатно
   const questContractActive = Boolean(questModalQuest && questModalQuest.status === 'active' && questModalQuest.type !== 'repeating')
-  const questCancelFee = questContractActive && questModalQuest ? cancelFeeFor(questModalQuest, today) : null
+  const questCancelFee = questContractActive && questModalQuest ? cancelFeeFor(questModalQuest, today, tz) : null
 
   const panelSkill = (skillPanelId && store.skills.find((s) => s.id === skillPanelId && !s.archived)) || null
   // редьюсер молча не архивирует навык с активными контрактами — причину показываем, а не закрываем панель
@@ -260,7 +261,7 @@ export default function App() {
   )
   // «сегодня» — на момент клика, а не рендера: вкладка, простоявшая через игровую полночь,
   // иначе открыла бы полосу на «вчера» в режиме просмотра
-  const openHistory = !historyOpen && canOpenHistory ? () => setHistoryDay(todayInGameTz()) : undefined
+  const openHistory = !historyOpen && canOpenHistory ? () => setHistoryDay(todayInGameTz(tz)) : undefined
   /** Уход с неба закрывает историю: нельзя забыть, что смотришь прошлое. */
   const switchView = (next: View) => {
     setView(next)
@@ -357,6 +358,7 @@ export default function App() {
             setSelectedStarId(null)
           }}
           onOpenHistory={openHistory}
+          today={today}
           asOfDay={inPast && shownDay !== null ? shownDay : undefined}
           // в прошлом — только просмотр: действий нет, кнопки правки не рендерятся
           actions={inPast ? undefined : {

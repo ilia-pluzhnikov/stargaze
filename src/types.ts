@@ -160,11 +160,13 @@ export interface Store {
   xpLog: XpEvent[] // единственный источник правды для XP и уровней
   ledger?: LedgerEvent[] // кошелёк искр; нет = пустая история
   wishlist?: WishlistItem[]
+  tzOffsetMin?: number // игровой пояс: минуты от UTC, кратно 15, −720…840; нет = +7 (gameTzOffset)
 }
 
 /** Срез store, из которого рисуется небо. У проекции прошлого (`logic/timeline`) нет `ledger` —
- * по ошибке посчитать по ней баланс искр нельзя. Обычный `Store` присваивается без приведения. */
-export type SkyStore = Pick<Store, 'skills' | 'stars' | 'quests' | 'xpLog'>
+ * по ошибке посчитать по ней баланс искр нельзя. Обычный `Store` присваивается без приведения.
+ * Пояс едет вместе со срезом: игровой день createdAt/litAt без него не вычислить. */
+export type SkyStore = Pick<Store, 'skills' | 'stars' | 'quests' | 'xpLog' | 'tzOffsetMin'>
 
 export const QUEST_TYPE_LABEL: Record<QuestType, string> = {
   repeating: 'Повторяющийся',

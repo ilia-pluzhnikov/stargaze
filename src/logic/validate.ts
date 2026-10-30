@@ -1,7 +1,7 @@
 import type { LedgerEvent, Quest, StarComponent, Store, WishlistItem, XpEvent } from '../types'
 import { TIERS, WISHLIST_EMOJI_MAX } from '../types'
 import { isCalendarDay } from './dates'
-import { XP_REWARD_MAX } from './sparks'
+import { isGameTzOffset, XP_REWARD_MAX } from './sparks'
 
 // Техническая целостность store. Чистая: работает в браузере (import) и в node
 // (storage/CLI/API). Факт-чекинг («правда ли пробежал 5 км») — не здесь, это
@@ -35,6 +35,9 @@ export function validateStore(x: unknown): string[] {
   if (x.version !== 4) errors.push(`version: ожидается 4, получено ${JSON.stringify(x.version)}`)
   if (!isObj(x.character) || !isStr(x.character.name) || !isStr(x.character.avatar))
     errors.push('character: ожидается { name: string, avatar: string }')
+  // поле необязательное (нет = +7), но если есть — только годный офсет: от него зависит «сегодня» всех голов
+  if (x.tzOffsetMin !== undefined && !isGameTzOffset(x.tzOffsetMin))
+    errors.push(`tzOffsetMin: ожидается целое число минут от UTC, кратное 15, от −720 до 840, получено ${JSON.stringify(x.tzOffsetMin)}`)
   let brokenArrays = false
   for (const key of ['skills', 'stars', 'quests', 'xpLog'] as const) {
     if (!Array.isArray(x[key])) {

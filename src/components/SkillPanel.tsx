@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Quest, Skill, StarComponent, Store } from '../types'
 import { lastCompletionDay, questDoneOnDay, skillXpTotal } from '../logic/selectors'
-import { provisionForQuest } from '../logic/sparks'
+import { gameTzOffset, provisionForQuest } from '../logic/sparks'
 import { currentRank, galaxySummary } from '../logic/stars'
 import { skillLevel } from '../logic/xp'
 import { QuestRow } from './QuestRow'
@@ -100,7 +100,7 @@ export function SkillPanel({
               skill={null}
               done={isDoneNow(q)}
               star={starOf(q)}
-              provision={provisionForQuest(q, today)}
+              provision={provisionForQuest(q, today, gameTzOffset(store))}
               expanded={expandedId === q.id}
               onToggleExpand={() => setExpandedId((cur) => (cur === q.id ? null : q.id))}
               onTickDod={(i) => onTickDod(q, i)}
@@ -116,7 +116,7 @@ export function SkillPanel({
               done
               doneDay={lastCompletionDay(store.xpLog, q.id)}
               star={starOf(q)}
-              provision={provisionForQuest(q, today)}
+              provision={provisionForQuest(q, today, gameTzOffset(store))}
               expanded={expandedId === q.id}
               onToggleExpand={() => setExpandedId((cur) => (cur === q.id ? null : q.id))}
               onToggle={() => onUncomplete(q)}

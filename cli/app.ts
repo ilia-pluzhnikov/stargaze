@@ -8,8 +8,8 @@ import { migrateStore } from '../src/logic/migrate'
 import { epicProgress, questChildren, questDoneOnDay } from '../src/logic/selectors'
 import { isCalendarDay } from '../src/logic/dates'
 import {
-  FREE_MOVES_PER_7D, MOVE_FEE_RATE, cancelFeeFor, dayInGameTz, moveFeeFor,
-  movesUsedIn7d, provisionForQuest, purchasedDays, sparksBalance,
+  FREE_MOVES_PER_7D, MOVE_FEE_RATE, cancelFeeFor, formatTzOffset, gameTzOffset, moveFeeFor,
+  movesUsedIn7d, parseTzOffset, provisionForQuest, purchasedDays, sparksBalance, todayInGameTz,
 } from '../src/logic/sparks'
 import { weeklyXp } from '../src/logic/stats'
 import {
@@ -35,6 +35,8 @@ const USAGE = `stargaze — RPG-интерфейс над реальной жи�
   light-star | add-star | validate | export | import
   wallet | wishlist | wishlist-add | wishlist-edit <item> | buy <item> | spend <✨> <на что> | claim <item>
   move <id> <дата> | cancel <id> --yes | adjust -- <±✨> <причина>
+  tz [±ЧЧ:ММ] — игровой пояс мира (по умолчанию +07:00): без аргумента показывает, с аргументом меняет;
+    отрицательный — после «--»: tz -- -03:30
   serve [--port 8643] [--host 127.0.0.1] [--public <dir>] — веб и API на локальном store (первый запуск создаёт демо-мир)
 Глобальные флаги: --store <path> (или env STARGAZE_STORE), --json
 Кошелёк: cancel показывает неустойку и требует --yes; adjust — break-glass-корректировка с причиной.
@@ -49,7 +51,8 @@ interface Ctx {
   storePath: string
   json: boolean
   io: Io
-  today: string
+  /** Игровой день в поясе мира; вычисляется при первом обращении — из store. */
+  readonly today: string
 }
 
 export function runCli(argv: string[], io: Io): number {
@@ -108,7 +111,15 @@ export function runCli(argv: string[], io: Io): number {
     // машины с 00:00 до 07:00 по Бангкоку отстаёт на сутки. Отсюда идёт day и в
     // ledger (провизия, неустойка, квота переносов), и в xpLog — с todayKey()
     // консоль писала бы вчерашний день, расходясь с вебом и с фактическим игровым днём.
-    const ctx: Ctx = { storePath, json: values.json, io, today: dayInGameTz(new Date().toISOString()) }
+    // Пояс — свойство мира (store.tzOffsetMin), поэтому день лениво считается из store
+    // при первом обращении: validate и import до чтения store не доходят, им он не нужен
+    let today: string | undefined
+    const ctx: Ctx = {
+      storePath, json: values.json, io,
+      get today() {
+        return (today ??= todayInGameTz(gameTzOffset(loadStore(storePath))))
+      },
+    }
 
     switch (command) {
       case 'status':
@@ -174,6 +185,8 @@ export function runCli(argv: string[], io: Io): number {
         return cmdLightStar(ctx, rest[0], values.evidence)
       case 'add-star':
         return cmdAddStar(ctx, values)
+      case 'tz':
+        return cmdTz(ctx, rest[0])
       default:
         throw new CliError(`неизвестная команда «${command}»\n${USAGE}`, 2)
     }
@@ -734,7 +747,7 @@ function cmdArchive(ctx: Ctx, prefix: string | undefined, yes: boolean): number 
       2,
     )
   // цену показываем до согласия: списание необратимо (ledger append-only)
-  const fee = quest.status === 'active' && quest.type !== 'repeating' ? cancelFeeFor(quest, ctx.today) : 0
+  const fee = quest.status === 'active' && quest.type !== 'repeating' ? cancelFeeFor(quest, ctx.today, gameTzOffset(s)) : 0
   if (fee > 0 && !yes)
     throw new CliError(
       `отмена контракта «${quest.title}» спишет неустойку −${fee} ✨\n` +
@@ -792,7 +805,7 @@ function cmdMove(ctx: Ctx, prefix?: string, to?: string): number {
   if (to === quest.dueDate) throw new CliError(`дедлайн уже ${to}`, 2)
   const used = movesUsedIn7d(s, ctx.today)
   const fee = used >= FREE_MOVES_PER_7D ? moveFeeFor(quest) : 0
-  const provision = provisionForQuest(quest, ctx.today)
+  const provision = provisionForQuest(quest, ctx.today, gameTzOffset(s))
   applyOrFail(ctx, { type: 'moveDueDate', questId, to, day: ctx.today, ts: new Date().toISOString() }, 'перенос не выполнен')
   const lines = [`дедлайн ${quest.dueDate} → ${to} · ${quest.title}`]
   if (provision > 0) lines.push(`долг −${provision} ✨ зафиксирован (переехал с датой)`)
@@ -1030,6 +1043,36 @@ function cmdAddStar(ctx: Ctx, flags: CliFlags): number {
     2,
   )
   ctx.io.out(`добавлена: ${star.title} (${star.id})`)
+  return 0
+}
+
+/** Игровой пояс мира: без аргумента показывает, с аргументом меняет. Записанные дни
+ * логов не пересчитываются — с этой минуты меняется только «сегодня». */
+function cmdTz(ctx: Ctx, arg: string | undefined): number {
+  let s = loadStore(ctx.storePath)
+  const before = gameTzOffset(s)
+  if (arg !== undefined) {
+    const offsetMin = parseTzOffset(arg)
+    // причину называем сами: ядро на негодный офсет отвечает тихим no-op
+    if (offsetMin === null)
+      throw new CliError(
+        `пояс «${arg}» не годится: ±ЧЧ:ММ от UTC, кратно 15 минутам, от -12:00 до +14:00 ` +
+          '(отрицательный — после «--»: stargaze tz -- -03:30)',
+        2,
+      )
+    // тот же пояс — не ошибка: ядро ответило бы no-op, а applyOrFail — отказом
+    if (offsetMin !== before) s = applyOrFail(ctx, { type: 'setGameTz', offsetMin }, 'пояс не изменён')
+  }
+  const offsetMin = gameTzOffset(s)
+  const today = todayInGameTz(offsetMin)
+  if (ctx.json) {
+    ctx.io.out(JSON.stringify({ tzOffsetMin: offsetMin, tz: formatTzOffset(offsetMin), today }, null, 2))
+    return 0
+  }
+  const shown = `UTC${formatTzOffset(offsetMin)}${s.tzOffsetMin === undefined ? ' (по умолчанию)' : ''}`
+  ctx.io.out(offsetMin !== before
+    ? `игровой пояс: UTC${formatTzOffset(before)} → ${shown} · игровой день ${today} (записанные дни не пересчитываются)`
+    : `игровой пояс: ${shown} · игровой день ${today}`)
   return 0
 }
 

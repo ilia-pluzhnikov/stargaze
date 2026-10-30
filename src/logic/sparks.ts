@@ -3,7 +3,7 @@ import { addDays, diffDays } from './dates'
 
 // Константы экономики. Формулы и лестница стимулов меняются только вместе со
 // спекой 2026-08-05-stargaze-sparks-economy-design.md и тестами (§10).
-export const GAME_TZ_OFFSET_H = 7        // игровой пояс UTC+7 (Бангкок)
+export const DEFAULT_TZ_OFFSET_MIN = 420 // игровой пояс по умолчанию — UTC+7 (Бангкок); мир задаёт свой в store.tzOffsetMin
 export const SPARKS_EPOCH = '2026-08-07' // день активации: просрочки до него амнистированы (спека §11)
 export const DRAIN_RATE = 0.10           // доля R за полный день просрочки
 export const DRAIN_CAP = 1.0             // потолок капания = 1×R
@@ -30,12 +30,52 @@ function offsetMinutes(designator: string | undefined): number {
   return sign * (oh * 60 + om)
 }
 
+// Пояс — фиксированный офсет без летнего времени: сутки не меняют длину, а день
+// события из ts выводится одинаково в любой голове и в любой год.
+const TZ_OFFSET_MIN_LO = -720 // UTC−12
+const TZ_OFFSET_MIN_HI = 840  // UTC+14
+const TZ_OFFSET_STEP = 15     // реальные пояса кратны четверти часа (+05:45, +12:45)
+
+/** Годный офсет игрового пояса: целые минуты, кратные 15, от UTC−12 до UTC+14.
+ * Принимает unknown: значение приходит и из файла, и из payload API. */
+export function isGameTzOffset(x: unknown): x is number {
+  return typeof x === 'number' && Number.isInteger(x) && x % TZ_OFFSET_STEP === 0 &&
+    x >= TZ_OFFSET_MIN_LO && x <= TZ_OFFSET_MIN_HI
+}
+
+/** Игровой пояс мира в минутах от UTC. Нет поля — +7: файлы, записанные до
+ * появления поля, ведут себя ровно как раньше. Годность поля — забота validateStore. */
+export function gameTzOffset(store: Pick<Store, 'tzOffsetMin'>): number {
+  return store.tzOffsetMin ?? DEFAULT_TZ_OFFSET_MIN
+}
+
+/** Офсет в виде ISO-designator: 420 → '+07:00', −210 → '-03:30'. */
+export function formatTzOffset(offsetMin: number): string {
+  const abs = Math.abs(offsetMin)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${offsetMin < 0 ? '-' : '+'}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
+}
+
+/** Разбор офсета, который ввёл человек: '±ЧЧ:ММ', '±Ч:ММ', '±ЧЧ', '±Ч'. Знак
+ * обязателен — «5» без знака двусмысленно. Негодный офсет (вне диапазона, не
+ * кратен 15 минутам, минуты ≥ 60) — null. */
+export function parseTzOffset(s: string): number | null {
+  const m = /^([+-])(\d{1,2})(?::(\d{2}))?$/.exec(s.trim())
+  if (!m) return null
+  const [, sign, hh, mm = '00'] = m
+  if (Number(mm) >= 60) return null
+  const minutes = Number(hh) * 60 + Number(mm)
+  const offsetMin = sign === '-' && minutes > 0 ? -minutes : minutes // '-00:00' — ноль, не −0
+  return isGameTzOffset(offsetMin) ? offsetMin : null
+}
+
 /** Финансовый день ISO-таймстампа в игровом поясе. Разбор регуляркой и
  * календарная арифметика через `addDays` — без единого `new Date(iso)`: он
  * парсит строку без designator как ЛОКАЛЬНОЕ время машины (не UTC), что и
  * есть тот самый недетерминизм, ради устранения которого функция написана —
- * ts приходит из payload агента через API, где designator не гарантирован. */
-export function dayInGameTz(iso: string): string {
+ * ts приходит из payload агента через API, где designator не гарантирован.
+ * Офсет пояса обязателен: у кого есть store — `gameTzOffset(store)`. */
+export function dayInGameTz(iso: string, offsetMin: number): string {
   const m = ISO_MOMENT_RE.exec(iso)
   if (!m) {
     // Нераспознанный формат: деградация до календарной части строки, если она
@@ -46,8 +86,10 @@ export function dayInGameTz(iso: string): string {
   const [, day, hh, mm, offset] = m
   // Отсутствие designator трактуем как UTC — детерминированный выбор вместо
   // локального пояса машины.
-  const gameMinutes = Number(hh) * 60 + Number(mm) - offsetMinutes(offset) + GAME_TZ_OFFSET_H * 60
-  const dayShift = Math.floor(gameMinutes / 1440) // floor, не усечение: переход через полночь в обе стороны (−1/0/+1)
+  const gameMinutes = Number(hh) * 60 + Number(mm) - offsetMinutes(offset) + offsetMin
+  // floor, не усечение: переход через полночь в обе стороны. Designator и пояс мира —
+  // оба в −12…+14, поэтому сдвиг до ±2 суток (−12:00 в ts при поясе +14 — уже послезавтра)
+  const dayShift = Math.floor(gameMinutes / 1440)
   return addDays(day, dayShift)
 }
 
@@ -55,8 +97,8 @@ export function dayInGameTz(iso: string): string {
  * (todayKey) годится только там, где день не сравнивается с данными: у игрока
  * в поездке и у сервера в UTC он расходится с игровым и уводит день у ledger
  * и xpLog. */
-export function todayInGameTz(): string {
-  return dayInGameTz(new Date().toISOString())
+export function todayInGameTz(offsetMin: number): string {
+  return dayInGameTz(new Date().toISOString(), offsetMin)
 }
 
 /** Контрактный квест — short/mid/long (не привычка). */
@@ -65,13 +107,14 @@ export function isContract(q: Quest): boolean {
 }
 
 /** День, с которого капает просрочка: амнистия долгам до запуска экономики
- * и до принятия квеста. Осмыслен только у квестов с dueDate. */
-export function drainStart(q: Quest): string {
+ * и до принятия квеста. Осмыслен только у квестов с dueDate. Дни создания и
+ * принятия выводятся из ts в поясе мира: смена пояса сдвигает их максимум на сутки. */
+export function drainStart(q: Quest, offsetMin: number): string {
   let start = q.dueDate ?? SPARKS_EPOCH
-  const created = dayInGameTz(q.createdAt)
+  const created = dayInGameTz(q.createdAt, offsetMin)
   if (created > start) start = created
   if (q.acceptedAt) {
-    const accepted = dayInGameTz(q.acceptedAt)
+    const accepted = dayInGameTz(q.acceptedAt, offsetMin)
     if (accepted > start) start = accepted
   }
   if (SPARKS_EPOCH > start) start = SPARKS_EPOCH
@@ -79,16 +122,17 @@ export function drainStart(q: Quest): string {
 }
 
 /** Вычисляемое капание активного контракта на день today; 0 для остального. */
-export function provisionForQuest(q: Quest, today: string): number {
+export function provisionForQuest(q: Quest, today: string, offsetMin: number): number {
   if (q.status !== 'active' || !isContract(q) || !q.dueDate) return 0
-  const d = Math.max(0, diffDays(today, drainStart(q)))
+  const d = Math.max(0, diffDays(today, drainStart(q, offsetMin)))
   // «целые перемножили — поделили в конце»: ceil(min(d,10)·R/10) ≡ ceil(min(d·0.1,1)·R) без float-шума
   return Math.ceil((Math.min(d, CAP_DAYS) * q.xpReward) / CAP_DAYS)
 }
 
 export function provisionTotal(store: Store, today: string): number {
+  const offsetMin = gameTzOffset(store)
   let total = 0
-  for (const q of store.quests) total += provisionForQuest(q, today)
+  for (const q of store.quests) total += provisionForQuest(q, today, offsetMin)
   return total
 }
 
@@ -118,18 +162,18 @@ export function moveFeeFor(q: Quest): number {
 }
 
 /** Неустойка отмены: min(R, 0.5·R + 0.5·провизия) — растёт с просрочкой, потолок R. */
-export function cancelFeeFor(q: Quest, day: string): number {
+export function cancelFeeFor(q: Quest, day: string, offsetMin: number): number {
   const r = q.xpReward
-  return Math.ceil(Math.min(r, CANCEL_FEE_BASE * r + 0.5 * provisionForQuest(q, day)))
+  return Math.ceil(Math.min(r, CANCEL_FEE_BASE * r + 0.5 * provisionForQuest(q, day, offsetMin)))
 }
 
 /** Анти-бэкфилл-окно выплат: day = сегодня или вчера в игровом поясе относительно ts. */
-export function earnWindowOk(day: string, ts: string): boolean {
+export function earnWindowOk(day: string, ts: string, offsetMin: number): boolean {
   // ts приходит из payload и не обязан быть строкой (API проверяет только type):
   // без момента окно не выполнено, а арифметика дней не запускается вовсе — иначе
   // diffDays падает на .split и запрос получает 500 вместо внятного отказа валидации
   if (typeof ts !== 'string') return false
-  const d = diffDays(dayInGameTz(ts), day)
+  const d = diffDays(dayInGameTz(ts, offsetMin), day)
   return d === 0 || d === 1
 }
 
@@ -138,12 +182,12 @@ export function earnWindowOk(day: string, ts: string): boolean {
  * временем, поэтому day из прошлого завышал бы баланс, удешевлял отмену и
  * пропускал перенос в фактическое прошлое; day приходит из payload (агент через
  * API) или консервируется офлайн-очередью веба. */
-export function settlementDay(day: string, ts: string): string {
+export function settlementDay(day: string, ts: string, offsetMin: number): string {
   // на нестроковом ts (см. earnWindowOk) остаёмся на day: запрос дойдёт до
   // validateStore и получит 422 со списком, а не 500 из недр арифметики дней.
   // Записать что-либо это не даст — событие без строкового ts валидация отвергает
   if (typeof ts !== 'string') return day
-  return earnWindowOk(day, ts) ? day : dayInGameTz(ts)
+  return earnWindowOk(day, ts, offsetMin) ? day : dayInGameTz(ts, offsetMin)
 }
 
 /** Σ незареверсённых earn за окно последних N игровых дней (включая today) — опора калибровки цен. */
