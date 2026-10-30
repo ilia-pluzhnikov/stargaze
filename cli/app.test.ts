@@ -6,6 +6,7 @@ import { seedStore } from '../src/data/seed'
 import { addDays } from '../src/logic/dates'
 import { dayInGameTz } from '../src/logic/sparks'
 import { saveStore, loadStore } from '../src/logic/storage'
+import { reducer } from '../src/logic/store'
 import type { Store, Tier } from '../src/types'
 import { runCli } from './app'
 
@@ -665,6 +666,16 @@ describe('подквесты: отображение', () => {
     const epic = JSON.parse(run(['quest', epicId, '--json'], p).out)
     expect(epic.children).toEqual([childId])
     expect(epic.progress).toEqual({ done: 0, total: 1 })
+  })
+
+  it('quest <эпик> --json назад в updateQuest как есть: children/progress в store не оседают', () => {
+    const p = tmpStore()
+    const { epicId } = mkTree(p)
+    const echoed = JSON.parse(run(['quest', epicId, '--json'], p).out)
+    const next = reducer(loadStore(p), { type: 'updateQuest', quest: { ...echoed, title: 'Карта набора v2' } })
+    const stored = next.quests.find((q) => q.id === epicId)!
+    expect(stored.title).toBe('Карта набора v2')
+    expect('children' in stored || 'progress' in stored).toBe(false)
   })
 
   it('quest <эпик>: done/active/proposed — маркеры [x]/[ ]/[?], proposed вне знаменателя', () => {
