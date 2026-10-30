@@ -5,15 +5,17 @@ import { parseArgs } from 'node:util'
 import { acquireLock, loadStore, releaseLock, saveStore, withStore } from '../src/logic/storage'
 import { validateStore } from '../src/logic/validate'
 import { migrateStore } from '../src/logic/migrate'
-import { charXpTotal, epicProgress, isDueToday, questChildren, questDoneOnDay, skillXpTotal } from '../src/logic/selectors'
-import { charLevel, skillLevel } from '../src/logic/xp'
-import { currentRank, galaxySummary, isRankAchieved, rankStars, skillTiers } from '../src/logic/stars'
+import { epicProgress, questChildren, questDoneOnDay } from '../src/logic/selectors'
 import { isCalendarDay } from '../src/logic/dates'
 import {
-  FREE_MOVES_PER_7D, MOVE_FEE_RATE, cancelFeeFor, dayInGameTz, emissionInDays, ledgerTotal, moveFeeFor,
-  movesUsedIn7d, provisionForQuest, provisionTotal, purchasedDays, sparksBalance,
+  FREE_MOVES_PER_7D, MOVE_FEE_RATE, cancelFeeFor, dayInGameTz, moveFeeFor,
+  movesUsedIn7d, provisionForQuest, purchasedDays, sparksBalance,
 } from '../src/logic/sparks'
 import { weeklyXp } from '../src/logic/stats'
+import {
+  ViewError, parseWeeks, questView, questsView, ranksView, skillsView, starsView, statsView, statusView, walletView,
+  wishlistView,
+} from '../src/logic/views'
 import { characterError, genId, reducer, type Action } from '../src/logic/store'
 import { LEDGER_KIND_LABEL, TIERS } from '../src/types'
 import type { Quest, QuestResult, StarComponent, Store, Tier, WishlistItem } from '../src/types'
@@ -180,6 +182,10 @@ export function runCli(argv: string[], io: Io): number {
       io.err(e.message)
       return e.exitCode
     }
+    if (e instanceof ViewError) {
+      io.err(e.message)
+      return e.kind === 'bad-param' ? 2 : 1
+    }
     io.err(e instanceof Error ? e.message : String(e))
     return 1
   }
@@ -221,47 +227,27 @@ function cmdServe(
 
 function cmdStatus(ctx: Ctx): number {
   const s = loadStore(ctx.storePath)
-  const char = charLevel(charXpTotal(s.xpLog))
-  const activeQuests = s.quests.filter((q) => q.status === 'active')
-  // «на сегодня» — только контракты (привычкам isDueToday отвечает false);
-  // привычки считаются по факту: сколько активных отмечено сегодня
-  const dueToday = activeQuests.filter((q) => isDueToday(q, ctx.today))
-  const habitsDone = activeQuests.filter(
-    (q) => q.type === 'repeating' && questDoneOnDay(s.xpLog, q.id, ctx.today),
-  ).length
-  const skills = s.skills.filter((sk) => !sk.archived).map((sk) => {
-    const info = skillLevel(skillXpTotal(s.xpLog, sk.id))
-    const ladder = galaxySummary(s.stars, sk.id)
-    const cur = currentRank(s.stars, sk.id)
-    return { skill: sk, info, ladder, cur }
-  })
-  const provision = provisionTotal(s, ctx.today)
-  const movesUsed = movesUsedIn7d(s, ctx.today)
+  const v = statusView(s, ctx.today)
   if (ctx.json) {
-    ctx.io.out(JSON.stringify({
-      character: { name: s.character.name, level: char.level, into: char.into, toNext: char.toNext, totalXp: charXpTotal(s.xpLog) },
-      today: { due: dueToday.length, habitsDone },
-      skills: skills.map(({ skill, info, ladder, cur }) => ({
-        id: skill.id, name: skill.name, level: info.level, into: info.into, toNext: info.toNext,
-        ranksTotal: ladder.total, ranksAchieved: ladder.achieved, currentRank: cur,
-      })),
-      sparks: { balance: sparksBalance(s, ctx.today), provision, moves: { used: movesUsed, free: FREE_MOVES_PER_7D } },
-    }, null, 2))
+    ctx.io.out(JSON.stringify(v, null, 2))
     return 0
   }
-  ctx.io.out(`${s.character.avatar} ${s.character.name} — ур. ${char.level} · ${char.into} / ${char.toNext} XP (всего ${charXpTotal(s.xpLog)})`)
-  ctx.io.out(`✨ ${sparksBalance(s, ctx.today)}${provision > 0 ? ` (капает −${provision})` : ''}`)
-  const quota = movesQuotaLine(movesUsed)
+  const { character: char, sparks } = v
+  ctx.io.out(`${s.character.avatar} ${char.name} — ур. ${char.level} · ${char.into} / ${char.toNext} XP (всего ${char.totalXp})`)
+  ctx.io.out(`✨ ${sparks.balance}${sparks.provision > 0 ? ` (капает −${sparks.provision})` : ''}`)
+  const quota = movesQuotaLine(sparks.moves.used)
   if (quota) ctx.io.out(quota)
-  ctx.io.out(`Привычек отмечено сегодня: ${habitsDone} · контрактов на сегодня: ${dueToday.length}`)
+  ctx.io.out(`Привычек отмечено сегодня: ${v.today.habitsDone} · контрактов на сегодня: ${v.today.due}`)
   ctx.io.out('')
+  // эмодзи в срезе нет (JSON отдаёт голое имя) — берём из store по id
+  const emoji = (id: string) => s.skills.find((sk) => sk.id === id)!.emoji
   ctx.io.out(table([
     ['навык', 'ур.', 'XP', 'ранги'],
-    ...skills.map(({ skill, info, ladder, cur }) => [
-      `${skill.emoji} ${skill.name}`,
-      String(info.level),
-      `${info.into}/${info.toNext}`,
-      ladder.total === 0 ? 'без дерева' : `${ladder.achieved}/${ladder.total}${cur ? ` · ранг ${cur}` : ' · ✦ всё взято'}`,
+    ...v.skills.map((r) => [
+      `${emoji(r.id)} ${r.name}`,
+      String(r.level),
+      `${r.into}/${r.toNext}`,
+      r.ranksTotal === 0 ? 'без дерева' : `${r.ranksAchieved}/${r.ranksTotal}${r.currentRank ? ` · ранг ${r.currentRank}` : ' · ✦ всё взято'}`,
     ]),
   ]))
   return 0
@@ -285,19 +271,14 @@ function cmdCharacter(ctx: Ctx, flags: { name?: string; emoji?: string }): numbe
 
 function cmdQuests(ctx: Ctx, flags: { today?: boolean; proposed?: boolean; all?: boolean }): number {
   const s = loadStore(ctx.storePath)
-  let list = s.quests.filter((q) => q.status === 'active')
-  if (flags.proposed) list = s.quests.filter((q) => q.status === 'proposed')
-  else if (flags.all) list = s.quests.filter((q) => q.status !== 'archived')
-  else if (flags.today)
-    list = s.quests.filter(
-      (q) => q.status === 'active' && isDueToday(q, ctx.today),
-    )
-  const skillName = (id: string | null) => (id ? (s.skills.find((x) => x.id === id)?.name ?? '?') : '—')
-  const starTitle = (id?: string | null) => (id ? (s.stars.find((x) => x.id === id)?.title ?? '?') : '')
+  // флаги взаимоисключающие по старшинству: --proposed > --all > --today
+  const list = questsView(s, ctx.today, flags.proposed ? 'proposed' : flags.all ? 'all' : flags.today ? 'today' : 'active')
   if (ctx.json) {
     ctx.io.out(JSON.stringify(list, null, 2))
     return 0
   }
+  const skillName = (id: string | null) => (id ? (s.skills.find((x) => x.id === id)?.name ?? '?') : '—')
+  const starTitle = (id?: string | null) => (id ? (s.stars.find((x) => x.id === id)?.title ?? '?') : '')
   if (list.length === 0) {
     ctx.io.out('пусто')
     return 0
@@ -330,12 +311,7 @@ function cmdQuests(ctx: Ctx, flags: { today?: boolean; proposed?: boolean; all?:
 }
 
 function cmdSkills(ctx: Ctx): number {
-  const s = loadStore(ctx.storePath)
-  const rows = s.skills.filter((sk) => !sk.archived).map((sk) => {
-    const info = skillLevel(skillXpTotal(s.xpLog, sk.id))
-    const ladder = galaxySummary(s.stars, sk.id)
-    return { id: sk.id, name: `${sk.emoji} ${sk.name}`, level: info.level, into: info.into, toNext: info.toNext, ranks: ladder }
-  })
+  const rows = skillsView(loadStore(ctx.storePath))
   if (ctx.json) {
     ctx.io.out(JSON.stringify(rows, null, 2))
     return 0
@@ -349,17 +325,7 @@ function cmdSkills(ctx: Ctx): number {
 
 function cmdRanks(ctx: Ctx, skillPrefix?: string): number {
   if (!skillPrefix) throw new CliError('использование: stargaze ranks --skill <id>', 2)
-  const s = loadStore(ctx.storePath)
-  const skillId = resolveId(s.skills, skillPrefix, 'навык')
-  const list = skillTiers(s.stars, skillId).map((tier) => {
-    const own = rankStars(s.stars, skillId, tier)
-    return {
-      tier,
-      achieved: isRankAchieved(s.stars, skillId, tier),
-      lit: own.filter((c) => !!c.litAt).length,
-      total: own.length,
-    }
-  })
+  const list = ranksView(loadStore(ctx.storePath), skillPrefix)
   if (ctx.json) {
     ctx.io.out(JSON.stringify(list, null, 2))
     return 0
@@ -373,15 +339,7 @@ function cmdRanks(ctx: Ctx, skillPrefix?: string): number {
 
 function cmdStars(ctx: Ctx, flags: { skill?: string; tier?: string }): number {
   const s = loadStore(ctx.storePath)
-  let list = s.stars
-  if (flags.skill) {
-    const skillId = resolveId(s.skills, flags.skill, 'навык')
-    list = list.filter((c) => c.skillId === skillId)
-  }
-  if (flags.tier) {
-    if (!TIERS.includes(flags.tier as Tier)) throw new CliError('--tier: D|C|B|A|S', 2)
-    list = list.filter((c) => c.tier === flags.tier)
-  }
+  const list = starsView(s, flags)
   if (ctx.json) {
     ctx.io.out(JSON.stringify(list, null, 2))
     return 0
@@ -401,14 +359,14 @@ function cmdStars(ctx: Ctx, flags: { skill?: string; tier?: string }): number {
 }
 
 function cmdStats(ctx: Ctx, weeksFlag?: string): number {
-  const weeks = weeksFlag ? Number(weeksFlag) : 4
-  if (!Number.isInteger(weeks) || weeks < 1 || weeks > 52) throw new CliError('--weeks: целое 1..52', 2)
+  const weeks = parseWeeks(weeksFlag) // до loadStore: кривой флаг — отказ и без store
   const s = loadStore(ctx.storePath)
-  const stats = weeklyXp(s.xpLog, weeks, ctx.today)
   if (ctx.json) {
-    ctx.io.out(JSON.stringify(stats.map((w) => ({ ...w, bySkill: Object.fromEntries(w.bySkill) })), null, 2))
+    ctx.io.out(JSON.stringify(statsView(s, ctx.today, weeks), null, 2))
     return 0
   }
+  // текст — по Map ядра: ключ null (XP без навыка) в нём не превращён в строку "null"
+  const stats = weeklyXp(s.xpLog, weeks, ctx.today)
   const skillName = (id: string | null) => (id === null ? 'персонаж' : (s.skills.find((x) => x.id === id)?.name ?? id))
   for (const w of stats) {
     ctx.io.out(`неделя с ${w.weekStart}: ${w.total} XP`)
@@ -494,14 +452,14 @@ function cmdImport(ctx: Ctx, file?: string): number {
 function cmdQuest(ctx: Ctx, prefix: string | undefined): number {
   if (!prefix) throw new CliError('использование: stargaze quest <questId> [--json]', 2)
   const s = loadStore(ctx.storePath)
-  const questId = resolveId(s.quests, prefix, 'квест')
-  const q = s.quests.find((x) => x.id === questId)!
-  const children = questChildren(s.quests, q.id)
-  const progress = epicProgress(s.quests, q.id)
+  const v = questView(s, prefix)
   if (ctx.json) {
-    ctx.io.out(JSON.stringify(children.length > 0 ? { ...q, children: children.map((c) => c.id), progress } : q, null, 2))
+    ctx.io.out(JSON.stringify(v, null, 2))
     return 0
   }
+  const q = s.quests.find((x) => x.id === v.id)!
+  const children = questChildren(s.quests, q.id)
+  const progress = epicProgress(s.quests, q.id)
   const skill = q.skillId ? s.skills.find((x) => x.id === q.skillId) : undefined
   const star = q.starId ? s.stars.find((x) => x.id === q.starId) : undefined
   const lines: string[] = [
@@ -794,37 +752,25 @@ function cmdArchive(ctx: Ctx, prefix: string | undefined, yes: boolean): number 
 
 function cmdWallet(ctx: Ctx): number {
   const s = loadStore(ctx.storePath)
-  const balance = sparksBalance(s, ctx.today)
-  const provisions = s.quests
-    .map((q) => ({ q, p: provisionForQuest(q, ctx.today) }))
-    .filter((x) => x.p > 0)
-  const movesUsed = movesUsedIn7d(s, ctx.today)
-  const events = [...(s.ledger ?? [])].reverse() // свежее сверху
+  const v = walletView(s, ctx.today)
+  if (ctx.json) {
+    ctx.io.out(JSON.stringify(v, null, 2))
+    return 0
+  }
   // undefined, а не '': иначе `??`-цепочка ниже остановилась бы на пустой строке
   const questTitle = (id?: string) => (id ? (s.quests.find((q) => q.id === id)?.title ?? id) : undefined)
   const itemTitle = (id?: string) => (id ? ((s.wishlist ?? []).find((w) => w.id === id)?.title ?? id) : undefined)
-  const emission = { d7: emissionInDays(s, ctx.today, 7), d30: emissionInDays(s, ctx.today, 30) }
-  if (ctx.json) {
-    ctx.io.out(JSON.stringify({
-      balance, ledgerTotal: ledgerTotal(s), provisionTotal: provisionTotal(s, ctx.today),
-      provisions: provisions.map(({ q, p }) => ({ questId: q.id, title: q.title, provision: p, cap: q.xpReward })),
-      moves: { used: movesUsed, free: FREE_MOVES_PER_7D },
-      emission,
-      ledger: events,
-    }, null, 2))
-    return 0
-  }
-  ctx.io.out(`✨ ${balance}` + (provisions.length ? ` (чистыми ${ledgerTotal(s)}, провизия −${provisionTotal(s, ctx.today)})` : ''))
-  for (const { q, p } of provisions)
-    ctx.io.out(`  капает: ${q.title} · −${p} ✨${p >= q.xpReward ? ' (потолок)' : ` (потолок ${q.xpReward})`}`)
-  const quota = movesQuotaLine(movesUsed)
+  ctx.io.out(`✨ ${v.balance}` + (v.provisions.length ? ` (чистыми ${v.ledgerTotal}, провизия −${v.provisionTotal})` : ''))
+  for (const p of v.provisions)
+    ctx.io.out(`  капает: ${p.title} · −${p.provision} ✨${p.provision >= p.cap ? ' (потолок)' : ` (потолок ${p.cap})`}`)
+  const quota = movesQuotaLine(v.moves.used)
   if (quota) ctx.io.out(quota)
-  ctx.io.out(`эмиссия: +${emission.d7} ✨ за 7 дней · +${emission.d30} ✨ за 30`)
-  if (events.length > 0) {
+  ctx.io.out(`эмиссия: +${v.emission.d7} ✨ за 7 дней · +${v.emission.d30} ✨ за 30`)
+  if (v.ledger.length > 0) {
     ctx.io.out('')
     ctx.io.out(table([
       ['день', 'тип', '✨', 'что'],
-      ...events.map((e) => [
+      ...v.ledger.map((e) => [
         e.day, LEDGER_KIND_LABEL[e.kind],
         (e.amount > 0 ? '+' : '') + String(e.amount),
         e.note ?? itemTitle(e.itemId) ?? questTitle(e.questId) ?? '',
@@ -905,7 +851,7 @@ function cmdAdjust(ctx: Ctx, amountArg: string | undefined, note: string): numbe
 
 function cmdWishlist(ctx: Ctx): number {
   const s = loadStore(ctx.storePath)
-  const items = (s.wishlist ?? []).filter((w) => !w.archived)
+  const items = wishlistView(s)
   if (ctx.json) {
     ctx.io.out(JSON.stringify(items, null, 2))
     return 0
