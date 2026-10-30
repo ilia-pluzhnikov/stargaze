@@ -325,7 +325,7 @@ export default function App() {
       {offlineSince && (
         <div className="offline-banner" role="status">
           Нет связи с сервером. На экране копия из этого браузера — последняя синхронизация{' '}
-          {formatSeen(offlineSince)}. Правки отсюда на сервер не попадут.
+          {formatSeen(offlineSince)}. Правки копятся в очереди и уйдут на сервер, когда связь вернётся.
         </div>
       )}
 

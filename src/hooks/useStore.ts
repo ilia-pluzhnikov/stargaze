@@ -4,7 +4,7 @@ import { reducer, type Action } from '../logic/store'
 import { loadStoredStore, STORE_KEY } from '../logic/migrate'
 import { fetchServerStore, postAction, probeServer } from '../logic/api'
 import {
-  appendQueue, drainQueue, lastServerSeen, loadQueue, markServerSeen, sendNow, type WholeStoreAction,
+  appendQueue, drainQueue, lastServerSeen, loadQueue, markServerSeen, queuesEdits, sendNow, type WholeStoreAction,
 } from '../logic/sync'
 import { seedStore } from '../data/seed'
 
@@ -75,9 +75,10 @@ export function useStore() {
   // Пробинг при старте + фоновый ре-пробинг, пока живём в локальном режиме.
   // Без повторных попыток вкладка, открытая до подъёма ssh-туннеля, навсегда
   // залипала на localStorage-сиде («всё пусто», канон при этом цел).
-  // Правки, сделанные в локальном режиме до переключения, канон не мержит —
-  // refresh замещает их серверной версией. Поэтому браузеру, который бывал на
-  // сервере, локальный режим показывает баннер (offlineSince), а не тихий бейдж.
+  // Браузер, который бывал на сервере, в локальном режиме — в деградации: баннер
+  // (offlineSince) вместо тихого бейджа, правки копятся в очереди (queuesEdits) и при
+  // входе в серверный режим уходят flush() раньше, чем refresh подтянет канон.
+  // Правки чистого локального режима канон не мержит — refresh замещает их.
   useEffect(() => {
     let cancelled = false
     let probing = false
@@ -144,10 +145,10 @@ export function useStore() {
   const dispatch = useCallback(
     (action: Exclude<Action, WholeStoreAction>) => {
       dispatchLocal(action) // оптимистично — интерфейс не ждёт сеть
-      if (serverMode.current) {
+      if (queuesEdits(localStorage, serverMode.current)) {
         appendQueue(localStorage, action)
         setPending(loadQueue(localStorage).length)
-        void flush()
+        void flush() // вне серверного режима — no-op: очередь уйдёт при входе в него
       }
     },
     [flush],
@@ -158,6 +159,8 @@ export function useStore() {
   const replaceStore = useCallback(
     async (action: WholeStoreAction): Promise<boolean> => {
       if (!serverMode.current) {
+        // деградация: замена на копии сгорела бы под каноном, а в очередь её не ставим (sendNow)
+        if (queuesEdits(localStorage, false)) return false
         dispatchLocal(action)
         return true
       }

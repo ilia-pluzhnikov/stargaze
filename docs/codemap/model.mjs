@@ -168,12 +168,13 @@ export const nodes = [
       'Импорт и сброс (WholeStoreAction) — мимо очереди через replaceStore: сразу или отказ; dispatch их не принимает по типу',
       'Счётчик очереди в шапке — «в очереди: N», пока есть неотправленные действия',
       'Персист в localStorage в обоих режимах: в серверном это копия последнего канона',
-      'Локальный режим браузера, бывавшего на сервере (отметка stargaze.server-seen), — баннер «копия, правки не попадут», а не тихий бейдж',
+      'Локальный режим браузера, бывавшего на сервере (отметка stargaze.server-seen), — деградация: баннер вместо тихого бейджа, правки копятся в очереди и уходят при возврате связи; импорт и сброс в деградации — отказ',
     ],
     evidence: [
       { path: 'src/hooks/useStore.ts', symbol: 'export function useStore' },
       { path: 'src/hooks/useStore.ts', symbol: 'const POLL_MS = 30_000' },
       { path: 'src/hooks/useStore.ts', symbol: 'dispatchLocal(action) // оптимистично' },
+      { path: 'src/hooks/useStore.ts', symbol: 'if (queuesEdits(localStorage, serverMode.current))' },
       { path: 'src/hooks/useStore.ts', symbol: 'if (!cancelled) setOfflineSince(lastServerSeen(localStorage))' },
       { path: 'src/hooks/useStore.ts', symbol: 'const canon = await sendNow(localStorage, action, postAction)' },
     ],
@@ -194,6 +195,7 @@ export const nodes = [
       'Адрес /api/* — от location.origin: относительный путь наследует userinfo документа (https://user:pass@host/), и fetch бросает TypeError',
       '4xx на действие выбрасывает его из очереди (иначе очередь застрянет навечно)',
       'sendNow не обгоняет очередь: непустая — отказ без отправки',
+      'queuesEdits: очередь ведётся в серверном режиме и в деградации (есть отметка server-seen); чистый локальный режим — без очереди',
     ],
     evidence: [
       { path: 'src/logic/sync.ts', symbol: "export const QUEUE_KEY = 'stargaze.queue.v2'" },
