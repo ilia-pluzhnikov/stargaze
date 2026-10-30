@@ -110,3 +110,10 @@ export function lastServerSeen(kv: KV): string | null {
     return null
   }
 }
+
+/** Идёт ли правка в очередь. В серверном режиме — да; в деградации (браузер бывал на
+ * сервере, сейчас связи нет) — тоже: иначе правка жила бы только в копии, и при возврате
+ * связи канон затёр бы её. Чистый локальный режим (localhost без API) очереди не ведёт. */
+export function queuesEdits(kv: KV, serverMode: boolean): boolean {
+  return serverMode || lastServerSeen(kv) !== null
+}

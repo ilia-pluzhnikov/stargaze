@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { Store } from '../types'
 import type { Action } from './store'
 import {
-  appendQueue, drainQueue, lastServerSeen, LEGACY_QUEUE_KEY, loadQueue, markServerSeen, QUEUE_KEY, sendNow, SERVER_SEEN_KEY,
+  appendQueue, drainQueue, lastServerSeen, LEGACY_QUEUE_KEY, loadQueue, markServerSeen, QUEUE_KEY, queuesEdits, sendNow,
+  SERVER_SEEN_KEY,
   type KV, type WholeStoreAction,
 } from './sync'
 
@@ -187,6 +188,34 @@ describe('отметка связи с сервером', () => {
   it('хранилище бросает (квота, приватный режим) → молча, без исключения', () => {
     expect(() => markServerSeen(brokenKv, at)).not.toThrow()
     expect(lastServerSeen(brokenKv)).toBeNull()
+  })
+})
+
+describe('queuesEdits: правка в очередь или только в копию', () => {
+  const at = '2026-09-25T01:00:00.000Z'
+
+  it('серверный режим → очередь', () => expect(queuesEdits(fakeKv(), true)).toBe(true))
+  it('деградация (бывал на сервере, связи нет) → очередь: правку не затрёт канон', () => {
+    const kv = fakeKv()
+    markServerSeen(kv, at)
+    expect(queuesEdits(kv, false)).toBe(true)
+  })
+  it('чистый локальный режим (не бывал на сервере) → только копия', () =>
+    expect(queuesEdits(fakeKv(), false)).toBe(false))
+  it('мусор в отметке → как не бывал', () => {
+    const kv = fakeKv()
+    kv.setItem(SERVER_SEEN_KEY, 'не дата')
+    expect(queuesEdits(kv, false)).toBe(false)
+  })
+  it('правки деградации доходят до сервера в порядке постановки при возврате связи', async () => {
+    const kv = fakeKv()
+    markServerSeen(kv, at)
+    for (const a of [act, actB]) if (queuesEdits(kv, false)) appendQueue(kv, a)
+    const sent: Action[] = []
+    const res = await drainQueue(kv, async (a) => (sent.push(a), a === act ? storeAfterA : storeAfterB))
+    expect(sent).toEqual([act, actB])
+    expect(res).toEqual({ last: storeAfterB, drained: true })
+    expect(loadQueue(kv)).toEqual([])
   })
 })
 

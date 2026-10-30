@@ -1,15 +1,14 @@
 {
-  "commit": "f8e4f03f729ed6dc5e0efb61b2060375ac886527",
+  "commit": "63fa7c7adce19ec57565cd8a5c6b9de84e7c6be9",
   "working_tree_dirty": true,
   "dirty_files": [
-    "docs/codemap/model.mjs",
+    "ocs/codemap/model.mjs",
     "src/App.tsx",
     "src/hooks/useStore.ts",
-    "src/index.css",
     "src/logic/sync.test.ts",
     "src/logic/sync.ts"
   ],
-  "generated_at": "2026-09-24T19:06:40.366Z",
+  "generated_at": "2026-10-30T11:59:31.022Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -45,7 +44,7 @@
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "45a956cb02edf9a3aaaa5d2494b46fe8e231a4a2156658aec51d921c9b1956fc"
+      "fingerprint": "c7bce8ded0dc84aa509e5ac595c73b2aa61687fac225a1111ab6310cb6033bb2"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -93,7 +92,7 @@
       "files": [
         "src/hooks/useStore.ts"
       ],
-      "fingerprint": "845fcb836bc89ba3e2489ff77e7b85265f4116c1f98d9e1fda858839473b5c85"
+      "fingerprint": "6a8987dfa6e1c105edc6629362f666ad2e16a323b98cf002af1cd1fd8e954ec9"
     },
     "web-sync": {
       "path": "src/logic/sync.ts",
@@ -104,7 +103,7 @@
         "src/logic/sync.test.ts",
         "src/logic/sync.ts"
       ],
-      "fingerprint": "b769cb8033798338cbf2dbd1f6a7bac047e7635e58ddfd03b015abc08d4766ae"
+      "fingerprint": "5479170dd8cf717757685a1ed7ef22b7ec84da35329b599bbdc410c459b64575"
     },
     "core-store": {
       "path": "src/logic/store.ts",
@@ -170,7 +169,7 @@
         "src/logic/layout.test.ts",
         "src/logic/layout.ts"
       ],
-      "fingerprint": "2e1ac2decdf2a336a67dcef94a21a9c9eb364ddd8c3afd0c8f8405bfaf9928f1"
+      "fingerprint": "f50bb71a1f246a46c128438250273d634f38dd77ce98a17d232684e7a88859a7"
     },
     "core-timeline": {
       "path": "src/logic/timeline.ts",
@@ -246,16 +245,18 @@
         "deploy/docker-compose.yml",
         "deploy/stargaze-wrapper.sh"
       ],
-      "fingerprint": "87efdd27684cfa489a90bf34b19c0c17f386d10d735c1c3e988ca209ae436e8d"
+      "fingerprint": "9fa3e7168ecb8640210baa32f90cadad88a08ae872a2f88fa09b4e08a9896c9d"
     }
   },
   "previous": {
-    "commit": "eaa98686ae3dca8b176f75ff76c579a732b165b8",
-    "generated_at": "2026-09-24T19:00:50.107Z",
+    "commit": "f8e4f03f729ed6dc5e0efb61b2060375ac886527",
+    "generated_at": "2026-09-24T19:06:40.366Z",
     "changed_modules": [
       "web-app",
       "web-usestore",
-      "web-sync"
+      "web-sync",
+      "core-layout",
+      "infra-deploy"
     ],
     "new_modules": [],
     "removed_modules": []
