@@ -76,7 +76,9 @@ docker exec stargaze node cli.js status
 docker exec stargaze node cli.js propose-quest --title "…" --type short --xp 40 --note "зачем"
 ```
 
-или `POST /api/action` изнутри docker-сети — без пароля и без Origin.
+или HTTP API изнутри docker-сети — без пароля и без Origin: чтение
+(`GET /api/status`, `/api/quests`, …) и запись (`POST /api/action`).
+Справочник — [API.md](API.md).
 
 ## Правила для агента-установщика
 

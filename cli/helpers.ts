@@ -1,3 +1,5 @@
+import { resolveIdPrefix, ViewError } from '../src/logic/views'
+
 export class CliError extends Error {
   constructor(
     message: string,
@@ -7,15 +9,13 @@ export class CliError extends Error {
   }
 }
 
-/** Резолв id по уникальному префиксу (как в git). */
+/** Резолв id по уникальному префиксу (как в git) — ядро; отказ — CliError с кодом 1. */
 export function resolveId(items: { id: string }[], prefix: string, kind: string): string {
-  const hits = items.filter((x) => x.id.startsWith(prefix))
-  if (hits.length === 1) return hits[0].id
-  if (hits.length === 0) throw new CliError(`${kind} с id «${prefix}» не найден`)
-  // точное совпадение выигрывает: полный id не должен глохнуть из-за потомков-префиксов
-  const exact = hits.find((x) => x.id === prefix)
-  if (exact) return exact.id
-  throw new CliError(`префикс «${prefix}» неоднозначен: ${hits.map((x) => x.id).join(', ')}`)
+  try {
+    return resolveIdPrefix(items, prefix, kind)
+  } catch (e) {
+    throw e instanceof ViewError ? new CliError(e.message) : e
+  }
 }
 
 /** Простая таблица: колонки по максимальной ширине, два пробела между ними. */

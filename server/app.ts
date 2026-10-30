@@ -6,7 +6,12 @@ import { extname, resolve, sep } from 'node:path'
 import { reducer, type Action } from '../src/logic/store'
 import { actionShapeError, completeQuestRefusal, storeChanged, type CompleteRefusal } from '../src/logic/gates'
 import { loadStore, StoreValidationError, withStore } from '../src/logic/storage'
-import { settlementDay, sparksBalance } from '../src/logic/sparks'
+import { settlementDay, sparksBalance, todayInGameTz } from '../src/logic/sparks'
+import {
+  QUEST_FILTERS, ViewError, parseWeeks, questView, questsView, ranksView, skillsView, starsView, statsView, statusView,
+  walletView, wishlistView, type QuestFilter,
+} from '../src/logic/views'
+import type { Store } from '../src/types'
 
 /** Отклонение от no-op-канона (спека 2026-07-27): этим путём ходит
  * агент-гейм-мастер, тихий 200 означал бы «квест сдан», хотя он жив. Причину
@@ -37,6 +42,58 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
 }
 const BODY_LIMIT = 1_000_000
+
+/** «Сегодня» маршрутов чтения — одна точка на весь сервер. Игровой день, как
+ * ctx.today у CLI: иначе GET /api/<команда> разошёлся бы с `cli.js <команда> --json`. */
+function serverToday(): string {
+  return todayInGameTz()
+}
+
+/** Маршрут чтения: store, «сегодня» и query → срез ядра (logic/views). */
+type ReadRoute = (store: Store, today: string, query: URLSearchParams) => unknown
+
+/** Выборка `?filter=` — как флаги `quests`; нет или пусто — active. */
+function questFilter(raw: string | null): QuestFilter {
+  if (!raw) return 'active'
+  if (!(QUEST_FILTERS as readonly string[]).includes(raw))
+    throw new ViewError('bad-param', `filter: ${QUEST_FILTERS.join('|')}`)
+  return raw as QuestFilter
+}
+
+/** GET-маршруты чтения: ответ — тот же JSON, что `cli.js <команда> --json`,
+ * query повторяет флаги команды. Map, а не объект: путь /api/constructor не
+ * должен найти Object.prototype. */
+const READ_ROUTES = new Map<string, ReadRoute>([
+  ['/api/status', (s, today) => statusView(s, today)],
+  ['/api/wallet', (s, today) => walletView(s, today)],
+  ['/api/quests', (s, today, q) => questsView(s, today, questFilter(q.get('filter')))],
+  ['/api/skills', (s) => skillsView(s)],
+  ['/api/ranks', (s, _today, q) => {
+    const skill = q.get('skill')
+    if (!skill) throw new ViewError('bad-param', 'нужен параметр skill: /api/ranks?skill=<id>')
+    return ranksView(s, skill)
+  }],
+  ['/api/stars', (s, _today, q) => starsView(s, { skill: q.get('skill') ?? undefined, tier: q.get('tier') ?? undefined })],
+  ['/api/stats', (s, today, q) => statsView(s, today, parseWeeks(q.get('weeks')))],
+  ['/api/wishlist', (s) => wishlistView(s)],
+])
+
+/** Маршрут по пути; /api/quests/<id> — карточка квеста (id или уникальный префикс). */
+function readRoute(pathname: string): ReadRoute | undefined {
+  const m = /^\/api\/quests\/([^/]+)$/.exec(pathname)
+  if (!m) return READ_ROUTES.get(pathname)
+  return (s) => {
+    let id: string
+    try {
+      id = decodeURIComponent(m[1])
+    } catch {
+      throw new ViewError('bad-param', `битый id в пути: ${m[1]}`)
+    }
+    return questView(s, id)
+  }
+}
+
+const VIEW_ERROR_STATUS: Record<ViewError['kind'], number> = { 'bad-param': 400, 'not-found': 404, ambiguous: 409 }
 
 export interface AppOptions {
   storePath: string
@@ -86,8 +143,28 @@ export function createApp({ storePath, publicDir, allowedOrigins }: AppOptions):
     }
   }
 
+  /** Store читается как в /api/store (503 — ещё не создан); отказ среза —
+   * 400 / 404 / 409 с причиной, у неоднозначного префикса — с кандидатами. */
+  const serveRead = (res: ServerResponse, route: ReadRoute, query: URLSearchParams) => {
+    let store: Store
+    try {
+      store = loadStore(storePath)
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code === 'ENOENT' ? 503 : 500
+      return json(res, code, { error: code === 503 ? 'store не инициализирован: stargaze import <file>' : String(e) })
+    }
+    try {
+      return json(res, 200, route(store, serverToday(), query))
+    } catch (e) {
+      if (!(e instanceof ViewError)) throw e
+      return json(res, VIEW_ERROR_STATUS[e.kind], { error: e.message, ...(e.matches ? { matches: e.matches } : {}) })
+    }
+  }
+
   const handle = async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://localhost')
+    const read = req.method === 'GET' ? readRoute(url.pathname) : undefined
+    if (read) return serveRead(res, read, url.searchParams)
     if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true })
     if (req.method === 'GET' && url.pathname === '/api/store') {
       try {

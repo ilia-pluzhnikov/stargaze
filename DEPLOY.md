@@ -101,5 +101,7 @@ docker exec stargaze node cli.js status
 docker exec stargaze node cli.js propose-quest --title "…" --type short --xp 40 --note "зачем"
 ```
 
-Агенту достаточно уметь выполнять эти команды (или POST `/api/action`
-изнутри сети сервера).
+Агенту достаточно уметь выполнять эти команды — или ходить в HTTP API
+изнутри сети сервера: срезы `GET /api/status`, `/api/quests`, … (тот же
+JSON, что `cli.js <команда> --json`) и `POST /api/action`. Справочник —
+[API.md](API.md).

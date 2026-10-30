@@ -42,7 +42,8 @@ docker run -d --name stargaze -p 127.0.0.1:8643:8643 \
 - **CLI** — та же логика из терминала: `node dist-node/cli.js status
   --store ~/.stargaze/store.json` (в Docker путь задан в образе:
   `docker exec stargaze node cli.js status`). Этим же путём ходят агенты.
-- **HTTP API** — `GET /api/store`, `POST /api/action` — для интеграций.
+- **HTTP API** — срезы для агентов (`GET /api/status`, `/api/quests`, …),
+  `GET /api/store`, `POST /api/action`. Справочник — [API.md](API.md).
 
 ## Агент как гейм-мастер
 
