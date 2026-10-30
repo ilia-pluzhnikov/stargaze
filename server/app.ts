@@ -3,22 +3,21 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { readFileSync } from 'node:fs'
 import { extname, resolve, sep } from 'node:path'
-import { ACTION_TYPES, reducer, type Action } from '../src/logic/store'
+import { reducer, type Action } from '../src/logic/store'
+import { actionShapeError, completeQuestRefusal, storeChanged, type CompleteRefusal } from '../src/logic/gates'
 import { loadStore, StoreValidationError, withStore } from '../src/logic/storage'
 import { settlementDay, sparksBalance } from '../src/logic/sparks'
 
 /** Отклонение от no-op-канона (спека 2026-07-27): этим путём ходит
- * агент-гейм-мастер, тихий 200 означал бы «эпик закрыт», хотя он жив. */
-class ChildrenGateError extends Error {
-  constructor(
-    public questTitle: string,
-    public children: { id: string; title: string }[],
-  ) {
-    super(`эпик «${questTitle}» не завершён: активные подквесты`)
+ * агент-гейм-мастер, тихий 200 означал бы «квест сдан», хотя он жив. Причину
+ * (итог, DoD, подквесты, отметка наперёд) считает ядро — голова только отвечает 422. */
+class CompleteGateError extends Error {
+  constructor(public refusal: CompleteRefusal) {
+    super(refusal.error)
   }
 }
 
-/** То же отклонение от no-op-канона, что и ChildrenGateError: этим путём ходит
+/** То же отклонение от no-op-канона, что и CompleteGateError: этим путём ходит
  * агент, тихий 200 маскировал бы отказ экономики (спека 2026-08-05 §9). */
 class EconomyGateError extends Error {
   constructor(message: string, public contracts?: { id: string; title: string }[]) {
@@ -56,10 +55,6 @@ export function createApp({ storePath, publicDir, allowedOrigins }: AppOptions):
     res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' })
     res.end(data)
   }
-
-  const isAction = (x: unknown): x is Action =>
-    typeof x === 'object' && x !== null &&
-    (ACTION_TYPES as readonly string[]).includes((x as { type?: unknown }).type as string)
 
   const readBody = (req: IncomingMessage): Promise<string | null> =>
     new Promise((resolveBody) => {
@@ -107,23 +102,25 @@ export function createApp({ storePath, publicDir, allowedOrigins }: AppOptions):
         return json(res, 403, { error: 'origin не допущен' })
       const body = await readBody(req)
       if (body === null) return json(res, 413, { error: 'слишком большое тело' })
-      let action: unknown
+      let parsed: unknown
       try {
-        action = JSON.parse(body)
+        parsed = JSON.parse(body)
       } catch {
         return json(res, 400, { error: 'битый JSON' })
       }
-      if (!isAction(action)) return json(res, 400, { error: 'неизвестное действие' })
+      const shapeError = actionShapeError(parsed)
+      if (shapeError) return json(res, 400, { error: shapeError })
+      const action = parsed as Action
+      // применилось ли — заголовком, тело остаётся каноном (на него опирается веб):
+      // агенту не нужно перечитывать store, чтобы отличить запись от тихого no-op
+      let applied = false
       // sync-ядро withStore сериализует конкурентные запросы внутри процесса,
       // mkdir-лок — между процессами (CLI пишет в тот же файл)
       try {
-        return json(res, 200, withStore(storePath, (s) => {
-          if (action.type === 'completeQuest' && !action.force) {
-            const q = s.quests.find((x) => x.id === action.questId)
-            if (q && q.type !== 'repeating' && q.status === 'active') {
-              const open = s.quests.filter((c) => c.parentQuestId === q.id && c.status === 'active')
-              if (open.length > 0) throw new ChildrenGateError(q.title, open.map((c) => ({ id: c.id, title: c.title })))
-            }
+        const out = withStore(storePath, (s) => {
+          if (action.type === 'completeQuest') {
+            const refusal = completeQuestRefusal(s, action)
+            if (refusal) throw new CompleteGateError(refusal)
           }
           if (action.type === 'purchaseItem') {
             const item = (s.wishlist ?? []).find((w) => w.id === action.itemId)
@@ -162,11 +159,14 @@ export function createApp({ storePath, publicDir, allowedOrigins }: AppOptions):
             if (contracts.length > 0)
               throw new EconomyGateError('у навыка активные контракты — сначала заверши или отмени каждый', contracts)
           }
-          return reducer(s, action)
-        }))
+          const next = reducer(s, action)
+          applied = storeChanged(s, next)
+          return applied ? next : s // пересобранный, но тот же store не переписывает файл
+        })
+        res.setHeader('Stargaze-Applied', applied ? '1' : '0')
+        return json(res, 200, out)
       } catch (e) {
-        if (e instanceof ChildrenGateError)
-          return json(res, 422, { error: e.message, children: e.children })
+        if (e instanceof CompleteGateError) return json(res, 422, e.refusal)
         if (e instanceof EconomyGateError)
           return json(res, 422, { error: e.message, ...(e.contracts ? { contracts: e.contracts } : {}) })
         if (e instanceof StoreValidationError) return json(res, 422, { error: e.message, errors: e.errors })
