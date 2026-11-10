@@ -130,6 +130,12 @@ export function constellationPlacements(skills: SkySkill[]): Map<string, SkyPlac
     })
   }
 
+  // Тело — нижний ряд между Режимом и Капиталом и свободой. Якорь по id,
+  // а не по hue/числу навыков: новые галактики не возвращают его в чужие ветки.
+  // Применяем после общей раскладки, не сдвигая остальные созвездия.
+  const body = result.get('s_body')
+  if (body) result.set('s_body', { ...body, x: 860, y: 825 })
+
   return result
 }
 

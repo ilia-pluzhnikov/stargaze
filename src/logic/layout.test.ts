@@ -71,6 +71,62 @@ describe('constellationPlacements', () => {
     }
   })
 
+  // Только id/цвета неба: прогресс и пользовательские данные тестам не нужны.
+  const liveSky = [
+    { id: 's_streams', hue: 355 }, { id: 's_b2b', hue: 355 },
+    { id: 's_content', hue: 290 }, { id: 's_agents', hue: 200 },
+    { id: 's_treasury', hue: 52 }, { id: 's_scene', hue: 290 },
+    { id: 's_crew', hue: 200 }, { id: 's_siam', hue: 140 },
+    { id: 's_regime', hue: 140 }, { id: 's_product', hue: 355 },
+    { id: 's_body', hue: 140 }, { id: 's_freedom', hue: 45 },
+  ]
+
+  it('Тело стоит в нижнем ряду между Режимом и Капиталом, с зазором для веток', () => {
+    const placements = constellationPlacements(liveSky)
+    const body = placements.get('s_body')!
+    const regime = placements.get('s_regime')!
+    const freedom = placements.get('s_freedom')!
+    const treasury = placements.get('s_treasury')!
+    expect(body).toEqual({ x: 860, y: 825, rotation: 0.24 })
+    // Мини-созвездие шириной 250px + небольшой поворот: 270px между якорями
+    // оставляет зазор даже для полной кроны, а не только между ядрами.
+    expect(body.x - regime.x).toBeGreaterThanOrEqual(270)
+    expect(freedom.x - body.x).toBeGreaterThanOrEqual(270)
+    expect(Math.abs(body.y - regime.y)).toBeLessThan(30)
+    expect(Math.abs(body.y - freedom.y)).toBeLessThan(30)
+    // Подписи Финансов не встречаются с верхними ветками Тела.
+    expect(body.y - treasury.y).toBeGreaterThanOrEqual(330)
+  })
+
+  it('якорь Тела переживает добавление, удаление, перестановку и перекраску галактик', () => {
+    const expected = constellationPlacements(liveSky).get('s_body')
+    const variants = [
+      [...liveSky].reverse(),
+      liveSky.filter((skill) => skill.id !== 's_freedom'),
+      [...liveSky, { id: 's_new', hue: 139 }], // >12 слотов
+      [{ id: 's_body', hue: 300, name: 'Body' }],
+      liveSky.map((skill) => ({ ...skill, hue: 0, name: 'Переименовано' })),
+    ]
+    for (const skills of variants) {
+      expect(constellationPlacements(skills).get('s_body')).toEqual(expected)
+    }
+  })
+
+  it('override Тела не сдвигает остальные галактики и не мутирует вход', () => {
+    const before = structuredClone(liveSky)
+    const placements = constellationPlacements(liveSky)
+    // Другой id с тем же hue занимает тот же индекс общей hue-раскладки.
+    const automatic = constellationPlacements(liveSky.map((skill) =>
+      skill.id === 's_body' ? { ...skill, id: 's_bodz' } : skill,
+    ))
+    for (const { id } of liveSky.filter((skill) => skill.id !== 's_body')) {
+      expect(placements.get(id), id).toEqual(automatic.get(id))
+    }
+    expect(liveSky).toEqual(before)
+    expect(constellationPlacements([]).size).toBe(0)
+    expect(constellationPlacements([{ id: 'other', hue: 140, name: 'Тело' }]).has('s_body')).toBe(false)
+  })
+
   it('название Казна у другого навыка не меняет его якорь', () => {
     const plain = constellationPlacements(skills)
     const renamed = constellationPlacements(skills.map((skill) => ({ ...skill, name: 'Казна' })))
