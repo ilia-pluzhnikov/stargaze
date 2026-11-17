@@ -1,21 +1,13 @@
 {
-  "commit": "7b21d822c7d18f78720761e536e23796d4ac19e3",
+  "commit": "b0fb695a11bd9d2cf9dd6b99bc1247a79673809d",
   "working_tree_dirty": true,
   "dirty_files": [
-    "PI.md",
-    "CHANGELOG.md",
-    "CLAUDE.md",
-    "docs/codemap/model.mjs",
-    "server/app.test.ts",
-    "server/app.ts",
-    "src/logic/entityKeys.test.ts",
-    "src/logic/gates.test.ts",
-    "src/logic/gates.ts",
-    "src/logic/sparks.test.ts",
-    "src/logic/sparks.ts",
-    "src/logic/store.ts"
+    "ocs/codemap/codemap.html",
+    "docs/codemap/codemap.json",
+    "docs/codemap/codemap.lock",
+    "docs/codemap/model.mjs"
   ],
-  "generated_at": "2026-10-30T19:05:05.146Z",
+  "generated_at": "2026-11-17T19:24:54.944Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -38,7 +30,7 @@
     "tsconfig.json",
     "tsconfig.node.json"
   ],
-  "scanned_files": 84,
+  "scanned_files": 97,
   "fingerprint_algorithm": "sha256(sorted(\"<path>\u0000\" + sha256(file bytes; текст нормализован к LF)))",
   "modules": {
     "web-app": {
@@ -47,11 +39,12 @@
       "files": [
         "index.html",
         "src/App.tsx",
+        "src/hooks/useSkyAddress.ts",
         "src/index.css",
         "src/main.tsx",
         "vite.config.ts"
       ],
-      "fingerprint": "a2b9e0630b657d6b1e0a3843dd36ee85b8d6b3575b61e6814490aba0c360e804"
+      "fingerprint": "db50a59ae59a7de86cc42cc249d3d62017c40c6b44a12180de7d126fe9dd3707"
     },
     "web-sky": {
       "path": "src/components/Sky.tsx",
@@ -63,14 +56,25 @@
         "src/components/GalaxyView.tsx",
         "src/components/Sky.tsx",
         "src/components/StarCard.tsx",
+        "src/components/StarGlow.tsx",
         "src/components/TimelineBar.tsx",
         "src/components/skyColors.test.ts",
         "src/components/skyColors.ts",
+        "src/components/skyGlow.test.ts",
+        "src/components/skyGlow.ts",
         "src/components/skyGlyphs.ts",
         "src/components/skyHistory.test.tsx",
         "src/hooks/usePanZoom.ts"
       ],
-      "fingerprint": "9df0cd861f85368cd83c61ea7d330c563a1e26d0345ff22e2d01952fb3db092c"
+      "fingerprint": "636ee337709a559d45a535c79e81b9e1c1e91205b60383202ee705de21a688e8"
+    },
+    "web-sky3d": {
+      "path": "src/components/Sky3D.tsx",
+      "external": false,
+      "files": [
+        "src/components/Sky3D.tsx"
+      ],
+      "fingerprint": "a93bb9a1c2c5dd510bd58465c9aa51e340616987baaa0a5dd884f89dad88d177"
     },
     "web-panels": {
       "path": "src/components/Journal.tsx",
@@ -80,10 +84,12 @@
         "src/components/Journal.tsx",
         "src/components/LevelUpOverlay.tsx",
         "src/components/QuestRow.tsx",
+        "src/components/SavingsTrack.tsx",
         "src/components/SkillPanel.tsx",
-        "src/components/Wallet.tsx"
+        "src/components/Wallet.tsx",
+        "src/components/WishVisual.tsx"
       ],
-      "fingerprint": "0ceed086ab7621aa7a5130b58ee3d07dec0c9f13f99f5b329509053c09bc3a8b"
+      "fingerprint": "64b31b51b29b5b30809006477f67cc2d62cd714d5862b1ed802f69a6d7bc7cbc"
     },
     "web-modals": {
       "path": "src/components/Modals.tsx",
@@ -142,7 +148,7 @@
         "src/logic/views.test.ts",
         "src/logic/views.ts"
       ],
-      "fingerprint": "1c4168a44784cce079479c1bf51e60f946d1554c855ad8fe4a3c1f7feec21b2e"
+      "fingerprint": "d72dcc6da1e38b02cb4444f775f1d1cadcdf9e365d01e644e0da9f6a06c156bf"
     },
     "core-sparks": {
       "path": "src/logic/sparks.ts",
@@ -150,9 +156,11 @@
       "files": [
         "src/logic/economy.test.ts",
         "src/logic/sparks.test.ts",
-        "src/logic/sparks.ts"
+        "src/logic/sparks.ts",
+        "src/logic/track.test.ts",
+        "src/logic/track.ts"
       ],
-      "fingerprint": "9fc6f6e08bacc28471c3b0367f8711f0e32f9cb000ccb84264e7a6777c7fd65e"
+      "fingerprint": "7f42e901b98f13b6ef8202775fa6953c713a8a234b117ba8a61f14cb88e89177"
     },
     "core-stars": {
       "path": "src/logic/stars.ts",
@@ -196,7 +204,36 @@
         "src/logic/layout.test.ts",
         "src/logic/layout.ts"
       ],
-      "fingerprint": "f50bb71a1f246a46c128438250273d634f38dd77ce98a17d232684e7a88859a7"
+      "fingerprint": "675b72ae2e7fb880bba43b251c963ca930f4c8e2ae6e7402fa50970a332f574f"
+    },
+    "core-panzoom": {
+      "path": "src/logic/panZoom.ts",
+      "external": false,
+      "files": [
+        "src/logic/panZoom.test.ts",
+        "src/logic/panZoom.ts"
+      ],
+      "fingerprint": "d911c73e4175f918e064b6abbf46d9319c0f58c8c44c4169fa8088ca905d2bb4"
+    },
+    "core-sky3d": {
+      "path": "src/logic/sky3d.ts",
+      "external": false,
+      "files": [
+        "src/logic/sky3d.test.ts",
+        "src/logic/sky3d.ts",
+        "src/logic/sky3dPilot.test.ts",
+        "src/logic/sky3dPilot.ts"
+      ],
+      "fingerprint": "9230d35a1ec62b2ead2dd24bd0745e7245ab217c2304a28c2b5872337fe47d6d"
+    },
+    "core-address": {
+      "path": "src/logic/address.ts",
+      "external": false,
+      "files": [
+        "src/logic/address.test.ts",
+        "src/logic/address.ts"
+      ],
+      "fingerprint": "cbdedff73cfddedd1005399ae7449100de1d93de01a2d359520e623ddef85650"
     },
     "core-timeline": {
       "path": "src/logic/timeline.ts",
@@ -247,7 +284,7 @@
         "cli/main.ts",
         "cli/smoke.test.ts"
       ],
-      "fingerprint": "1343443fe491dad1c6e6bd6afa92b50c73ce0e7e66f4b7d39ee64595d9980010"
+      "fingerprint": "40eca7f4838a58d286090e11c0c3ee5dc34036e698cb96db656ee74030416e43"
     },
     "store-json": {
       "path": null,
@@ -276,19 +313,25 @@
     }
   },
   "previous": {
-    "commit": "8ef42034675bc6ecb583ccf6c7081bd11641eb6d",
-    "generated_at": "2026-10-30T12:43:10.115Z",
+    "commit": "b0fb695a11bd9d2cf9dd6b99bc1247a79673809d",
+    "generated_at": "2026-11-17T19:23:21.548Z",
     "changed_modules": [
-      "core-store",
-      "core-gates",
-      "core-sparks",
-      "server"
+      "web-app",
+      "web-sky",
+      "web-panels",
+      "core-sparks"
     ],
-    "new_modules": [],
+    "new_modules": [
+      "web-sky3d",
+      "core-panzoom",
+      "core-sky3d",
+      "core-address"
+    ],
     "removed_modules": []
   },
   "unknowns": [
     "web-app: прямых тестов нет",
+    "web-sky3d: прямых тестов нет",
     "web-panels: прямых тестов нет",
     "web-modals: прямых тестов нет",
     "web-usestore: прямых тестов нет",

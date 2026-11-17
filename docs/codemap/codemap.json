@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-30T19:05:05.146Z",
-  "generated_from_commit": "7b21d822c7d18f78720761e536e23796d4ac19e3",
+  "generated_at": "2026-11-17T19:24:54.944Z",
+  "generated_from_commit": "b0fb695a11bd9d2cf9dd6b99bc1247a79673809d",
   "scope": [
     "src/",
     "cli/",
@@ -17,14 +17,15 @@
       "path": "src/App.tsx",
       "kind": "ui",
       "tier": 0,
-      "role": "Корень SPA: вкладки Небо/Журнал/Хроника/Кошелёк, диспатч действий, тосты и оверлей уровня",
+      "role": "Корень SPA: вкладки Небо/Журнал/Хроника/Кошелёк, диспатч действий, тосты и оверлей уровня; место на небе — из хэша адреса",
       "external": false,
       "files": [
         "index.html",
         "src/main.tsx",
         "src/App.tsx",
         "src/index.css",
-        "vite.config.ts"
+        "vite.config.ts",
+        "src/hooks/useSkyAddress.ts"
       ],
       "entrypoints": [
         "src/main.tsx → createRoot().render(<App/>)",
@@ -34,7 +35,9 @@
       "constraints": [
         "base: './' — относительные пути, сборка раздаётся из любой подпапки; с диска (file://) не открывается — модульный скрипт блокируется CORS",
         "Без UI-библиотек и Tailwind: вся тема в src/index.css",
-        "«Сегодня» берётся из пояса мира (todayInGameTz(gameTzOffset), по умолчанию UTC+7), не из локального дня браузера"
+        "«Сегодня» берётся из пояса мира (todayInGameTz(gameTzOffset), по умолчанию UTC+7), не из локального дня браузера",
+        "Открытая галактика, звезда и 3D-облёт выводятся из хэша адреса (useSkyAddress → resolveAddress), отдельным состоянием не хранятся; навигация изнутри — replaceState",
+        "Под 3D-облётом 2D-небо, открытая галактика и полоса истории не монтируются; тестов на это нет"
       ],
       "evidence": [
         {
@@ -46,6 +49,18 @@
           "symbol": "const today = todayInGameTz(tz)"
         },
         {
+          "path": "src/App.tsx",
+          "symbol": "resolveAddress(store, address)"
+        },
+        {
+          "path": "src/App.tsx",
+          "symbol": "{view === 'sky' && !sky3d && !galaxy && ("
+        },
+        {
+          "path": "src/hooks/useSkyAddress.ts",
+          "symbol": "export function useSkyAddress"
+        },
+        {
           "path": "src/main.tsx",
           "symbol": "createRoot(document.getElementById('root')!)"
         },
@@ -54,7 +69,7 @@
           "symbol": "base: './'"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "web-sky",
@@ -62,7 +77,7 @@
       "path": "src/components/Sky.tsx",
       "kind": "ui",
       "tier": 1,
-      "role": "Обзорное небо и вид галактики: созвездия, звёзды, небулы, глифы, HUD, карточка звезды, пан/зум",
+      "role": "Обзорное небо и вид галактики: созвездия, звёзды и их свет, небулы, глифы, HUD, карточка звезды, пан/зум",
       "external": false,
       "files": [
         "src/components/Sky.tsx",
@@ -72,6 +87,8 @@
         "src/components/CosmosBackdrop.tsx",
         "src/components/StarCard.tsx",
         "src/components/TimelineBar.tsx",
+        "src/components/StarGlow.tsx",
+        "src/components/skyGlow.ts",
         "src/components/skyColors.ts",
         "src/components/skyGlyphs.ts",
         "src/hooks/usePanZoom.ts"
@@ -83,10 +100,13 @@
       ],
       "tests": [
         "src/components/skyColors.test.ts",
+        "src/components/skyGlow.test.ts",
         "src/components/skyHistory.test.tsx"
       ],
       "constraints": [
         "Никакого Math.random() в рендере — позиции из seeded PRNG (logic/layout)",
+        "Числа света — один рецепт skyGlow.ts (объект glow): градиенты 2D и спрайты 3D-облёта строятся по нему; размытия (feGaussianBlur) в небе нет",
+        "Пан и зум меняют только viewBox; геометрия жеста — logic/panZoom, хук usePanZoom ведёт указатели и гасит click после драга",
         "sky-seeds 'questlog-milky'/'questlog-sky' — вечные соли PRNG, ренейм перерисует небо",
         "hue навыков вне оранжевой зоны ≈15–35 (сольётся с брендовым акцентом #FF7715)",
         "FPS-паспорт: покой ≥55, пан ≥30; стоимость twinkle определяется площадью repaint",
@@ -108,9 +128,54 @@
         {
           "path": "src/hooks/usePanZoom.ts",
           "symbol": "export function usePanZoom"
+        },
+        {
+          "path": "src/components/skyGlow.ts",
+          "symbol": "export const glow = {"
+        },
+        {
+          "path": "src/components/StarGlow.tsx",
+          "symbol": "export function LitStar"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
+    },
+    {
+      "id": "web-sky3d",
+      "name": "3D-облёт неба (Canvas 2D)",
+      "path": "src/components/Sky3D.tsx",
+      "kind": "ui",
+      "tier": 1,
+      "role": "Режим просмотра-заставка: то же небо в объёме, камера сама летит от обзора к галактикам; ручная камера (поворот, зум, клик по галактике), подпись и выход",
+      "external": false,
+      "files": [
+        "src/components/Sky3D.tsx"
+      ],
+      "entrypoints": [
+        "<Sky3D/> из App.tsx — адрес #sky=3d или кнопка «◈ 3D-облёт»"
+      ],
+      "tests": [],
+      "constraints": [
+        "Только просмотр: действий над миром нет",
+        "Canvas 2D и заранее отрисованные спрайты, без three.js и других библиотек; кадр ограничен 30 к/с",
+        "Свет звёзд — из рецепта skyGlow, числа не копируются; раскладка — та же seeded-раскладка, что в 2D",
+        "В режиме истории показывает то же прошлое и называет день"
+      ],
+      "evidence": [
+        {
+          "path": "src/components/Sky3D.tsx",
+          "symbol": "export function Sky3D"
+        },
+        {
+          "path": "src/components/Sky3D.tsx",
+          "symbol": "const FPS = 30"
+        },
+        {
+          "path": "src/components/Sky3D.tsx",
+          "symbol": "from './skyGlow'"
+        }
+      ],
+      "changed_since_previous": true
     },
     {
       "id": "web-panels",
@@ -126,6 +191,8 @@
         "src/components/SkillPanel.tsx",
         "src/components/Chronicle.tsx",
         "src/components/Wallet.tsx",
+        "src/components/SavingsTrack.tsx",
+        "src/components/WishVisual.tsx",
         "src/components/LevelUpOverlay.tsx"
       ],
       "entrypoints": [
@@ -150,7 +217,7 @@
           "symbol": "export function Chronicle"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "web-modals",
@@ -341,7 +408,7 @@
           "symbol": "satisfies Record<keyof Quest, true>"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-gates",
@@ -383,7 +450,7 @@
           "symbol": "export function storeChanged"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-views",
@@ -391,7 +458,7 @@
       "path": "src/logic/views.ts",
       "kind": "core",
       "tier": 3,
-      "role": "Машинные срезы команд чтения: статус, кошелёк, квесты, карточка, навыки, ранги, звёзды, статистика, витрина",
+      "role": "Машинные срезы команд чтения: статус, кошелёк, квесты, карточка, навыки (с оттенком и глифом галактики), ранги, звёзды, статистика, витрина",
       "external": false,
       "files": [
         "src/logic/views.ts"
@@ -434,17 +501,20 @@
       "role": "Баланс, провизии, капание за просрочку, комиссия переноса, неустойка отмены, игровой пояс мира (tzOffsetMin, по умолчанию UTC+7) и день расчёта",
       "external": false,
       "files": [
-        "src/logic/sparks.ts"
+        "src/logic/sparks.ts",
+        "src/logic/track.ts"
       ],
       "entrypoints": [
         "sparksBalance",
         "settlementDay",
         "dayInGameTz/todayInGameTz",
-        "moveFeeFor/cancelFeeFor"
+        "moveFeeFor/cancelFeeFor",
+        "trackModel (трек накоплений кошелька)"
       ],
       "tests": [
         "src/logic/sparks.test.ts",
-        "src/logic/economy.test.ts"
+        "src/logic/economy.test.ts",
+        "src/logic/track.test.ts"
       ],
       "constraints": [
         "Ни одного new Date(iso): день считается регэкспом + UTC-арифметикой",
@@ -641,6 +711,129 @@
       "changed_since_previous": false
     },
     {
+      "id": "core-panzoom",
+      "name": "Геометрия пана и зума",
+      "path": "src/logic/panZoom.ts",
+      "kind": "core",
+      "tier": 3,
+      "role": "viewBox неба под жестом: зум к точке, пан, щипок двумя пальцами, границы кадра",
+      "external": false,
+      "files": [
+        "src/logic/panZoom.ts"
+      ],
+      "entrypoints": [
+        "moveView(v, frame, world, from, to, factor)",
+        "gestureView(v, frame, world, before, after)",
+        "clampView / toWorld"
+      ],
+      "tests": [
+        "src/logic/panZoom.test.ts"
+      ],
+      "constraints": [
+        "Раскладка не трогается — меняется только viewBox",
+        "Пределы: приближение до ×5 (MAX_ZOOM_IN), отдаление до 0,55 (MAX_ZOOM_OUT)"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/panZoom.ts",
+          "symbol": "export function gestureView"
+        },
+        {
+          "path": "src/logic/panZoom.ts",
+          "symbol": "export const MAX_ZOOM_IN = 5"
+        }
+      ],
+      "changed_since_previous": true
+    },
+    {
+      "id": "core-sky3d",
+      "name": "Сцена и камера 3D-облёта",
+      "path": "src/logic/sky3d.ts",
+      "kind": "core",
+      "tier": 3,
+      "role": "Галактики в объёме из той же раскладки, план полёта, проекция на экран, автопилот и ручная камера — чистые функции",
+      "external": false,
+      "files": [
+        "src/logic/sky3d.ts",
+        "src/logic/sky3dPilot.ts"
+      ],
+      "entrypoints": [
+        "buildSkyScene(store, layoutFrom)",
+        "flightPlan(scene) / flightCamera(plan, t)",
+        "cameraBasis / project / pickGalaxy",
+        "startPilot / pilotTick / pilotRotate / pilotZoom / pilotFlyTo / pilotStartAt"
+      ],
+      "tests": [
+        "src/logic/sky3d.test.ts",
+        "src/logic/sky3dPilot.test.ts"
+      ],
+      "constraints": [
+        "Глубина и фоновые звёзды — seeded PRNG (hashStr, mulberry32), никакого Math.random()",
+        "Раскладка считается по layoutFrom: в режиме истории сцена показывает прошлое в сегодняшних координатах",
+        "Остановка — FLIGHT_HOLD_SEC 15 с, перелёт — FLIGHT_TRAVEL_SEC 7 с; после RESUME_IDLE_SEC 30 с покоя ручная камера возвращается в автопролёт"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/sky3d.ts",
+          "symbol": "export function buildSkyScene"
+        },
+        {
+          "path": "src/logic/sky3d.ts",
+          "symbol": "export const FLIGHT_HOLD_SEC = 15"
+        },
+        {
+          "path": "src/logic/sky3dPilot.ts",
+          "symbol": "export function pilotTick"
+        },
+        {
+          "path": "src/logic/sky3dPilot.ts",
+          "symbol": "export const RESUME_IDLE_SEC = 30"
+        }
+      ],
+      "changed_since_previous": true
+    },
+    {
+      "id": "core-address",
+      "name": "Адреса веба",
+      "path": "src/logic/address.ts",
+      "kind": "core",
+      "tier": 3,
+      "role": "Хэш адреса ↔ место на небе: #skill, #star, #sky=3d — разбор, запись и поиск цели в store",
+      "external": false,
+      "files": [
+        "src/logic/address.ts"
+      ],
+      "entrypoints": [
+        "parseAddress(hash) / formatAddress(address)",
+        "resolveAddress(store, address)",
+        "starAddress(star)",
+        "withSky3d(address, on)"
+      ],
+      "tests": [
+        "src/logic/address.test.ts"
+      ],
+      "constraints": [
+        "Формат адреса — публичный контракт для внешних страниц и агента (API.md, «Адреса веба»)",
+        "Цели нет (id не найден, навык в архиве) — общее небо без ошибки",
+        "id — целиком, префиксы не разбираются; незнакомые ключи пропускаются"
+      ],
+      "evidence": [
+        {
+          "path": "src/logic/address.ts",
+          "symbol": "export function parseAddress"
+        },
+        {
+          "path": "src/logic/address.ts",
+          "symbol": "export function resolveAddress"
+        },
+        {
+          "path": "src/logic/address.ts",
+          "symbol": "export function withSky3d"
+        }
+      ],
+      "changed_since_previous": true
+    },
+    {
       "id": "core-timeline",
       "name": "История неба",
       "path": "src/logic/timeline.ts",
@@ -808,7 +1001,7 @@
           "symbol": "process.env.STARGAZE_STORE ?? process.env.QUESTLOG_STORE"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "cli",
@@ -1078,6 +1271,32 @@
       ]
     },
     {
+      "from": "web-app",
+      "to": "web-sky3d",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "import { Sky3D } from './components/Sky3D'"
+        }
+      ]
+    },
+    {
+      "from": "web-app",
+      "to": "core-address",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/App.tsx",
+          "symbol": "import { resolveAddress, starAddress, withSky3d } from './logic/address'"
+        },
+        {
+          "path": "src/hooks/useSkyAddress.ts",
+          "symbol": "from '../logic/address'"
+        }
+      ]
+    },
+    {
       "from": "web-sky",
       "to": "core-layout",
       "type": "imports",
@@ -1128,6 +1347,69 @@
       "evidence": [
         {
           "path": "src/components/skyColors.ts",
+          "symbol": "from '../types'"
+        }
+      ]
+    },
+    {
+      "from": "web-sky",
+      "to": "core-panzoom",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/hooks/usePanZoom.ts",
+          "symbol": "import { gestureView, moveView } from '../logic/panZoom'"
+        }
+      ]
+    },
+    {
+      "from": "web-sky3d",
+      "to": "core-sky3d",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Sky3D.tsx",
+          "symbol": "from '../logic/sky3d'"
+        },
+        {
+          "path": "src/components/Sky3D.tsx",
+          "symbol": "from '../logic/sky3dPilot'"
+        }
+      ]
+    },
+    {
+      "from": "web-sky3d",
+      "to": "web-sky",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Sky3D.tsx",
+          "symbol": "from './skyGlow'"
+        },
+        {
+          "path": "src/components/Sky3D.tsx",
+          "symbol": "import { ROOT_MINI_SCALE } from './Galaxy'"
+        }
+      ]
+    },
+    {
+      "from": "web-sky3d",
+      "to": "core-layout",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Sky3D.tsx",
+          "symbol": "import { CONST_H, CONST_W } from '../logic/layout'"
+        }
+      ]
+    },
+    {
+      "from": "web-sky3d",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/components/Sky3D.tsx",
           "symbol": "from '../types'"
         }
       ]
@@ -1491,6 +1773,61 @@
       "evidence": [
         {
           "path": "src/logic/timeline.ts",
+          "symbol": "from '../types'"
+        }
+      ]
+    },
+    {
+      "from": "core-sky3d",
+      "to": "core-layout",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/sky3d.ts",
+          "symbol": "from './layout'"
+        }
+      ]
+    },
+    {
+      "from": "core-sky3d",
+      "to": "core-stars",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/sky3d.ts",
+          "symbol": "import { skillStars } from './stars'"
+        }
+      ]
+    },
+    {
+      "from": "core-sky3d",
+      "to": "core-timeline",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/sky3d.ts",
+          "symbol": "import { constellationAsOf } from './timeline'"
+        }
+      ]
+    },
+    {
+      "from": "core-sky3d",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/sky3d.ts",
+          "symbol": "from '../types'"
+        }
+      ]
+    },
+    {
+      "from": "core-address",
+      "to": "core-model",
+      "type": "imports",
+      "evidence": [
+        {
+          "path": "src/logic/address.ts",
           "symbol": "from '../types'"
         }
       ]
@@ -2106,6 +2443,54 @@
         }
       ],
       "outcome": "Списание ровно один раз даже при передрайве очереди; отказ — честный 422, а не тихий 200"
+    },
+    {
+      "id": "flow-sky-address",
+      "name": "Ссылка на место неба и 3D-облёт",
+      "trigger": "Открыта ссылка …/#star=<id> или …/#sky=3d, либо агент сменил хэш в открытой вкладке",
+      "steps": [
+        {
+          "node": "web-app",
+          "action": "useSkyAddress читает хэш и слушает hashchange; навигация изнутри пишет адрес через replaceState",
+          "evidence": {
+            "path": "src/hooks/useSkyAddress.ts",
+            "symbol": "window.addEventListener('hashchange', onHashChange)"
+          }
+        },
+        {
+          "node": "core-address",
+          "action": "parseAddress → resolveAddress(store, address): галактика, звезда или общее небо, если цели нет",
+          "evidence": {
+            "path": "src/logic/address.ts",
+            "symbol": "export function resolveAddress"
+          }
+        },
+        {
+          "node": "web-app",
+          "action": "Показывает найденное место; при sky=3d монтирует <Sky3D/> вместо 2D-неба и полосы истории",
+          "evidence": {
+            "path": "src/App.tsx",
+            "symbol": "{view === 'sky' && sky3d && ("
+          }
+        },
+        {
+          "node": "core-sky3d",
+          "action": "buildSkyScene + flightPlan; pilotStartAt плавно ведёт камеру к галактике из адреса",
+          "evidence": {
+            "path": "src/logic/sky3dPilot.ts",
+            "symbol": "export function pilotStartAt"
+          }
+        },
+        {
+          "node": "web-sky3d",
+          "action": "Canvas 2D: спрайты света по рецепту skyGlow, не чаще 30 кадров в секунду",
+          "evidence": {
+            "path": "src/components/Sky3D.tsx",
+            "symbol": "const FPS = 30"
+          }
+        }
+      ],
+      "outcome": "Адрес из строки браузера — готовая ссылка на то, что сейчас на небе; галактику и облёт на экране можно переключать сменой хэша без перезагрузки"
     }
   ]
 }
