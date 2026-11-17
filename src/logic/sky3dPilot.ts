@@ -53,11 +53,18 @@ function limited(pose: OrbitPose, plan: FlightPlan, stopIndex: number): OrbitPos
   }
 }
 
-/** Пилот в начале облёта: автопролёт с обзорного плана. */
-export function startPilot(plan: FlightPlan): Pilot {
-  const frame = flightCamera(plan, 0)
+/** Остановка галактики в плане облёта; такой нет (или null — общее небо) — обзор. */
+export function stopIndexOf(plan: FlightPlan, galaxyId: string | null | undefined): number {
+  const at = galaxyId ? plan.stops.findIndex((s) => s.galaxyId === galaxyId) : -1
+  return at < 0 ? 0 : at
+}
+
+/** Пилот в начале облёта: автопролёт с начала остановки stopIndex (по умолчанию — с обзора). */
+export function startPilot(plan: FlightPlan, stopIndex = 0): Pilot {
+  const clockSec = stopIndex * (plan.holdSec + plan.travelSec)
+  const frame = flightCamera(plan, clockSec)
   const pose = copyPose(frame)
-  return { mode: 'auto', clockSec: 0, paused: false, pose, goal: pose, stopIndex: frame.focusIndex, travelling: false, idleSec: 0, blend: null }
+  return { mode: 'auto', clockSec, paused: false, pose, goal: pose, stopIndex: frame.focusIndex, travelling: false, idleSec: 0, blend: null }
 }
 
 /** План облёта сменился (store обновился, навык добавили или убрали): пилот остаётся на
@@ -121,6 +128,12 @@ export function pilotFlyTo(p: Pilot, plan: FlightPlan, stopIndex: number): Pilot
 export function pilotResume(p: Pilot, plan: FlightPlan): Pilot {
   const step = plan.holdSec + plan.travelSec
   return { ...p, mode: 'auto', clockSec: p.stopIndex * step, paused: false, goal: p.pose, idleSec: 0, blend: { from: p.pose, u: 0 } }
+}
+
+/** Адрес страницы назвал галактику (null — общее небо): автопролёт плавно переходит к её
+ * остановке, кто бы ни вёл камеру. Галактики нет в плане — к обзору. */
+export function pilotStartAt(p: Pilot, plan: FlightPlan, galaxyId: string | null): Pilot {
+  return pilotResume({ ...p, stopIndex: stopIndexOf(plan, galaxyId) }, plan)
 }
 
 /** К следующей (1) или предыдущей (-1) остановке: автопролёт продолжается с неё. */

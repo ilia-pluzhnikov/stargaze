@@ -4,7 +4,7 @@ import { buildSkyScene, cameraBasis, flightCamera, flightPlan, orbitEye, pickGal
 import type { OrbitPose, Vec3 } from './sky3d'
 import {
   ORBIT_MAX_DISTANCE, ORBIT_PITCH_MAX, ORBIT_YAW_MAX, RESUME_BLEND_SEC, RESUME_IDLE_SEC, pilotFlyTo, pilotResume, pilotRotate,
-  pilotStep, pilotTick, pilotTogglePause, pilotZoom, rebasePilot, startPilot,
+  pilotStartAt, pilotStep, pilotTick, pilotTogglePause, pilotZoom, rebasePilot, startPilot, stopIndexOf,
 } from './sky3dPilot'
 import type { Pilot } from './sky3dPilot'
 
@@ -227,6 +227,39 @@ describe('pilotStep', () => {
     const next = pilotStep(m, plan, 1)
     expect(next).toMatchObject({ mode: 'auto', stopIndex: 3, clockSec: 3 * step })
     expect(jump(next.pose, m.pose)).toBe(0)
+  })
+})
+
+describe('старт облёта с галактики из адреса', () => {
+  it('stopIndexOf: остановка галактики; нет такой, null, пусто — обзор', () => {
+    for (const g of scene.galaxies) expect(plan.stops[stopIndexOf(plan, g.id)].galaxyId).toBe(g.id)
+    for (const id of ['нет-такой', null, undefined, '']) expect(stopIndexOf(plan, id), String(id)).toBe(0)
+  })
+
+  it('startPilot с остановкой: автопролёт сразу стоит у этой галактики, без подлёта', () => {
+    const idx = stopOf('s_code')
+    const p = startPilot(plan, idx)
+    expect(p).toMatchObject({ mode: 'auto', stopIndex: idx, clockSec: idx * step, travelling: false, blend: null })
+    expect(p.pose.target).toEqual(plan.stops[idx].target)
+    expect(run(p, 1)).toMatchObject({ mode: 'auto', stopIndex: idx })
+  })
+
+  it('pilotStartAt: из ручного режима и из автопролёта — плавно к названной галактике, дальше облёт идёт сам', () => {
+    const idx = stopOf('s_read')
+    for (const from of [run(startPilot(plan), 4), run(pilotRotate(pilotFlyTo(startPilot(plan), plan, stopOf('s_run')), plan, 0.5, 0.2), 3)]) {
+      const moved = pilotStartAt(from, plan, 's_read')
+      expect(moved).toMatchObject({ mode: 'auto', paused: false, stopIndex: idx, clockSec: idx * step })
+      expect(jump(moved.pose, from.pose)).toBe(0) // в кадре переключения камера на месте
+      const there = run(moved, 5)
+      expect(gap(there.pose.target, plan.stops[idx].target)).toBeLessThan(1e-9)
+      expect(there.stopIndex).toBe(idx)
+    }
+  })
+
+  it('pilotStartAt: галактики нет в плане или адрес вернулся на общее небо — к обзору', () => {
+    const at = run(startPilot(plan, 2), 3)
+    expect(pilotStartAt(at, plan, 'нет-такой')).toMatchObject({ stopIndex: 0, clockSec: 0 })
+    expect(pilotStartAt(at, plan, null)).toMatchObject({ stopIndex: 0, clockSec: 0 })
   })
 })
 

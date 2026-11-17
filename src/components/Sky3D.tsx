@@ -7,7 +7,8 @@ import {
 } from '../logic/sky3d'
 import type { CameraBasis, SkyGalaxy3D, Vec3 } from '../logic/sky3d'
 import {
-  RESUME_IDLE_SEC, pilotFlyTo, pilotResume, pilotRotate, pilotStep, pilotTick, pilotTogglePause, pilotZoom, rebasePilot, startPilot,
+  RESUME_IDLE_SEC, pilotFlyTo, pilotResume, pilotRotate, pilotStartAt, pilotStep, pilotTick, pilotTogglePause, pilotZoom,
+  rebasePilot, startPilot, stopIndexOf,
 } from '../logic/sky3dPilot'
 import type { Pilot } from '../logic/sky3dPilot'
 import { glyphById } from './skyGlyphs'
@@ -18,6 +19,9 @@ interface Props {
   store: SkyStore
   /** Сегодняшнее небо для раскладки; нет = то же, что store (см. Sky). */
   layoutFrom?: SkyStore
+  /** Галактика из адреса страницы: облёт начинается с неё и переходит к ней, когда адрес
+   * меняется. null или нет — с обзора всего неба. */
+  startAt?: string | null
   onClose: () => void
 }
 
@@ -193,12 +197,13 @@ function drawGalaxy(
  * пальцем её можно взять в руки — вращать, приближать, подлетать к галактике кликом.
  * Действий над миром нет; выход — кнопка или Esc. Геометрия и правила полёта — в
  * logic/sky3d и logic/sky3dPilot, здесь только ввод и отрисовка на Canvas 2D. */
-export function Sky3D({ store, layoutFrom, onClose }: Props) {
+export function Sky3D({ store, layoutFrom, startAt = null, onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const scene = useMemo(() => buildSkyScene(store, layoutFrom ?? store), [store, layoutFrom])
   const plan = useMemo(() => flightPlan(scene), [scene])
   // пилот переживает пересборку сцены: синхронизация store не отбрасывает камеру к началу
   const pilot = useRef<Pilot | null>(null)
+  const startedAt = useRef(startAt) // галактика, с которой облёт начат или на которую его перевёл адрес
   const [focusId, setFocusId] = useState<string | null>(null)
   const [hud, setHud] = useState({ manual: false, paused: false })
   const [controls, setControls] = useState(true)
@@ -207,7 +212,7 @@ export function Sky3D({ store, layoutFrom, onClose }: Props) {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
-    pilot.current = pilot.current ? rebasePilot(pilot.current, plan) : startPilot(plan)
+    pilot.current = pilot.current ? rebasePilot(pilot.current, plan) : startPilot(plan, stopIndexOf(plan, startedAt.current))
     const sprites = makeSprites(scene.galaxies)
     const glyphs = new Map<string, Path2D[]>()
     for (const g of scene.galaxies) {
@@ -334,6 +339,14 @@ export function Sky3D({ store, layoutFrom, onClose }: Props) {
       canvas.removeEventListener('wheel', onWheel)
     }
   }, [scene, plan])
+
+  // Адрес назвал другую галактику — агент сменил ссылку на экране или приехал канон с целью
+  // ссылки, которой не было в копии из браузера: облёт плавно переходит к ней
+  useEffect(() => {
+    if (startedAt.current === startAt) return
+    startedAt.current = startAt
+    if (pilot.current) pilot.current = pilotStartAt(pilot.current, plan, startAt)
+  }, [startAt, plan])
 
   // Кнопки видны, пока человек шевелится; в покое остаётся чистая заставка без курсора
   useEffect(() => {
