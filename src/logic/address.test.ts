@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Skill, StarComponent } from '../types'
-import { formatAddress, parseAddress, resolveAddress } from './address'
+import { formatAddress, parseAddress, resolveAddress, starAddress } from './address'
 
 const skill = (id: string, over: Partial<Skill> = {}): Skill =>
   ({ id, emoji: '✦', name: id, wantStatement: '', hue: 200, archived: false, createdAt: '2026-06-01T12:00:00.000Z', ...over })
@@ -147,5 +147,39 @@ describe('resolveAddress', () => {
     const archived = { ...store, skills: store.skills.map((s) => (s.id === 'run' ? { ...s, archived: true } : s)) }
     expect(resolveAddress(store, { star: '5k' }).skill?.id).toBe('run')
     expect(resolveAddress(archived, { star: '5k' })).toEqual(sky)
+  })
+})
+
+describe('starAddress — адрес звезды, каким его пишет веб', () => {
+  const store = {
+    skills: [skill('eng'), skill('run')],
+    stars: [star('a1', 'eng'), star('5k', 'run')],
+  }
+  const address = starAddress(store.stars[1])
+
+  it('несёт и звезду, и её галактику', () => {
+    expect(address).toEqual({ star: '5k', skill: 'run' })
+    expect(formatAddress(address)).toBe('#star=5k&skill=run')
+    expect(resolveAddress(store, address)).toEqual({ skill: store.skills[1], star: store.stars[1] })
+  })
+
+  it('звезду удалил другой клиент — тот же адрес оставляет в её галактике', () => {
+    const without = { ...store, stars: store.stars.filter((s) => s.id !== '5k') }
+    expect(resolveAddress(without, address)).toEqual({ skill: store.skills[1], star: null })
+    // без запасного skill тот же случай уводит на общее небо
+    expect(resolveAddress(without, { star: '5k' })).toEqual({ skill: null, star: null })
+  })
+
+  it('звезду перенесли в другой навык — адрес ведёт за звездой, а не в прежнюю галактику', () => {
+    const moved = { ...store, stars: store.stars.map((s) => (s.id === '5k' ? { ...s, skillId: 'eng' } : s)) }
+    const place = resolveAddress(moved, address)
+    expect(place.skill?.id).toBe('eng')
+    expect(place.star?.id).toBe('5k')
+    expect(starAddress(place.star!)).toEqual({ star: '5k', skill: 'eng' })
+  })
+
+  it('галактика звезды ушла в архив — общее небо', () => {
+    const archived = { ...store, skills: store.skills.map((s) => (s.id === 'run' ? { ...s, archived: true } : s)) }
+    expect(resolveAddress(archived, address)).toEqual({ skill: null, star: null })
   })
 })

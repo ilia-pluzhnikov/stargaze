@@ -56,6 +56,15 @@ export function formatAddress(address: SkyAddress): string {
 }
 
 /**
+ * Адрес звезды, каким его пишет сам веб: вместе с её галактикой. Звезду может удалить другой
+ * клиент (агент через API) — тогда запасной `skill` оставляет экран в галактике, а не уводит
+ * на общее небо.
+ */
+export function starAddress(star: Pick<StarComponent, 'id' | 'skillId'>): SkyAddress {
+  return { star: star.id, skill: star.skillId }
+}
+
+/**
  * Куда ведёт адрес на этом store. Цели нет — общее небо, без ошибки: id не найден, навык
  * в архиве, звезда архивного навыка. Заданы оба ключа — выигрывает `star`, `skill` —
  * запасной: срабатывает, когда звезда не открылась.
