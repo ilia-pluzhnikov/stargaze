@@ -8,6 +8,8 @@ import type { SkyPlacement } from '../logic/layout'
 import { constellationAsOf } from '../logic/timeline'
 import { glyphById } from './skyGlyphs'
 import { sky, tierStyle } from './skyColors'
+import { LitStar, RootLight } from './StarGlow'
+import { spikePath } from './skyGlow'
 
 interface Props {
   anchor: SkyPlacement
@@ -23,6 +25,8 @@ interface Props {
 // В лабораторном all-sky созвездие занимает ~14% ширины мира.
 // 0.25 здесь даёт ту же пропорцию при SKY_W=1800 (раньше было всего ~9%).
 const MINI_SCALE = 0.25
+// Свет ядра в мини-созвездии крупнее, чем в открытой галактике: его рисуют в четверть масштаба.
+const ROOT_MINI_SCALE = 1.5
 
 /** Узел неба: мини-созвездие навыка (скелет без фильтров) + имя + сводка. */
 export function Galaxy({ anchor, skill, stars, layoutStars, xpLog, onOpen, onStarHover }: Props) {
@@ -38,7 +42,6 @@ export function Galaxy({ anchor, skill, stars, layoutStars, xpLog, onOpen, onSta
   const constellation = useMemo(() => constellationAsOf(full, own), [full, own])
   const glyph = glyphById(skill.glyphId)
   const half = (CONST_H * MINI_SCALE) / 2
-  const rootHaloId = `mini-root-halo-${skill.id}`
 
   return (
     <g className="galaxy-g" transform={`translate(${anchor.x}, ${anchor.y})`} onClick={onOpen}>
@@ -74,17 +77,15 @@ export function Galaxy({ anchor, skill, stars, layoutStars, xpLog, onOpen, onSta
           const scale = tierStyle[star.tier].scale
           return (
             <g key={star.id} transform={`translate(${x}, ${y})`}>
-              <circle r={(lit ? 28 : 15) * scale} fill={`url(#mini-halo-${star.tier})`} opacity={lit ? 0.9 : 0.45} />
-              {lit && (
-                <g opacity={0.9}>
-                  <rect x={-18 * scale} y={-0.7} width={36 * scale} height={1.4} rx={0.7} fill={sky.flare} opacity={0.8} />
-                  <rect x={-0.7} y={-18 * scale} width={1.4} height={36 * scale} rx={0.7} fill={sky.flare} opacity={0.8} />
-                  <rect x={-9 * scale} y={-0.4} width={18 * scale} height={0.8} fill={sky.flare} opacity={0.42} transform="rotate(45)" />
-                  <rect x={-9 * scale} y={-0.4} width={18 * scale} height={0.8} fill={sky.flare} opacity={0.42} transform="rotate(-45)" />
-                </g>
+              {lit ? (
+                <LitStar tier={star.tier} size="overview" />
+              ) : (
+                <>
+                  <circle r={15 * scale} fill={`url(#mini-halo-${star.tier})`} opacity={0.45} />
+                  <circle r={5 * scale} fill={sky.starFill(false, star.tier)}
+                    stroke={sky.starStroke(false, star.tier)} strokeWidth={1.2} />
+                </>
               )}
-              <circle r={(lit ? 7 : 5) * scale} fill={sky.starFill(lit, star.tier)}
-                stroke={sky.starStroke(lit, star.tier)} strokeWidth={lit ? 0.8 : 1.2} />
               {/* Мини-звезда ~1–2 px на экране — курсором не попасть без увеличенной невидимой мишени. */}
               <circle r={22} fill="transparent"
                 onMouseEnter={(e) => onStarHover({ star, x: e.clientX, y: e.clientY })}
@@ -93,13 +94,12 @@ export function Galaxy({ anchor, skill, stars, layoutStars, xpLog, onOpen, onSta
           )
         })}
         <g transform={`translate(${constellation.root.x}, ${constellation.root.y})`}>
-          <circle r={38} fill={`url(#${rootHaloId})`} />
           <circle r={42} fill="none" stroke={sky.galaxyStroke(hue)} strokeOpacity={0.12} strokeWidth={1.2} />
           <circle r={29} fill="none" stroke={sky.galaxyStroke(hue)} strokeOpacity={0.24} strokeWidth={1.2} />
           <circle r={18} fill="none" stroke={sky.galaxyStroke(hue)} strokeOpacity={0.48} strokeWidth={1.4} />
-          <rect x={-18} y={-0.6} width={36} height={1.2} fill={sky.flare} opacity={0.58} />
-          <rect x={-0.6} y={-18} width={1.2} height={36} fill={sky.flare} opacity={0.58} />
-          <circle r={7} fill={sky.litCore} stroke={sky.flare} strokeWidth={1} />
+          <path d={spikePath(24, 1.4)} fill={sky.flare} opacity={0.6} />
+          <path d={spikePath(24, 1.4)} fill={sky.flare} opacity={0.6} transform="rotate(90)" />
+          <RootLight id={skill.id} scale={ROOT_MINI_SCALE} />
         </g>
       </g>
       </g>

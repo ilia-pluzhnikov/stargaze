@@ -7,6 +7,8 @@ import { Galaxy } from './Galaxy'
 import { displaySkillName } from './GalaxyHud'
 import { sky } from './skyColors'
 import { CosmosBackdrop } from './CosmosBackdrop'
+import { GlowDefs, GlowStops, RootGlowDefs } from './StarGlow'
+import { glow, nebulaStops } from './skyGlow'
 
 interface Props {
   store: SkyStore
@@ -84,21 +86,13 @@ export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory }: Props) {
               </radialGradient>
             )
           })}
-          {skills.map((s) => {
-            const rootHalo = sky.rootHalo(s.hue)
-            return (
-              <g key={s.id}>
-                <radialGradient id={`neb-${s.id}`}>
-                  <stop offset="0%" stopColor={sky.nebula(s.hue).core} />
-                  <stop offset="100%" stopColor={sky.nebula(s.hue).edge} />
-                </radialGradient>
-                <radialGradient id={`mini-root-halo-${s.id}`}>
-                  <stop offset="0%" stopColor={rootHalo.inner} />
-                  <stop offset="100%" stopColor={rootHalo.outer} />
-                </radialGradient>
-              </g>
-            )
-          })}
+          <GlowDefs />
+          {skills.map((s) => (
+            <g key={s.id}>
+              <radialGradient id={`neb-${s.id}`}><GlowStops stops={nebulaStops(s.hue, 'overview')} /></radialGradient>
+              <RootGlowDefs id={s.id} hue={s.hue} />
+            </g>
+          ))}
         </defs>
         {milky.map((m, i) => (
           <ellipse key={i} cx={m.x} cy={m.y} rx={m.rx} ry={m.rx * 0.4} fill="url(#milkg)"
@@ -106,7 +100,8 @@ export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory }: Props) {
         ))}
         {skills.map((s) => {
           const a = placements.get(s.id)!
-          return <ellipse key={s.id} cx={a.x} cy={a.y - 10} rx={220} ry={165} fill={`url(#neb-${s.id})`} />
+          const [rx, ry] = glow.nebula.radius.overview
+          return <ellipse key={s.id} cx={a.x} cy={a.y - 10} rx={rx} ry={ry} fill={`url(#neb-${s.id})`} />
         })}
         {skills.map((skill) => (
           <Galaxy key={skill.id} anchor={placements.get(skill.id)!} skill={skill}
