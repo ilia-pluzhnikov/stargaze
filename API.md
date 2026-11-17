@@ -42,7 +42,7 @@ curl -s -X POST http://stargaze:8643/api/action \
 | `GET /api/wallet` | кошелёк искр: баланс, капание, квота переносов, эмиссия, журнал |
 | `GET /api/quests` | список квестов; `?filter=active\|today\|proposed\|all` |
 | `GET /api/quests/<id>` | карточка квеста; у эпика — дети и прогресс |
-| `GET /api/skills` | живые навыки: уровень и ранги |
+| `GET /api/skills` | живые навыки: уровень, ранги, оттенок и глиф галактики |
 | `GET /api/ranks?skill=<id>` | лестница рангов навыка |
 | `GET /api/stars` | звёзды; `?skill=<id>`, `?tier=D\|C\|B\|A\|S` |
 | `GET /api/stats` | XP по неделям; `?weeks=1..52` (по умолчанию 4) |
@@ -139,10 +139,24 @@ curl -s -X POST http://stargaze:8643/api/action \
 ### `GET /api/skills`
 
 ```json
-[{ "id": "sk_health", "name": "💪 Здоровье", "level": 1, "into": 0, "toNext": 100, "ranks": { "total": 5, "achieved": 1 } }]
+[
+  { "id": "sk_health", "name": "💪 Здоровье", "level": 1, "into": 0, "toNext": 100,
+    "ranks": { "total": 5, "achieved": 1 }, "hue": 145, "glyphId": "caduceus" },
+  { "id": "sk_craft", "name": "🎨 Творчество", "level": 3, "into": 40, "toNext": 200,
+    "ranks": { "total": 0, "achieved": 0 }, "hue": 280 }
+]
 ```
 
-Без архивных; `name` — с эмодзи.
+- Без архивных; `name` — с эмодзи.
+- `hue` и `glyphId` — облик галактики: поля навыка как в store (`Skill` в
+  `src/types.ts`), без пересчёта. Ради цвета и глифа читать `/api/store` не
+  нужно.
+- `hue` — оттенок в градусах цветового круга (HSL). Веб задаёт 0..360, но
+  диапазон в store не проверяется: число вне него приводи по модулю 360.
+- `glyphId` — id глифа-созвездия из каталога `src/components/skyGlyphs.ts`
+  (`delta`, `lantern`, `tower`, …; сами контуры — там же). У навыка без глифа
+  ключа `glyphId` нет вовсе — не `null`, как у необязательных полей квестов и
+  звёзд. Id, которого нет в каталоге, — тоже «без глифа».
 
 ### `GET /api/ranks?skill=<id>`
 

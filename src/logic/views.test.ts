@@ -237,18 +237,33 @@ describe('questView', () => {
 
 describe('skillsView / ranksView / starsView', () => {
   const s = world({
-    skills: [skill('s_run', { emoji: '🏃', name: 'Бег' }), skill('s_old', { archived: true }), skill('s_row')],
+    skills: [
+      skill('s_run', { emoji: '🏃', name: 'Бег', hue: 210, glyphId: 'delta' }),
+      skill('s_old', { archived: true, hue: 40, glyphId: 'tower' }),
+      skill('s_row'),
+    ],
     stars: [
       star('c_d1', 's_run', 'D', true), star('c_d2', 's_run', 'D', true), star('c_d3', 's_run', 'D'),
       star('c_b1', 's_run', 'B'),
       star('c_o1', 's_old', 'C', true),
     ],
   })
-  it('skillsView: архив выпадает, имя с эмодзи, ранги сводкой', () =>
+  it('skillsView: архив выпадает, имя с эмодзи, ранги сводкой, облик — hue и glyphId как в store', () =>
     expect(skillsView(s)).toEqual([
-      { id: 's_run', name: '🏃 Бег', level: 1, into: 0, toNext: 100, ranks: { total: 2, achieved: 1 } },
-      { id: 's_row', name: '⚔️ s_row', level: 1, into: 0, toNext: 100, ranks: { total: 0, achieved: 0 } },
+      { id: 's_run', name: '🏃 Бег', level: 1, into: 0, toNext: 100, ranks: { total: 2, achieved: 1 }, hue: 210, glyphId: 'delta' },
+      { id: 's_row', name: '⚔️ s_row', level: 1, into: 0, toNext: 100, ranks: { total: 0, achieved: 0 }, hue: 0 },
     ]))
+  it('skillsView: прежние поля — в прежнем порядке, облик дописан в конец; без глифа ключа glyphId нет', () => {
+    // toEqual не отличает «ключа нет» от undefined — контракт JSON проверяем по ключам
+    const [withGlyph, bare] = skillsView(s)
+    expect(Object.keys(withGlyph)).toEqual(['id', 'name', 'level', 'into', 'toNext', 'ranks', 'hue', 'glyphId'])
+    expect(Object.keys(bare)).toEqual(['id', 'name', 'level', 'into', 'toNext', 'ranks', 'hue'])
+    expect(JSON.parse(JSON.stringify(bare))).not.toHaveProperty('glyphId')
+  })
+  it('skillsView: hue и glyphId не правятся — оттенок вне 0..360 и глиф не из каталога идут как есть', () => {
+    const odd = world({ skills: [skill('s_odd', { hue: -30, glyphId: 'нет-в-каталоге' }), skill('s_empty', { hue: 400, glyphId: '' })] })
+    expect(skillsView(odd).map((r) => [r.hue, r.glyphId])).toEqual([[-30, 'нет-в-каталоге'], [400, '']])
+  })
   it('ranksView: только ранги со звёздами, D→S; порог 60% (2 из 3 — взят)', () =>
     expect(ranksView(s, 's_ru')).toEqual([
       { tier: 'D', achieved: true, lit: 2, total: 3 },
