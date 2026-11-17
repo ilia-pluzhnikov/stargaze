@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { TIERS } from '../types'
 import type { SkyStore, Tier } from '../types'
+import { formatDayLong } from '../logic/dates'
 import { CONST_H, CONST_W } from '../logic/layout'
 import {
   GALAXY_3D_SCALE, backdropStars, buildSkyScene, cameraBasis, flightPlan, orbitEye, pickGalaxy, project, projectDirection,
@@ -11,9 +12,11 @@ import {
   rebasePilot, startPilot, stopIndexOf,
 } from '../logic/sky3dPilot'
 import type { Pilot } from '../logic/sky3dPilot'
+import { ROOT_MINI_SCALE } from './Galaxy'
 import { glyphById } from './skyGlyphs'
 import { sky, tierStyle } from './skyColors'
-import { rootCoronaStops } from './skyGlow'
+import { bloomStops, coronaStops, glow, nebulaStops, rootBloomStops, rootCoronaStops, spikeStops } from './skyGlow'
+import type { GlowStop } from './skyGlow'
 
 interface Props {
   store: SkyStore
@@ -22,6 +25,8 @@ interface Props {
   /** Галактика из адреса страницы: облёт начинается с неё и переходит к ней, когда адрес
    * меняется. null или нет — с обзора всего неба. */
   startAt?: string | null
+  /** День неба в режиме истории: облёт показывает прошлое и называет его дату. Нет — сегодня. */
+  asOfDay?: string
   onClose: () => void
 }
 
@@ -31,8 +36,13 @@ const FPS = 30
 const MAX_DPR = 1.5
 /** Сколько секунд после движения мыши или клавиши видны кнопки. */
 const CONTROLS_SEC = 4
+/** Глиф рисуется в спрайт в такой доле своего пространства 1000×900: вблизи — почти 1:1. */
+const GLYPH_SPRITE_SCALE = 0.75
+/** Подпись галактики рисуется в спрайт этим шрифтом, в кадре только масштабируется. */
+const LABEL_PX = 36
+const LABEL_FONT = `600 ${LABEL_PX}px Inter, system-ui, sans-serif`
 /** Фон — сфера без «затылка»: ручная камера поворачивается шире облёта, но назад не смотрит. */
-const BACKDROP = backdropStars(2400, 'stargaze-sky3d', -0.5)
+const BACKDROP = backdropStars(1700, 'stargaze-sky3d', -0.5)
 /** Радиан поворота камеры на пиксель перетаскивания. */
 const DRAG_RAD_PER_PX = 0.005
 /** Чувствительность колеса: показатель множителя расстояния на пиксель прокрутки. */
@@ -40,43 +50,152 @@ const WHEEL_ZOOM = 0.0014
 /** Нажатие, не ушедшее дальше стольких пикселей, — клик, а не перетаскивание. */
 const CLICK_SLOP_PX = 6
 /** Звёзды в 3D чуть крупнее, чем мини-созвездия обзора: смотрят издалека, с дивана. */
-const STAR_SIZE = 1.3
+const STAR_SIZE = 1.2
+/** 3D — то же обзорное небо с глубиной: свет берёт пропорции мини-созвездий обзора
+ * (рецепт — skyGlow.ts), единица созвездия переводится в мир через GALAXY_3D_SCALE. */
+const LIGHT = glow.sizes.overview
+/** Ореол и точка незажжённой звезды в единицах созвездия — как в Galaxy.tsx. */
+const UNLIT = { halo: 15, dot: 5, stroke: 1.2, opacity: 0.45 } as const
+/** Кольца и крест ядра галактики в единицах созвездия — как в Galaxy.tsx. */
+const ROOT_RINGS = [[42, 0.12], [29, 0.24], [18, 0.48]] as const
+const ROOT_CROSS = { length: 24, width: 1.4, opacity: 0.6 } as const
 
 type Sprite = HTMLCanvasElement
 
-/** Круглое свечение — рисуется один раз, в кадре только масштабируется (drawImage дешевле градиента). */
-function glowSprite(stops: [number, string][], size = 64): Sprite {
+/** Квадратный спрайт: рисуется один раз, в кадре только масштабируется (drawImage дешевле
+ * градиента). paint получает контекст с началом координат в центре и половину стороны. */
+function sprite(size: number, paint: (ctx: CanvasRenderingContext2D, half: number) => void): Sprite {
   const canvas = document.createElement('canvas')
   canvas.width = canvas.height = size
   const ctx = canvas.getContext('2d')!
-  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
-  for (const [offset, color] of stops) gradient.addColorStop(offset, color)
+  ctx.translate(size / 2, size / 2)
+  paint(ctx, size / 2)
+  return canvas
+}
+
+/** Круг с радиальным градиентом по стопам рецепта света, центр в (0, 0). */
+function disc(ctx: CanvasRenderingContext2D, r: number, stops: readonly GlowStop[]) {
+  const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, r)
+  for (const stop of stops) gradient.addColorStop(stop.offset, stop.color)
   ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, size, size)
+  ctx.beginPath()
+  ctx.arc(0, 0, r, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+/** Луч-ромб длиной 2·length и толщиной 2·width, сходящийся в остриё. Стопы ложатся на рамку
+ * ромба, как градиент SVG в 2D: вдоль луча — весь ход, поперёк — он же, сжатый. */
+function spike(ctx: CanvasRenderingContext2D, length: number, width: number, angle: number, fill: readonly GlowStop[] | string) {
+  ctx.save()
+  ctx.rotate(angle)
+  ctx.scale(1, width / length)
+  if (typeof fill === 'string') ctx.fillStyle = fill
+  else {
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, length)
+    for (const stop of fill) gradient.addColorStop(stop.offset, stop.color)
+    ctx.fillStyle = gradient
+  }
+  ctx.beginPath()
+  ctx.moveTo(-length, 0)
+  ctx.lineTo(0, -length)
+  ctx.lineTo(length, 0)
+  ctx.lineTo(0, length)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+/** Глиф галактики — штрихи широких кривых; в кадре это был самый дорогой растр вблизи. */
+function glyphSprite(paths: string[], hue: number): Sprite {
+  const canvas = document.createElement('canvas')
+  canvas.width = CONST_W * GLYPH_SPRITE_SCALE
+  canvas.height = CONST_H * GLYPH_SPRITE_SCALE
+  const ctx = canvas.getContext('2d')!
+  ctx.scale(GLYPH_SPRITE_SCALE, GLYPH_SPRITE_SCALE)
+  ctx.strokeStyle = sky.glyphStroke(hue)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  const shapes = paths.map((d) => new Path2D(d))
+  for (const [alpha, width] of [[0.1, 15], [0.42, 4.2]] as const) {
+    ctx.globalAlpha = alpha
+    ctx.lineWidth = width
+    for (const shape of shapes) ctx.stroke(shape)
+  }
+  return canvas
+}
+
+/** Имя галактики — текст растрируется один раз: при полёте размер подписи меняется каждый
+ * кадр, и браузер телевизора заново набирал её шрифтом. */
+function labelSprite(text: string): Sprite {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  ctx.font = LABEL_FONT
+  canvas.width = Math.ceil(ctx.measureText(text).width) + 8
+  canvas.height = Math.ceil(LABEL_PX * 1.4)
+  ctx.font = LABEL_FONT // смена размера холста сбрасывает состояние контекста
+  ctx.fillStyle = sky.label
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'top'
+  ctx.fillText(text, canvas.width / 2, 2)
   return canvas
 }
 
 interface Sprites {
-  halo: Record<Tier, Sprite>
+  lit: Record<Tier, Sprite>
+  unlit: Record<Tier, Sprite>
   nebula: Map<number, Sprite>
   root: Map<number, Sprite>
+  /** По id галактики; есть только у галактик с глифом. */
+  glyph: Map<string, Sprite>
+  /** По id галактики; заполняется, когда шрифт подписи загружен. */
+  label: Map<string, Sprite>
 }
 
 function makeSprites(galaxies: SkyGalaxy3D[]): Sprites {
-  const halo = Object.fromEntries(TIERS.map((tier) => {
-    const h = sky.rarityHalo(tier)
-    return [tier, glowSprite([[0, h.inner], [0.34, h.mid], [1, h.outer]])]
-  })) as Record<Tier, Sprite>
+  const perTier = (make: (tier: Tier) => Sprite) => Object.fromEntries(TIERS.map((tier) => [tier, make(tier)])) as Record<Tier, Sprite>
+  // Зажжённая звезда целиком — корона, лучи, блум с раскалённым ядром — один спрайт на ранг:
+  // слои внутри звезды ложатся как в 2D, а между собой звёзды складываются уже на сцене
+  const lit = perTier((tier) => sprite(256, (ctx, half) => {
+    const u = half / LIGHT.corona // пикселей спрайта на единицу созвездия
+    const k = tierStyle[tier].scale // спрайт потом растянут на k: толщина луча от ранга не зависит
+    disc(ctx, half, coronaStops(tier))
+    for (const angle of [0, Math.PI / 2]) spike(ctx, LIGHT.spikeLong * u, (LIGHT.spikeLongWidth / k) * u, angle, spikeStops(tier))
+    disc(ctx, LIGHT.bloom * u, bloomStops(tier))
+  }))
+  const unlit = perTier((tier) => sprite(64, (ctx, half) => {
+    const u = half / UNLIT.halo
+    const halo = sky.rarityHalo(tier)
+    ctx.globalAlpha = UNLIT.opacity
+    disc(ctx, half, [{ offset: 0, color: halo.inner }, { offset: 0.34, color: halo.mid }, { offset: 1, color: halo.outer }])
+    ctx.globalAlpha = 1
+    ctx.fillStyle = sky.starFill(false, tier)
+    ctx.strokeStyle = sky.starStroke(false, tier)
+    ctx.lineWidth = (UNLIT.stroke / tierStyle[tier].scale) * u
+    ctx.beginPath()
+    ctx.arc(0, 0, UNLIT.dot * u, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.stroke()
+  }))
   const nebula = new Map<number, Sprite>()
   const root = new Map<number, Sprite>()
   for (const { hue } of galaxies) {
     if (nebula.has(hue)) continue
-    // пологий спад в несколько стопов: у двух линейных участков на стыке виден ободок
-    const falloff: [number, number][] = [[0, 0.2], [0.2, 0.145], [0.4, 0.09], [0.6, 0.045], [0.8, 0.014], [1, 0]]
-    nebula.set(hue, glowSprite(falloff.map(([at, alpha]) => [at, `hsla(${hue}, 60%, 54%, ${alpha})`]), 256))
-    root.set(hue, glowSprite(rootCoronaStops(hue).map((s): [number, string] => [s.offset, s.color])))
+    nebula.set(hue, sprite(256, (ctx, half) => disc(ctx, half, nebulaStops(hue, 'overview'))))
+    root.set(hue, sprite(256, (ctx, half) => {
+      const u = half / (glow.root.corona * ROOT_MINI_SCALE)
+      ctx.globalAlpha = ROOT_CROSS.opacity
+      for (const angle of [0, Math.PI / 2]) spike(ctx, ROOT_CROSS.length * u, ROOT_CROSS.width * u, angle, sky.flare)
+      ctx.globalAlpha = 1
+      disc(ctx, half, rootCoronaStops(hue))
+      disc(ctx, glow.root.bloom * ROOT_MINI_SCALE * u, rootBloomStops(hue))
+    }))
   }
-  return { halo, nebula, root }
+  const glyph = new Map<string, Sprite>()
+  for (const g of galaxies) {
+    const shape = glyphById(g.glyphId)
+    if (shape) glyph.set(g.id, glyphSprite(shape.paths, g.hue))
+  }
+  return { lit, unlit, nebula, root, glyph, label: new Map() }
 }
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x))
@@ -84,23 +203,38 @@ const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x
 const depthFade = (depth: number) => clamp(1.3 - depth / 2400, 0.3, 1)
 
 function drawGalaxy(
-  ctx: CanvasRenderingContext2D, g: SkyGalaxy3D, basis: CameraBasis, sprites: Sprites, glyphs: Map<string, Path2D[]>, dpr: number,
+  ctx: CanvasRenderingContext2D, g: SkyGalaxy3D, basis: CameraBasis, sprites: Sprites,
+  /** Пикселей холста на пиксель страницы. */
+  px: number,
   /** Имя галактики в фокусе уже стоит в подписи режима — на сцене его не дублируем. */
   named: boolean,
 ) {
   const center = project(g.center, basis)
   if (!center) return
+  // галактика целиком за кадром — не рисуем: холст её обрежет, но штрихи и спрайты уже посчитаны
+  const reach = Math.max(g.radius, glow.nebula.radius.overview[0]) * 1.25 * center.scale
+  if (center.x + reach < 0 || center.x - reach > basis.cx * 2 || center.y + reach < 0 || center.y - reach > basis.cy * 2) return
   const fade = depthFade(center.depth)
   const blit = (sprite: Sprite, x: number, y: number, r: number, alpha: number) => {
     ctx.globalAlpha = alpha
     ctx.drawImage(sprite, x - r, y - r, r * 2, r * 2)
   }
 
-  blit(sprites.nebula.get(g.hue)!, center.x, center.y, g.radius * 1.9 * center.scale, fade)
+  const unit = GALAXY_3D_SCALE // единица созвездия → единица мира
+
+  // Небула — обычным наложением и ровно до видимого края созвездия: это самая большая заливка
+  // кадра, а широкий слабый хвост белит небо вместо того, чтобы его красить
+  const [nebulaRx, nebulaRy] = glow.nebula.radius.overview
+  ctx.globalAlpha = fade
+  ctx.drawImage(
+    sprites.nebula.get(g.hue)!,
+    center.x - nebulaRx * center.scale, center.y - (10 + nebulaRy) * center.scale,
+    nebulaRx * 2 * center.scale, nebulaRy * 2 * center.scale,
+  )
 
   // Глиф лежит в плоскости галактики: аффинное приближение перспективы по трём точкам
-  const paths = g.glyphId ? glyphs.get(g.glyphId) : undefined
-  if (paths) {
+  const glyph = sprites.glyph.get(g.id)
+  if (glyph) {
     const rot = (g.rotation * Math.PI) / 180
     const k = 100 * GALAXY_3D_SCALE
     const ax = project({ x: g.center.x + Math.cos(rot) * k, y: g.center.y + Math.sin(rot) * k, z: g.center.z }, basis)
@@ -111,20 +245,13 @@ function drawGalaxy(
       const c = (ay.x - center.x) / 100
       const d = (ay.y - center.y) / 100
       ctx.setTransform(
-        a * dpr, b * dpr, c * dpr, d * dpr,
-        (center.x - a * (CONST_W / 2) - c * (CONST_H / 2)) * dpr,
-        (center.y - b * (CONST_W / 2) - d * (CONST_H / 2)) * dpr,
+        a * px, b * px, c * px, d * px,
+        (center.x - a * (CONST_W / 2) - c * (CONST_H / 2)) * px,
+        (center.y - b * (CONST_W / 2) - d * (CONST_H / 2)) * px,
       )
-      ctx.strokeStyle = sky.glyphStroke(g.hue)
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.globalAlpha = 0.1 * fade
-      ctx.lineWidth = 15
-      for (const path of paths) ctx.stroke(path)
-      ctx.globalAlpha = 0.42 * fade
-      ctx.lineWidth = 4.2
-      for (const path of paths) ctx.stroke(path)
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.globalAlpha = fade
+      ctx.drawImage(glyph, 0, 0, CONST_W, CONST_H)
+      ctx.setTransform(px, 0, 0, px, 0, 0)
     }
   }
 
@@ -146,50 +273,48 @@ function drawGalaxy(
     ctx.stroke()
   })
 
+  // незажжённые — матовые точки своего ранга, обычным наложением
   g.stars.forEach((s, i) => {
     const p = points[i]
-    if (!p) return
-    const size = tierStyle[s.tier].scale * p.scale * STAR_SIZE
-    blit(sprites.halo[s.tier], p.x, p.y, (s.lit ? 7 : 3.75) * size, (s.lit ? 0.9 : 0.45) * fade)
-    ctx.globalAlpha = fade
-    if (s.lit && p.scale > 0.9) {
-      const arm = 4.5 * size
-      ctx.fillStyle = sky.flare
-      ctx.fillRect(p.x - arm, p.y - 0.5, arm * 2, 1)
-      ctx.fillRect(p.x - 0.5, p.y - arm, 1, arm * 2)
-    }
-    ctx.fillStyle = sky.starFill(s.lit, s.tier)
-    ctx.beginPath()
-    ctx.arc(p.x, p.y, Math.max(0.7, (s.lit ? 1.75 : 1.25) * size), 0, Math.PI * 2)
-    ctx.fill()
+    if (!p || s.lit) return
+    blit(sprites.unlit[s.tier], p.x, p.y, Math.max(2.2, UNLIT.halo * unit * tierStyle[s.tier].scale * STAR_SIZE * p.scale), fade)
   })
 
   if (core) {
-    blit(sprites.root.get(g.hue)!, core.x, core.y, 15 * core.scale, fade)
     ctx.strokeStyle = sky.galaxyStroke(g.hue)
     ctx.lineWidth = 1
-    for (const [r, alpha] of [[10.5, 0.12], [7.25, 0.24], [4.5, 0.48]] as const) {
+    for (const [r, alpha] of ROOT_RINGS) {
       ctx.globalAlpha = alpha * fade
       ctx.beginPath()
-      ctx.arc(core.x, core.y, r * core.scale, 0, Math.PI * 2)
+      ctx.arc(core.x, core.y, r * unit * core.scale, 0, Math.PI * 2)
       ctx.stroke()
     }
-    ctx.globalAlpha = fade
-    ctx.fillStyle = sky.litCore
-    ctx.beginPath()
-    ctx.arc(core.x, core.y, Math.max(1, 1.75 * core.scale), 0, Math.PI * 2)
-    ctx.fill()
   }
+
+  // Свет складывается (glow.blend.canvas): перекрывшиеся короны разгораются, а не белят друг друга
+  ctx.globalCompositeOperation = glow.blend.canvas
+  if (core) blit(sprites.root.get(g.hue)!, core.x, core.y, glow.root.corona * ROOT_MINI_SCALE * unit * core.scale, fade)
+  g.stars.forEach((s, i) => {
+    const p = points[i]
+    if (!p || !s.lit) return
+    const r = LIGHT.corona * unit * tierStyle[s.tier].scale * STAR_SIZE * p.scale
+    blit(sprites.lit[s.tier], p.x, p.y, r, fade)
+    // издалека раскалённое ядро меньше пикселя — держим его видимой точкой
+    if (r * ((LIGHT.bloom * glow.bloom.plateau) / LIGHT.corona) < 0.8) {
+      ctx.fillStyle = sky.litCore
+      ctx.fillRect(p.x - 0.7, p.y - 0.7, 1.4, 1.4)
+    }
+  })
+  ctx.globalCompositeOperation = 'source-over'
 
   const label = named ? project({ x: g.center.x, y: g.center.y + (CONST_H * GALAXY_3D_SCALE) / 2 + 22, z: g.center.z }, basis) : null
   // левый нижний угол занят подписью режима — имя соседней галактики туда не кладём
-  if (label && !(label.x < 340 && label.y > basis.cy * 2 - 130)) {
+  const name = sprites.label.get(g.id)
+  if (name && label && !(label.x < 340 && label.y > basis.cy * 2 - 130)) {
+    const height = clamp(14 * label.scale, 11, 18) * (name.height / LABEL_PX)
+    const width = height * (name.width / name.height)
     ctx.globalAlpha = 0.85 * fade
-    ctx.fillStyle = sky.label
-    ctx.font = `600 ${Math.round(clamp(14 * label.scale, 11, 18))}px Inter, system-ui, sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'top'
-    ctx.fillText(g.name, label.x, label.y)
+    ctx.drawImage(name, label.x - width / 2, label.y, width, height)
   }
 }
 
@@ -197,10 +322,14 @@ function drawGalaxy(
  * пальцем её можно взять в руки — вращать, приближать, подлетать к галактике кликом.
  * Действий над миром нет; выход — кнопка или Esc. Геометрия и правила полёта — в
  * logic/sky3d и logic/sky3dPilot, здесь только ввод и отрисовка на Canvas 2D. */
-export function Sky3D({ store, layoutFrom, startAt = null, onClose }: Props) {
+export function Sky3D({ store, layoutFrom, startAt = null, asOfDay, onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const scene = useMemo(() => buildSkyScene(store, layoutFrom ?? store), [store, layoutFrom])
   const plan = useMemo(() => flightPlan(scene), [scene])
+  // Клавиши и таймер кнопок вешаются один раз и читают свежие onClose и план отсюда: иначе
+  // каждый перерендер App и каждая синхронизация store заново показывали бы кнопки на заставке
+  const latest = useRef({ onClose, plan })
+  latest.current = { onClose, plan }
   // пилот переживает пересборку сцены: синхронизация store не отбрасывает камеру к началу
   const pilot = useRef<Pilot | null>(null)
   const startedAt = useRef(startAt) // галактика, с которой облёт начат или на которую его перевёл адрес
@@ -214,21 +343,23 @@ export function Sky3D({ store, layoutFrom, startAt = null, onClose }: Props) {
     if (!canvas || !ctx) return
     pilot.current = pilot.current ? rebasePilot(pilot.current, plan) : startPilot(plan, stopIndexOf(plan, startedAt.current))
     const sprites = makeSprites(scene.galaxies)
-    const glyphs = new Map<string, Path2D[]>()
-    for (const g of scene.galaxies) {
-      const glyph = glyphById(g.glyphId)
-      if (glyph && !glyphs.has(glyph.id)) glyphs.set(glyph.id, glyph.paths.map((d) => new Path2D(d)))
+    // подписи — после загрузки шрифта: иначе в спрайт на весь сеанс попал бы запасной
+    let alive = true
+    const nameGalaxies = () => {
+      if (alive) for (const g of scene.galaxies) sprites.label.set(g.id, labelSprite(g.name))
     }
+    if (document.fonts?.load) document.fonts.load(LABEL_FONT).then(nameGalaxies, nameGalaxies)
+    else nameGalaxies()
     const slow = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0.5 : 1
-    let dpr = 1
+    let px = 1 // пикселей холста на пиксель страницы
     let width = 0
     let height = 0
     const resize = () => {
-      dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
+      px = Math.min(window.devicePixelRatio || 1, MAX_DPR)
       width = canvas.clientWidth
       height = canvas.clientHeight
-      canvas.width = Math.round(width * dpr)
-      canvas.height = Math.round(height * dpr)
+      canvas.width = Math.round(width * px)
+      canvas.height = Math.round(height * px)
     }
     resize()
     window.addEventListener('resize', resize)
@@ -307,7 +438,7 @@ export function Sky3D({ store, layoutFrom, startAt = null, onClose }: Props) {
       basis = view
       const focus = plan.stops[p.stopIndex].galaxyId
 
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.setTransform(px, 0, 0, px, 0, 0)
       ctx.clearRect(0, 0, width, height)
       ctx.fillStyle = '#dfe6ff'
       const twinkle = now / 1000
@@ -320,7 +451,7 @@ export function Sky3D({ store, layoutFrom, startAt = null, onClose }: Props) {
       const depthOf = (v: Vec3) =>
         (v.x - view.eye.x) * view.forward.x + (v.y - view.eye.y) * view.forward.y + (v.z - view.eye.z) * view.forward.z
       const order = [...scene.galaxies].sort((a, b) => depthOf(b.center) - depthOf(a.center))
-      for (const g of order) drawGalaxy(ctx, g, view, sprites, glyphs, dpr, g.id !== focus || p.travelling)
+      for (const g of order) drawGalaxy(ctx, g, view, sprites, px, g.id !== focus || p.travelling)
       ctx.globalAlpha = 1
 
       const manual = p.mode === 'manual'
@@ -330,6 +461,7 @@ export function Sky3D({ store, layoutFrom, startAt = null, onClose }: Props) {
     }
     raf = requestAnimationFrame(frame)
     return () => {
+      alive = false
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
       canvas.removeEventListener('pointerdown', onDown)
@@ -357,6 +489,7 @@ export function Sky3D({ store, layoutFrom, startAt = null, onClose }: Props) {
       timer = window.setTimeout(() => setControls(false), CONTROLS_SEC * 1000)
     }
     const onKey = (e: KeyboardEvent) => {
+      const { onClose, plan } = latest.current
       const p = pilot.current
       if (e.key === 'Escape') onClose()
       else if (!p) return
@@ -378,7 +511,7 @@ export function Sky3D({ store, layoutFrom, startAt = null, onClose }: Props) {
       window.removeEventListener('pointermove', wake)
       window.removeEventListener('pointerdown', wake)
     }
-  }, [onClose, plan])
+  }, [])
 
   const focus = scene.galaxies.find((g) => g.id === focusId)
   const total = focus ? focus.stars.length : scene.galaxies.reduce((sum, g) => sum + g.stars.length, 0)
@@ -393,7 +526,9 @@ export function Sky3D({ store, layoutFrom, startAt = null, onClose }: Props) {
     <div className={controls ? 'sky3d' : 'sky3d idle'} role="dialog" aria-label="3D-небо">
       <canvas ref={canvasRef} />
       <div className="sky3d-caption">
-        <div className="sky3d-kicker">3D-небо · {hud.manual ? 'ручной полёт' : hud.paused ? 'облёт · пауза' : 'облёт'}</div>
+        <div className="sky3d-kicker">
+          3D-небо · {asOfDay ? `${formatDayLong(asOfDay)} · ` : ''}{hud.manual ? 'ручной полёт' : hud.paused ? 'облёт · пауза' : 'облёт'}
+        </div>
         <div className="sky3d-name">{focus ? focus.name : 'Всё небо'}</div>
         <div className="sky3d-meta">
           {total > 0 ? `зажжено ${lit} из ${total}` : focus ? 'без звёзд' : scene.galaxies.length ? 'звёзд пока нет' : 'навыков пока нет'}

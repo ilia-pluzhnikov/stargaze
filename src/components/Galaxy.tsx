@@ -26,7 +26,7 @@ interface Props {
 // 0.25 здесь даёт ту же пропорцию при SKY_W=1800 (раньше было всего ~9%).
 const MINI_SCALE = 0.25
 // Свет ядра в мини-созвездии крупнее, чем в открытой галактике: его рисуют в четверть масштаба.
-const ROOT_MINI_SCALE = 1.5
+export const ROOT_MINI_SCALE = 1.5
 
 /** Узел неба: мини-созвездие навыка (скелет без фильтров) + имя + сводка. */
 export function Galaxy({ anchor, skill, stars, layoutStars, xpLog, onOpen, onStarHover }: Props) {

@@ -343,8 +343,9 @@ export function backdropStars(count: number, seed: string, minZ = -1): BackdropS
     const bright = rng()
     return {
       direction: { x: ring * Math.cos(angle), y: ring * Math.sin(angle), z },
-      size: 0.6 + bright * bright * 1.4,
-      alpha: 0.25 + bright * 0.55,
+      // большинство — едва заметная пыль, ярких немного: ровная светлая сыпь белит небо
+      size: 0.6 + bright ** 3 * 1.5,
+      alpha: 0.1 + bright * bright * 0.7,
       phase: rng() * Math.PI * 2,
       speed: 0.4 + rng() * 1.1,
     }

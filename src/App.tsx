@@ -350,7 +350,11 @@ export default function App() {
         </div>
       )}
 
-      {view === 'sky' && !galaxy && (
+      {/* Под 3D-облётом обычного неба нет. Оно целиком закрыто, но продолжало бы жить: стрелки
+          ← → у открытой галактики висят на window и уводили бы адрес к соседней галактике, закрывая
+          облёт (на пульте телевизора стрелки — основной ввод), а анимации и свет браузер считал бы
+          каждый кадр — на телевизоре это стоило облёту до трети частоты кадров */}
+      {view === 'sky' && !sky3d && !galaxy && (
         <Sky
           store={skyStore}
           layoutFrom={store}
@@ -359,7 +363,7 @@ export default function App() {
           onOpenGalaxy={(id) => goTo({ skill: id })}
         />
       )}
-      {view === 'sky' && galaxy && (
+      {view === 'sky' && !sky3d && galaxy && (
         <GalaxyView
           store={skyStore}
           layoutFrom={store}
@@ -432,12 +436,21 @@ export default function App() {
           onOpenQuest={(q) => setQuestModal({ quest: q })}
         />
       )}
-      {/* в прошлом 3D показывает то же прошлое: тот же skyStore, раскладка — по сегодняшнему.
-          Облёт начинается с галактики из адреса; выход убирает из адреса только sky — место остаётся */}
+      {/* в прошлом 3D показывает то же прошлое и называет его день: тот же skyStore, раскладка —
+          по сегодняшнему. Облёт начинается с галактики из адреса; выход убирает из адреса только
+          sky — место остаётся */}
       {view === 'sky' && sky3d && (
-        <Sky3D store={skyStore} layoutFrom={store} startAt={galaxy?.id ?? null} onClose={() => goTo(withSky3d(address, false))} />
+        <Sky3D
+          store={skyStore}
+          layoutFrom={store}
+          startAt={galaxy?.id ?? null}
+          asOfDay={inPast && shownDay !== null ? shownDay : undefined}
+          onClose={() => goTo(withSky3d(address, false))}
+        />
       )}
-      {view === 'sky' && shownDay !== null && historyFirst !== null && (
+      {/* под облётом полосы истории нет: её не видно, а проигрывание ▶ пересобирало бы сцену
+          облёта на каждый день. День неба остаётся — после выхода из 3D полоса стоит на нём же */}
+      {view === 'sky' && !sky3d && shownDay !== null && historyFirst !== null && (
         <TimelineBar
           key={historyFirst} // смена нижней границы (вход в галактику) сбрасывает ▶
           first={historyFirst}
