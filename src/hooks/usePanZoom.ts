@@ -1,19 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
+import { gestureView, moveView } from '../logic/panZoom'
+import type { Frame, Point, ViewBox } from '../logic/panZoom'
 
-// Свободная навигация по небу: зум колесом к курсору + пан драгом.
-// Раскладка не трогается — меняется только viewBox (спека Небо-2 §11).
+// Свободная навигация по небу: зум колесом к курсору или щипком двумя пальцами, пан драгом.
+// Раскладка не трогается — меняется только viewBox (спека Небо-2 §11). Геометрия — logic/panZoom.
 
-const MAX_ZOOM_IN = 5 // во сколько раз можно приблизить относительно полного вида
-const MAX_ZOOM_OUT = 0.55 // насколько можно отдалить (мир занимает 55% ширины кадра)
 const CLICK_TOLERANCE_PX = 5 // сдвиг меньше этого — клик, а не драг
-
-interface ViewBox {
-  x: number
-  y: number
-  w: number
-  h: number
-}
+const MAX_POINTERS = 2 // третий палец в жесте не участвует
 
 export interface PanZoom {
   svgRef: React.RefObject<SVGSVGElement | null>
@@ -30,23 +24,25 @@ export interface PanZoom {
   }
 }
 
+/** Экранный прямоугольник, в который вписан viewBox. Матрица и viewBox читаются из DOM одного
+ *  кадра, а сама рамка от зума и пана не зависит — поэтому она годится и для состояния, которое
+ *  ещё не отрисовано (два пальца шлют по событию каждый, до перерисовки их приходит несколько). */
+function frameOf(svg: SVGSVGElement): Frame | null {
+  const m = svg.getScreenCTM()
+  if (!m) return null
+  const box = svg.viewBox.baseVal
+  const frame = { left: m.e + box.x * m.a, top: m.f + box.y * m.d, width: box.width * m.a, height: box.height * m.d }
+  return frame.width > 0 && frame.height > 0 ? frame : null
+}
+
 export function usePanZoom(worldW: number, worldH: number): PanZoom {
   const [vb, setVb] = useState<ViewBox>({ x: 0, y: 0, w: worldW, h: worldH })
   const [isPanning, setIsPanning] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
-  const drag = useRef<{ id: number; cx: number; cy: number; moved: boolean } | null>(null)
+  const world = useMemo(() => ({ w: worldW, h: worldH }), [worldW, worldH])
+  const pointers = useRef(new Map<number, Point>()) // указатели, прижатые к небу, в экранных координатах
+  const moved = useRef(false) // жест перестал быть кликом: сдвиг дальше допуска или второй палец
   const suppressClick = useRef(false)
-
-  // Центр кадра не выпускаем за границы мира — небо нельзя утащить в пустоту насовсем.
-  const clampView = useCallback(
-    (x: number, y: number, w: number, h: number): ViewBox => ({
-      x: Math.min(Math.max(x, -w / 2), worldW - w / 2),
-      y: Math.min(Math.max(y, -h / 2), worldH - h / 2),
-      w,
-      h,
-    }),
-    [worldW, worldH],
-  )
 
   useEffect(() => {
     const svg = svgRef.current
@@ -54,59 +50,70 @@ export function usePanZoom(worldW: number, worldH: number): PanZoom {
     // Нативный слушатель: React вешает onWheel пассивно, preventDefault там не работает.
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      const m = svg.getScreenCTM()
-      if (!m) return
-      const cursor = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse())
+      const frame = frameOf(svg)
+      if (!frame) return
+      const cursor = { x: e.clientX, y: e.clientY }
       const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY // Firefox шлёт строки, не пиксели
-      const factor = Math.exp(dy * 0.0016)
-      setVb((v) => {
-        const w = Math.min(Math.max(v.w * factor, worldW / MAX_ZOOM_IN), worldW / MAX_ZOOM_OUT)
-        const k = w / v.w
-        if (k === 1) return v
-        // Точка под курсором остаётся на месте
-        return clampView(cursor.x - (cursor.x - v.x) * k, cursor.y - (cursor.y - v.y) * k, w, v.h * k)
-      })
+      setVb((v) => moveView(v, frame, world, cursor, cursor, Math.exp(dy * 0.0016)))
     }
     svg.addEventListener('wheel', onWheel, { passive: false })
     return () => svg.removeEventListener('wheel', onWheel)
-  }, [worldW, clampView])
+  }, [world])
 
   const onPointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return
-    drag.current = { id: e.pointerId, cx: e.clientX, cy: e.clientY, moved: false }
+    const held = pointers.current
+    // Первый указатель нового касания: всё, что осталось в карте, — пальцы, чей pointerup до нас
+    // не дошёл (элемент под ними перерисовался). И click прошлого жеста уже либо пришёл, либо
+    // его не будет: тач после длинного драга click не шлёт, флаг съел бы следующий тап.
+    if (e.isPrimary) {
+      held.clear()
+      moved.current = false
+      suppressClick.current = false
+    }
+    if (held.size >= MAX_POINTERS) return
+    held.set(e.pointerId, { x: e.clientX, y: e.clientY })
     // Захват указателя НЕ ставим здесь: на <svg> он уводит target последующего
     // click на сам svg, и onClick дочерних <g> (звёзды, галактики) не срабатывает —
     // клик по небу «проглатывается». Ставим захват в onPointerMove, когда
-    // начался настоящий драг (moved ⇒ клик и так подавляется).
+    // начался настоящий жест (moved ⇒ клик и так подавляется).
+    if (held.size === MAX_POINTERS) {
+      moved.current = true // два пальца — уже щипок, а не тап
+      setIsPanning(true)
+    }
   }, [])
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
-      const d = drag.current
-      if (!d || d.id !== e.pointerId) return
-      const dx = e.clientX - d.cx
-      const dy = e.clientY - d.cy
-      if (!d.moved && Math.hypot(dx, dy) < CLICK_TOLERANCE_PX) return
-      if (!d.moved) {
-        d.moved = true
-        // Драг начался — теперь захват безопасен (клик уже подавлен) и нужен,
-        // чтобы пан не прерывался, если курсор ушёл за край svg.
-        e.currentTarget.setPointerCapture(d.id)
+      const held = pointers.current
+      const prev = held.get(e.pointerId)
+      if (!prev) return
+      const now = { x: e.clientX, y: e.clientY }
+      if (!moved.current) {
+        if (Math.hypot(now.x - prev.x, now.y - prev.y) < CLICK_TOLERANCE_PX) return
+        moved.current = true
         setIsPanning(true)
       }
-      d.cx = e.clientX
-      d.cy = e.clientY
-      const m = svgRef.current?.getScreenCTM()
-      if (!m) return
-      setVb((v) => clampView(v.x - dx / m.a, v.y - dy / m.d, v.w, v.h))
+      // Жест начался — теперь захват безопасен (клик уже подавлен) и нужен,
+      // чтобы пан не прерывался, если указатель ушёл за край svg.
+      const svg = e.currentTarget
+      if (!svg.hasPointerCapture(e.pointerId)) svg.setPointerCapture(e.pointerId)
+      const before = [...held.values()]
+      held.set(e.pointerId, now)
+      const after = [...held.values()]
+      const frame = frameOf(svg)
+      if (!frame) return
+      setVb((v) => gestureView(v, frame, world, before, after))
     },
-    [clampView],
+    [world],
   )
 
-  const endDrag = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
-    if (drag.current?.id !== e.pointerId) return
-    suppressClick.current = drag.current.moved
-    drag.current = null
+  const endPointer = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    const held = pointers.current
+    if (!held.delete(e.pointerId)) return
+    if (held.size > 0) return // щипок кончился, оставшийся палец продолжает таскать небо
+    suppressClick.current = moved.current
+    moved.current = false
     setIsPanning(false)
   }, [])
 
@@ -127,6 +134,6 @@ export function usePanZoom(worldW: number, worldH: number): PanZoom {
     isMoved,
     isPanning,
     reset,
-    handlers: { onPointerDown, onPointerMove, onPointerUp: endDrag, onPointerCancel: endDrag, onClickCapture },
+    handlers: { onPointerDown, onPointerMove, onPointerUp: endPointer, onPointerCancel: endPointer, onClickCapture },
   }
 }
