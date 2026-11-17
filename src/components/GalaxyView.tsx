@@ -23,6 +23,11 @@ import { glyphById } from './skyGlyphs'
 import { GalaxyHud, displaySkillName } from './GalaxyHud'
 import { CosmosBackdrop } from './CosmosBackdrop'
 import { StarCard } from './StarCard'
+import { GlowDefs, GlowStops, LitStar, RootGlowDefs, RootLight } from './StarGlow'
+import { glow, nebulaStops } from './skyGlow'
+
+/** Радиус мишени зажжённой звезды (до масштаба ранга) — прежний радиус её ореола. */
+const LIT_HIT_R = 22
 
 export interface GalaxyActions {
   onAddStar: (parentStarId: string | null) => void
@@ -187,9 +192,8 @@ export function GalaxyView({
         {...pz.handlers}
       >
         <defs>
-          <filter id="starGlow2" x="-200%" y="-200%" width="500%" height="500%">
-            <feGaussianBlur stdDeviation="4" />
-          </filter>
+          <GlowDefs />
+          <RootGlowDefs id="view" hue={hue} />
           {TIERS.map((t) => {
             const halo = sky.rarityHalo(t)
             return (
@@ -200,12 +204,9 @@ export function GalaxyView({
               </radialGradient>
             )
           })}
-          <radialGradient id="neb-view">
-            <stop offset="0%" stopColor={sky.nebula(hue).core} />
-            <stop offset="100%" stopColor={sky.nebula(hue).edge} />
-          </radialGradient>
+          <radialGradient id="neb-view"><GlowStops stops={nebulaStops(hue, 'galaxy')} /></radialGradient>
         </defs>
-        <ellipse cx={GALAXY_W / 2} cy={430} rx={560} ry={380} fill="url(#neb-view)" />
+        <ellipse cx={GALAXY_W / 2} cy={430} rx={glow.nebula.radius.galaxy[0]} ry={glow.nebula.radius.galaxy[1]} fill="url(#neb-view)" />
 
         <g transform="translate(400, 40)">
           {glyph && (
@@ -224,12 +225,15 @@ export function GalaxyView({
             <circle cx={constellation.root.x} cy={constellation.root.y} r={20} fill="none" stroke={sky.galaxyStroke(hue)} strokeOpacity={0.35} strokeWidth={1} />
             <circle cx={constellation.root.x} cy={constellation.root.y} r={30} fill="none" stroke={sky.galaxyStroke(hue)} strokeOpacity={0.18} strokeWidth={1} />
             <circle cx={constellation.root.x} cy={constellation.root.y} r={42} fill="none" stroke={sky.galaxyStroke(hue)} strokeOpacity={0.09} strokeWidth={1} />
-            <circle cx={constellation.root.x} cy={constellation.root.y} r={8} fill={sky.litCore} filter="url(#starGlow2)" />
           </g>
           <g className="edges">
             {edgePaths.map((e, i) => (
               <path key={i} d={e.d} fill="none" stroke={sky.edge(hue, e.lit)} strokeWidth={e.lit ? 1.9 : 1.4} />
             ))}
+          </g>
+          {/* свет ядра — поверх рёбер: линии сходятся в него, а не перечёркивают */}
+          <g transform={`translate(${constellation.root.x}, ${constellation.root.y})`}>
+            <RootLight id="view" />
           </g>
           {constellation.nodes.map(({ star, x, y }) => {
             const lit = !!star.litAt
@@ -239,31 +243,26 @@ export function GalaxyView({
             const twRng = mulberry32(hashStr(star.id + ':tw'))
             const twDur = (2.6 + twRng() * 2.6).toFixed(2)
             const twDelay = (twRng() * 4).toFixed(2)
-            const haloR = (lit ? 22 : isTarget ? 11 + (prog ?? 0.15) * 8 : 9) * scale
+            const haloR = (isTarget ? 11 + (prog ?? 0.15) * 8 : 9) * scale
             const dimmed = activeTier !== null && star.tier !== activeTier
             return (
               <g key={star.id} className="star-g" opacity={dimmed ? 0.35 : 1} transform={`translate(${x}, ${y})`}
                 onClick={() => onSelectStar(star.id)}
                 onMouseEnter={() => setHoverStarId(star.id)}
                 onMouseLeave={() => setHoverStarId((c) => (c === star.id ? null : c))}>
-                <circle
-                  className={isTarget ? 'star-fill' : lit ? 'halo-tw' : undefined}
-                  r={haloR} fill={`url(#halo-${star.tier})`} opacity={lit ? 0.9 : 0.5}
-                  style={lit ? { animationDuration: `${twDur}s`, animationDelay: `${twDelay}s` } : undefined}
-                />
-                {lit && (
-                  <g className="flare" opacity={0.85}>
-                    <rect x={-16 * scale} y={-0.6} width={32 * scale} height={1.2} fill={sky.flare} opacity={0.75} />
-                    <rect x={-0.6} y={-16 * scale} width={1.2} height={32 * scale} fill={sky.flare} opacity={0.75} />
-                    <rect x={-8 * scale} y={-0.4} width={16 * scale} height={0.8} fill={sky.flare} opacity={0.4} transform="rotate(45)" />
-                    <rect x={-8 * scale} y={-0.4} width={16 * scale} height={0.8} fill={sky.flare} opacity={0.4} transform="rotate(-45)" />
-                  </g>
+                {lit ? (
+                  <>
+                    <LitStar tier={star.tier} size="galaxy" twinkle={{ duration: `${twDur}s`, delay: `${twDelay}s` }} />
+                    {/* мишень клика и наведения: свет указатель не ловит, иначе корона перекрыла бы соседей */}
+                    <circle r={LIT_HIT_R * scale} fill="transparent" />
+                  </>
+                ) : (
+                  <>
+                    <circle className={isTarget ? 'star-fill' : undefined} r={haloR} fill={`url(#halo-${star.tier})`} opacity={0.5} />
+                    <circle className="star-core" r={4.6 * scale} fill={sky.starFill(false, star.tier)}
+                      stroke={sky.starStroke(false, star.tier)} strokeWidth={1} />
+                  </>
                 )}
-                <circle className="star-core" r={(lit ? 6 : 4.6) * scale}
-                  fill={sky.starFill(lit, star.tier)}
-                  stroke={lit ? undefined : sky.starStroke(false, star.tier)}
-                  strokeWidth={lit ? 0 : 1}
-                  filter={lit ? 'url(#starGlow2)' : undefined} />
                 {star.id === selectedStarId && <circle className="sel-ring" r={13 * scale} strokeWidth={1.2} />}
               </g>
             )

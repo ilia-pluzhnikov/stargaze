@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { TIERS } from '../types'
 import type { Skill, SkyStore, StarComponent } from '../types'
-import { SKY_H, SKY_W, constellationPlacements, hashStr, mulberry32 } from '../logic/layout'
+import { SKY_H, SKY_W, constellationPlacements } from '../logic/layout'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { Galaxy } from './Galaxy'
 import { displaySkillName } from './GalaxyHud'
 import { sky } from './skyColors'
 import { CosmosBackdrop } from './CosmosBackdrop'
+import { GlowDefs, GlowStops, RootGlowDefs } from './StarGlow'
+import { glow, nebulaStops } from './skyGlow'
 
 interface Props {
   store: SkyStore
@@ -45,19 +47,6 @@ export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory }: Props) {
   const backdropHue = layoutSkills.length
     ? Math.round(layoutSkills.reduce((sum, skill) => sum + skill.hue, 0) / layoutSkills.length)
     : 230
-  const milky = useMemo(() => {
-    const rng = mulberry32(hashStr('questlog-milky'))
-    return Array.from({ length: 7 }, (_, i) => {
-      const t = i / 6
-      return {
-        x: 200 + t * 1400,
-        y: 820 - t * 620 + Math.sin(t * 9) * 60,
-        rx: 170 + rng() * 120,
-        o: 0.35 + rng() * 0.35,
-        rot: -20 + rng() * 8,
-      }
-    })
-  }, [])
 
   return (
     <div className="sky-wrap">
@@ -70,10 +59,6 @@ export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory }: Props) {
         {...pz.handlers}
       >
         <defs>
-          <radialGradient id="milkg">
-            <stop offset="0%" stopColor="hsla(226, 45%, 62%, 0.05)" />
-            <stop offset="100%" stopColor="hsla(226, 45%, 62%, 0)" />
-          </radialGradient>
           {TIERS.map((t) => {
             const halo = sky.rarityHalo(t)
             return (
@@ -84,29 +69,18 @@ export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory }: Props) {
               </radialGradient>
             )
           })}
-          {skills.map((s) => {
-            const rootHalo = sky.rootHalo(s.hue)
-            return (
-              <g key={s.id}>
-                <radialGradient id={`neb-${s.id}`}>
-                  <stop offset="0%" stopColor={sky.nebula(s.hue).core} />
-                  <stop offset="100%" stopColor={sky.nebula(s.hue).edge} />
-                </radialGradient>
-                <radialGradient id={`mini-root-halo-${s.id}`}>
-                  <stop offset="0%" stopColor={rootHalo.inner} />
-                  <stop offset="100%" stopColor={rootHalo.outer} />
-                </radialGradient>
-              </g>
-            )
-          })}
+          <GlowDefs />
+          {skills.map((s) => (
+            <g key={s.id}>
+              <radialGradient id={`neb-${s.id}`}><GlowStops stops={nebulaStops(s.hue, 'overview')} /></radialGradient>
+              <RootGlowDefs id={s.id} hue={s.hue} />
+            </g>
+          ))}
         </defs>
-        {milky.map((m, i) => (
-          <ellipse key={i} cx={m.x} cy={m.y} rx={m.rx} ry={m.rx * 0.4} fill="url(#milkg)"
-            opacity={m.o} transform={`rotate(${m.rot} ${m.x} ${m.y})`} />
-        ))}
         {skills.map((s) => {
           const a = placements.get(s.id)!
-          return <ellipse key={s.id} cx={a.x} cy={a.y - 10} rx={220} ry={165} fill={`url(#neb-${s.id})`} />
+          const [rx, ry] = glow.nebula.radius.overview
+          return <ellipse key={s.id} cx={a.x} cy={a.y - 10} rx={rx} ry={ry} fill={`url(#neb-${s.id})`} />
         })}
         {skills.map((skill) => (
           <Galaxy key={skill.id} anchor={placements.get(skill.id)!} skill={skill}

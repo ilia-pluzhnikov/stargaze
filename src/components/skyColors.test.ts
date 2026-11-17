@@ -71,13 +71,7 @@ describe('skyColors', () => {
     }
   })
 
-  it('семейный hue живёт: корень, небула, глиф — формулы от hue навыка', () => {
-    const root = sky.rootHalo(150)
-    expect(root.inner).toMatch(/^hsla\(150, /)
-    expect(root.outer).toMatch(/, 0\)$/)
-    const n = sky.nebula(150)
-    expect(n.core).toMatch(/^hsla\(150, /)
-    expect(n.edge).toMatch(/, 0\)$/)
+  it('семейный hue живёт на глифе; ядро и флер зажжённой звезды — тёплый крем', () => {
     expect(sky.glyphStroke(150)).toMatch(/^hsla\(150, /)
     expect(sky.litCore).toBe('#FFF3D9')
     expect(sky.flare).toBe('#FFEFC9')
