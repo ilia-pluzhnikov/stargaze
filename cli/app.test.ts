@@ -178,6 +178,30 @@ describe('cli чтение', () => {
     const list = JSON.parse(r.out) as { level: number }[]
     expect(list.length).toBeGreaterThan(0)
   })
+  /** Сид, где у первого навыка есть глиф, у остальных — нет. */
+  const glyphStore = (): string => {
+    const p = tmpStore()
+    const s = loadStore(p)
+    saveStore(p, { ...s, skills: s.skills.map((sk, i) => (i === 0 ? { ...sk, glyphId: 'delta' } : sk)) })
+    return p
+  }
+  it('skills --json: hue у каждого навыка, glyphId — только у навыка с глифом', () => {
+    const p = glyphStore()
+    const list = JSON.parse(run(['skills', '--json'], p).out) as { id: string; hue: number; glyphId?: string }[]
+    expect(list.map((r) => [r.id, r.hue])).toEqual(loadStore(p).skills.map((sk) => [sk.id, sk.hue]))
+    expect(list[0].glyphId).toBe('delta')
+    expect(list.slice(1).some((r) => 'glyphId' in r)).toBe(false)
+  })
+  it('skills без --json: таблица прежняя — облик галактики в неё не попадает', () => {
+    const p = glyphStore()
+    const r = run(['skills'], p)
+    expect(r.code).toBe(0)
+    const rows = r.out.split('\n').map((line) => line.split(/\s{2,}/))
+    expect(rows[0]).toEqual(['id', 'навык', 'ур.', 'XP', 'ранги'])
+    expect(rows.slice(1).map((cells) => cells[0])).toEqual(loadStore(p).skills.map((sk) => sk.id))
+    expect(rows.every((cells) => cells.length === 5)).toBe(true) // колонок столько же, сколько в шапке
+    expect(r.out).not.toMatch(/delta/)
+  })
   it('ranks требует --skill', () => expect(run(['ranks'], tmpStore()).code).toBe(2))
   it('ranks выводит буквы рангов с прогрессом', () => {
     const p = tmpStore()

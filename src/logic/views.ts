@@ -142,15 +142,21 @@ export interface SkillRow {
   into: number
   toNext: number
   ranks: { total: number; achieved: number }
+  hue: number // оттенок галактики, как в store
+  glyphId?: string // глиф созвездия, как в store; у навыка без глифа ключа нет
 }
 
-/** Живые навыки — `skills`: уровень и ранги. */
+/** Живые навыки — `skills`: уровень, ранги и облик галактики (оттенок, глиф).
+ * Облик — поля навыка как есть: необязательный glyphId без значения в строку
+ * не попадает (ключа нет, не null) — как необязательные поля квестов и звёзд. */
 export function skillsView(store: Store): SkillRow[] {
   return store.skills.filter((sk) => !sk.archived).map((sk) => {
     const info = skillLevel(skillXpTotal(store.xpLog, sk.id))
     return {
       id: sk.id, name: `${sk.emoji} ${sk.name}`, level: info.level, into: info.into, toNext: info.toNext,
       ranks: galaxySummary(store.stars, sk.id),
+      hue: sk.hue,
+      ...(sk.glyphId !== undefined ? { glyphId: sk.glyphId } : {}),
     }
   })
 }
