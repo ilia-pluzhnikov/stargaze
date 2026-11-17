@@ -18,6 +18,7 @@ import type { ChronicleRow } from './components/Chronicle'
 import { SkillPanel } from './components/SkillPanel'
 import { Wallet } from './components/Wallet'
 import { TimelineBar } from './components/TimelineBar'
+import { Sky3D } from './components/Sky3D'
 import { CharacterModal, CompleteQuestModal, DataModal, MoveDueDateModal, QuestModal, SkillModal, StarModal, WishlistModal } from './components/Modals'
 import { LevelUpOverlay } from './components/LevelUpOverlay'
 
@@ -44,6 +45,7 @@ export default function App() {
   const [view, setView] = useState<View>('sky')
   const [skillPanelId, setSkillPanelId] = useState<string | null>(null)
   const [historyDay, setHistoryDay] = useState<string | null>(null) // null — полоса истории закрыта
+  const [sky3d, setSky3d] = useState(false) // 3D-облёт неба: только просмотр, поверх всего приложения
   // Открытая галактика и выбранная звезда — не состояние, а адрес страницы (#skill / #star).
   // Адрес сменили снаружи — ссылка ведёт в сегодняшнее небо: показываем его и закрываем историю
   const [address, goTo] = useSkyAddress(() => {
@@ -349,6 +351,7 @@ export default function App() {
           store={skyStore}
           layoutFrom={store}
           onOpenHistory={openHistory}
+          onOpen3d={() => setSky3d(true)}
           onOpenGalaxy={(id) => goTo({ skill: id })}
         />
       )}
@@ -424,6 +427,8 @@ export default function App() {
           onOpenQuest={(q) => setQuestModal({ quest: q })}
         />
       )}
+      {/* в прошлом 3D показывает то же прошлое: тот же skyStore, раскладка — по сегодняшнему */}
+      {view === 'sky' && sky3d && <Sky3D store={skyStore} layoutFrom={store} onClose={() => setSky3d(false)} />}
       {view === 'sky' && shownDay !== null && historyFirst !== null && (
         <TimelineBar
           key={historyFirst} // смена нижней границы (вход в галактику) сбрасывает ▶
