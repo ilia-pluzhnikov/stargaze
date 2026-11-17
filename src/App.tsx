@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Quest, QuestDodItem, QuestResult, Skill, SkyStore, StarComponent, WishlistItem } from './types'
 import { useStore } from './hooks/useStore'
+import { useSkyAddress } from './hooks/useSkyAddress'
 import { genId } from './logic/store'
+import { resolveAddress, starAddress } from './logic/address'
 import { cancelFeeFor, gameTzOffset, sparksBalance, todayInGameTz } from './logic/sparks'
 import { recurringDashboard } from './logic/recurring'
 import { addDays, formatDayWithDow } from './logic/dates'
@@ -41,9 +43,13 @@ export default function App() {
   const { store, dispatch, mode, offlineSince, pending, replaceStore } = useStore()
   const [view, setView] = useState<View>('sky')
   const [skillPanelId, setSkillPanelId] = useState<string | null>(null)
-  const [galaxyId, setGalaxyId] = useState<string | null>(null)
-  const [selectedStarId, setSelectedStarId] = useState<string | null>(null)
   const [historyDay, setHistoryDay] = useState<string | null>(null) // null — полоса истории закрыта
+  // Открытая галактика и выбранная звезда — не состояние, а адрес страницы (#skill / #star).
+  // Адрес сменили снаружи — ссылка ведёт в сегодняшнее небо: показываем его и закрываем историю
+  const [address, goTo] = useSkyAddress(() => {
+    setView('sky')
+    setHistoryDay(null)
+  })
   const [questModal, setQuestModal] = useState<{ quest?: Quest; defaultSkillId?: string | null } | null>(null)
   const [skillModal, setSkillModal] = useState<{ skill?: Skill } | null>(null)
   const [starModal, setStarModal] = useState<{
@@ -236,7 +242,15 @@ export default function App() {
     panelSkill && store.quests.some((q) => q.skillId === panelSkill.id && q.status === 'active' && q.type !== 'repeating')
       ? 'У навыка есть активные контракты — сначала заверши или отмени их'
       : null
-  const galaxy = store.skills.find((s) => s.id === galaxyId && !s.archived) ?? null
+  // Место выводится из адреса на каждом store: цели ссылки может не быть в копии из браузера,
+  // с которой идёт первый рендер, — она откроется, когда приедет канон. Нет цели — общее небо
+  const { skill: galaxy, star: addressStar } = useMemo(() => resolveAddress(store, address), [store, address])
+  const selectedStarId = addressStar?.id ?? null
+  // Открыта звезда — в адресе держим и её галактику (ссылка извне могла прийти без неё, звезду
+  // могли перенести): удалит звезду другой клиент — экран останется в галактике, а не уйдёт на общее небо
+  useEffect(() => {
+    if (addressStar && address.skill !== addressStar.skillId) goTo(starAddress(addressStar))
+  }, [addressStar, address.skill, goTo])
 
   // ── История неба: прошлое — проекция skyAsOf; настоящий store не меняется, и всё
   // остальное в App (уровни, тосты, LevelUpOverlay) продолжает работать от него ──
@@ -335,10 +349,7 @@ export default function App() {
           store={skyStore}
           layoutFrom={store}
           onOpenHistory={openHistory}
-          onOpenGalaxy={(id) => {
-            setGalaxyId(id)
-            setSelectedStarId(null)
-          }}
+          onOpenGalaxy={(id) => goTo({ skill: id })}
         />
       )}
       {view === 'sky' && galaxy && (
@@ -348,15 +359,9 @@ export default function App() {
           skill={galaxy}
           skills={skyStore.skills.filter((s) => !s.archived)}
           selectedStarId={selectedStarId}
-          onSelectStar={setSelectedStarId}
-          onSwitch={(id) => {
-            setGalaxyId(id)
-            setSelectedStarId(null)
-          }}
-          onBack={() => {
-            setGalaxyId(null)
-            setSelectedStarId(null)
-          }}
+          onSelectStar={(id) => goTo(id ? starAddress({ id, skillId: galaxy.id }) : { skill: galaxy.id })}
+          onSwitch={(id) => goTo({ skill: id })}
+          onBack={() => goTo({})}
           onOpenHistory={openHistory}
           today={today}
           asOfDay={inPast && shownDay !== null ? shownDay : undefined}
@@ -453,12 +458,13 @@ export default function App() {
             }
             dispatch({ type: 'archiveSkill', skillId: panelSkill.id })
             setSkillPanelId(null)
+            // адрес архивной галактики больше никуда не ведёт — не оставляем его в строке браузера
+            if (galaxy?.id === panelSkill.id) goTo({})
           }}
           onOpenGalaxy={() => {
             setSkillPanelId(null)
             switchView('sky')
-            setGalaxyId(panelSkill.id)
-            setSelectedStarId(null)
+            goTo({ skill: panelSkill.id })
           }}
           onTickDod={tickDod}
         />
@@ -540,6 +546,8 @@ export default function App() {
           onSave={saveStar}
           onDelete={(starId) => {
             dispatch({ type: 'removeStar', starId })
+            // удалили звезду, на которую смотрит адрес, — остаёмся в её галактике, а не на общем небе
+            if (starId === selectedStarId) goTo({ skill: starModal.skillId })
             setStarModal(null)
           }}
           onClose={() => setStarModal(null)}
