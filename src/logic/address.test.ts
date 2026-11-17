@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Skill, StarComponent } from '../types'
-import { formatAddress, parseAddress, resolveAddress, starAddress } from './address'
+import { formatAddress, parseAddress, resolveAddress, starAddress, withSky3d } from './address'
 
 const skill = (id: string, over: Partial<Skill> = {}): Skill =>
   ({ id, emoji: '✦', name: id, wantStatement: '', hue: 200, archived: false, createdAt: '2026-06-01T12:00:00.000Z', ...over })
@@ -60,6 +60,24 @@ describe('parseAddress', () => {
     expect(parseAddress('#star=a=b')).toEqual({ star: 'a=b' })
     expect(parseAddress('#star=a+b')).toEqual({ star: 'a+b' })
   })
+
+  it('sky=3d — 3D-облёт: один и рядом с местом, в любом порядке', () => {
+    expect(parseAddress('#sky=3d')).toEqual({ sky: '3d' })
+    expect(parseAddress('#skill=sk_health&sky=3d')).toEqual({ skill: 'sk_health', sky: '3d' })
+    expect(parseAddress('#sky=3d&star=st_a1')).toEqual({ star: 'st_a1', sky: '3d' })
+    expect(parseAddress('#sky=%33d')).toEqual({ sky: '3d' })
+  })
+
+  it('sky с любым другим значением — как отсутствие ключа, место рядом живёт', () => {
+    for (const raw of ['#sky=2d', '#sky=3D', '#sky=', '#sky', '#sky=3d3d', '#sky=%E0%A4%A', '#SKY=3d'])
+      expect(parseAddress(raw), raw).toEqual({})
+    expect(parseAddress('#sky=vr&skill=sk_health')).toEqual({ skill: 'sk_health' })
+  })
+
+  it('повтор sky: берётся первое годное значение', () => {
+    expect(parseAddress('#sky=vr&sky=3d')).toEqual({ sky: '3d' })
+    expect(parseAddress('#sky=3d&sky=vr')).toEqual({ sky: '3d' })
+  })
 })
 
 describe('formatAddress', () => {
@@ -79,6 +97,38 @@ describe('formatAddress', () => {
       expect(parseAddress(formatAddress({ star: id }))).toEqual({ star: id })
       expect(parseAddress(formatAddress({ skill: id }))).toEqual({ skill: id })
     }
+  })
+
+  it('3D-облёт — ключ sky в конце: прежние адреса места не меняются', () => {
+    expect(formatAddress({ sky: '3d' })).toBe('#sky=3d')
+    expect(formatAddress({ skill: 'sk_health', sky: '3d' })).toBe('#skill=sk_health&sky=3d')
+    expect(formatAddress({ sky: '3d', skill: 'sk_health', star: 'st_a1' })).toBe('#star=st_a1&skill=sk_health&sky=3d')
+  })
+
+  it('адрес с sky переживает круг format → parse; id, похожий на ключ sky, облёт не включает', () => {
+    for (const address of [{ sky: '3d' }, { skill: 'бег', sky: '3d' }, { star: 'a&sky=3d' }, { skill: 'sky=3d' }] as const)
+      expect(parseAddress(formatAddress(address))).toEqual(address)
+  })
+})
+
+describe('withSky3d', () => {
+  it('включает облёт, не трогая место', () => {
+    expect(withSky3d({}, true)).toEqual({ sky: '3d' })
+    expect(withSky3d({ skill: 'run' }, true)).toEqual({ skill: 'run', sky: '3d' })
+    expect(withSky3d({ star: 'a1', skill: 'run' }, true)).toEqual({ star: 'a1', skill: 'run', sky: '3d' })
+  })
+
+  it('выключает облёт: остаётся место, общее небо — пустой адрес', () => {
+    expect(withSky3d({ skill: 'run', sky: '3d' }, false)).toEqual({ skill: 'run' })
+    expect(withSky3d({ sky: '3d' }, false)).toEqual({})
+    expect(formatAddress(withSky3d({ sky: '3d' }, false))).toBe('')
+  })
+
+  it('повторное включение и выключение ничего не меняют; исходный адрес не мутируется', () => {
+    const address = { skill: 'run', sky: '3d' } as const
+    expect(withSky3d(address, true)).toEqual(address)
+    expect(withSky3d({ skill: 'run' }, false)).toEqual({ skill: 'run' })
+    expect(address).toEqual({ skill: 'run', sky: '3d' })
   })
 })
 
@@ -143,6 +193,12 @@ describe('resolveAddress', () => {
     expect(resolveAddress(canon, address)).toEqual({ skill: canon.skills[1], star: canon.stars[1] })
   })
 
+  it('ключ sky на место не влияет: с облётом адрес ведёт туда же', () => {
+    expect(resolveAddress(store, { sky: '3d' })).toEqual(sky)
+    expect(resolveAddress(store, { skill: 'run', sky: '3d' })).toEqual(resolveAddress(store, { skill: 'run' }))
+    expect(resolveAddress(store, { star: 'a1', sky: '3d' })).toEqual(resolveAddress(store, { star: 'a1' }))
+  })
+
   it('цель исчезла (навык ушёл в архив) — тот же адрес снова ведёт на общее небо', () => {
     const archived = { ...store, skills: store.skills.map((s) => (s.id === 'run' ? { ...s, archived: true } : s)) }
     expect(resolveAddress(store, { star: '5k' }).skill?.id).toBe('run')
@@ -181,5 +237,14 @@ describe('starAddress — адрес звезды, каким его пишет 
   it('галактика звезды ушла в архив — общее небо', () => {
     const archived = { ...store, skills: store.skills.map((s) => (s.id === 'run' ? { ...s, archived: true } : s)) }
     expect(resolveAddress(archived, address)).toEqual({ skill: null, star: null })
+  })
+
+  it('под открытым облётом адрес звезды держит и галактику, и облёт', () => {
+    // веб дописывает skill к ссылке #star=<id>&sky=3d — облёт от этого не закрывается
+    const flying = withSky3d(address, true)
+    expect(flying).toEqual({ star: '5k', skill: 'run', sky: '3d' })
+    expect(formatAddress(flying)).toBe('#star=5k&skill=run&sky=3d')
+    expect(resolveAddress(store, flying)).toEqual(resolveAddress(store, address))
+    expect(withSky3d(flying, false)).toEqual(address)
   })
 })

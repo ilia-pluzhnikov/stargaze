@@ -3,14 +3,17 @@ import type { Skill, StarComponent, Store } from '../types'
 /**
  * Адрес места на небе — то, что веб держит в хэше страницы:
  * `#skill=<id>` — галактика, `#star=<id>` — звезда (её галактика подразумевается),
- * пустой — общее небо. Формат — публичный контракт для внешних страниц (API.md,
- * «Адреса веба»): менять только совместимо.
+ * пустой — общее небо. `sky=3d` рядом с местом — небо показано в 3D-облёте, начиная с
+ * этого места. Формат — публичный контракт для внешних страниц (API.md, «Адреса веба»):
+ * менять только совместимо.
  *
  * Модуль чистый: строку хэша ему передают, `location` он не знает.
  */
 export interface SkyAddress {
   star?: string
   skill?: string
+  /** Как показано небо: `3d` — 3D-облёт; ключа нет — обычное небо. */
+  sky?: '3d'
 }
 
 /** Куда адрес привёл на конкретном store. `skill: null` — общее небо. */
@@ -39,6 +42,12 @@ export function parseAddress(hash: string): SkyAddress {
     const eq = pair.indexOf('=')
     if (eq < 0) continue
     const key = pair.slice(0, eq)
+    if (key === 'sky') {
+      // значение — ровно `3d`; любое другое — как отсутствие ключа: старшая версия веба
+      // может знать больше видов неба, эта вкладка их молча не показывает
+      if (decode(pair.slice(eq + 1)) === '3d') address.sky = '3d'
+      continue
+    }
     if (key !== 'star' && key !== 'skill') continue
     if (address[key] !== undefined) continue
     const value = decode(pair.slice(eq + 1))
@@ -52,7 +61,18 @@ export function formatAddress(address: SkyAddress): string {
   const pairs: string[] = []
   if (address.star) pairs.push(`star=${encodeURIComponent(address.star)}`)
   if (address.skill) pairs.push(`skill=${encodeURIComponent(address.skill)}`)
+  if (address.sky === '3d') pairs.push('sky=3d')
   return pairs.length ? `#${pairs.join('&')}` : ''
+}
+
+/** Тот же адрес с 3D-облётом или без него: место (`star` / `skill`) остаётся прежним —
+ * облёт начнётся с него, а выход из облёта на него же и вернёт. */
+export function withSky3d(address: SkyAddress, on: boolean): SkyAddress {
+  const next: SkyAddress = {}
+  if (address.star) next.star = address.star
+  if (address.skill) next.skill = address.skill
+  if (on) next.sky = '3d'
+  return next
 }
 
 /**
@@ -67,7 +87,7 @@ export function starAddress(star: Pick<StarComponent, 'id' | 'skillId'>): SkyAdd
 /**
  * Куда ведёт адрес на этом store. Цели нет — общее небо, без ошибки: id не найден, навык
  * в архиве, звезда архивного навыка. Заданы оба ключа — выигрывает `star`, `skill` —
- * запасной: срабатывает, когда звезда не открылась.
+ * запасной: срабатывает, когда звезда не открылась. Ключ `sky` на место не влияет.
  *
  * Разрешать на каждом store заново, а не один раз при загрузке: первый рендер идёт по копии
  * из браузера или по сиду, канон приезжает позже — цель ссылки может появиться в store

@@ -19,6 +19,8 @@ interface Props {
   onOpenGalaxy: (skillId: string) => void
   /** Открыть полосу истории; нет = кнопки нет (полоса уже открыта или прошлого ещё нет). */
   onOpenHistory?: () => void
+  /** Войти в 3D-облёт неба; нет = кнопки нет. */
+  onOpen3d?: () => void
 }
 
 interface StarHover {
@@ -28,7 +30,7 @@ interface StarHover {
   y: number
 }
 
-export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory }: Props) {
+export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory, onOpen3d }: Props) {
   const pz = usePanZoom(SKY_W, SKY_H)
   const [hover, setHover] = useState<StarHover | null>(null)
   // Пан уводит звёзды из-под курсора — иначе после отпускания остаётся устаревший тултип.
@@ -88,8 +90,11 @@ export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory }: Props) {
             onStarHover={(h) => setHover(h ? { skill, star: h.star, x: h.x, y: h.y } : null)} />
         ))}
       </svg>
-      {(onOpenHistory || pz.isMoved) && (
+      {(onOpenHistory || onOpen3d || pz.isMoved) && (
         <div className="sky-corner">
+          {onOpen3d && (
+            <button className="sky-reset" onClick={onOpen3d} title="Облёт неба в 3D — камера сама летит от галактики к галактике">◈ 3D-облёт</button>
+          )}
           {onOpenHistory && (
             <button className="sky-reset" onClick={onOpenHistory} title="Показать небо на любую прошлую дату">◷ История</button>
           )}

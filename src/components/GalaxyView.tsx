@@ -55,6 +55,8 @@ interface GalaxyViewProps {
   asOfDay?: string
   /** Открыть полосу истории; нет = кнопки нет (полоса уже открыта или прошлого ещё нет). */
   onOpenHistory?: () => void
+  /** Войти в 3D-облёт неба с этой галактики; нет = кнопки нет. */
+  onOpen3d?: () => void
 }
 
 export function GalaxyView({
@@ -70,6 +72,7 @@ export function GalaxyView({
   today,
   asOfDay,
   onOpenHistory,
+  onOpen3d,
 }: GalaxyViewProps) {
   const pz = usePanZoom(GALAXY_W, GALAXY_H)
   const hue = skill.hue
@@ -278,8 +281,11 @@ export function GalaxyView({
         </g>
       </svg>
 
-      {(onOpenHistory || pz.isMoved) && (
+      {(onOpenHistory || onOpen3d || pz.isMoved) && (
         <div className="sky-corner">
+          {onOpen3d && (
+            <button className="sky-reset" onClick={onOpen3d} title="Облёт неба в 3D — начнётся с этой галактики">◈ 3D-облёт</button>
+          )}
           {onOpenHistory && (
             <button className="sky-reset" onClick={onOpenHistory} title="Показать галактику на любую прошлую дату">◷ История</button>
           )}

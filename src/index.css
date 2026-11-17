@@ -1540,3 +1540,35 @@ button.chronicle-quest-title:focus-visible { outline: 2px solid var(--accent); o
   .chronicle-heading { align-items: stretch; flex-direction: column; gap: 14px; }
   .chronicle-today-summary { min-width: 0; width: 100%; }
 }
+
+/* ── 3D-небо: полноэкранный режим просмотра (заставка), рисуется на canvas ── */
+.sky3d {
+  position: fixed; inset: 0; z-index: 80;
+  overflow: hidden;
+  /* почти чёрное небо с синевой к центру: свет звёзд складывается, на сером фоне он выцветает */
+  background: radial-gradient(ellipse at 50% 42%, #0a0f1e 0%, #05070d 58%, #020308 100%);
+}
+.sky3d.idle { cursor: none; }
+.sky3d canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.sky3d canvas:active { cursor: grabbing; }
+.sky3d canvas.over-galaxy { cursor: pointer; }
+.sky3d.idle canvas { cursor: none; }
+.sky3d-caption {
+  position: absolute; left: 28px; bottom: 24px;
+  pointer-events: none; text-align: left;
+}
+.sky3d-kicker { color: var(--faint); font-size: 11px; letter-spacing: 2.2px; text-transform: uppercase; }
+.sky3d-name { font-family: var(--font-head); font-size: 26px; color: var(--ink); margin-top: 4px; }
+.sky3d-meta { color: var(--dim); font-size: 13px; margin-top: 2px; }
+.sky3d-controls {
+  position: absolute; right: 16px; top: 16px;
+  display: flex; align-items: center; gap: 12px;
+  transition: opacity 0.4s;
+}
+/* спрятанные кнопки не нажимаются: тап по пустому на вид углу не должен выбрасывать из облёта */
+.sky3d.idle .sky3d-controls { opacity: 0; pointer-events: none; }
+.sky3d-hint { color: var(--faint); font-size: 12px; }
+@media (max-width: 720px) {
+  .sky3d-hint { display: none; }
+  .sky3d-name { font-size: 20px; }
+}
