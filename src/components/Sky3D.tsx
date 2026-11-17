@@ -168,7 +168,8 @@ function drawGalaxy(
   }
 
   const label = named ? project({ x: g.center.x, y: g.center.y + (CONST_H * GALAXY_3D_SCALE) / 2 + 22, z: g.center.z }, basis) : null
-  if (label) {
+  // левый нижний угол занят подписью режима — имя соседней галактики туда не кладём
+  if (label && !(label.x < 340 && label.y > basis.cy * 2 - 130)) {
     ctx.globalAlpha = 0.85 * fade
     ctx.fillStyle = sky.label
     ctx.font = `600 ${Math.round(clamp(14 * label.scale, 11, 18))}px Inter, system-ui, sans-serif`
@@ -223,8 +224,9 @@ export function Sky3D({ store, layoutFrom, onClose }: Props) {
       if (now - lastDraw < 1000 / FPS - 2) return
       lastDraw = now
       const c = clock.current
-      // длинная пауза между кадрами (вкладка была скрыта) не должна перебрасывать камеру
-      if (c.last && !c.paused) c.sec += Math.min(0.25, (now - c.last) / 1000) * slow
+      // облёт идёт по настоящему времени и при редких кадрах (слабый браузер, окно в фоне);
+      // пауза дольше секунды — вкладку прятали — камеру не перебрасывает
+      if (c.last && !c.paused) c.sec += Math.min(1, (now - c.last) / 1000) * slow
       c.last = now
       const camera = flightCamera(plan, c.sec)
       const basis = cameraBasis(camera, width, height)
