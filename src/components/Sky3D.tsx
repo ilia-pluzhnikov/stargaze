@@ -3,9 +3,13 @@ import { TIERS } from '../types'
 import type { SkyStore, Tier } from '../types'
 import { CONST_H, CONST_W } from '../logic/layout'
 import {
-  GALAXY_3D_SCALE, backdropStars, buildSkyScene, cameraBasis, flightCamera, flightPlan, project, projectDirection,
+  GALAXY_3D_SCALE, backdropStars, buildSkyScene, cameraBasis, flightPlan, orbitEye, pickGalaxy, project, projectDirection,
 } from '../logic/sky3d'
 import type { CameraBasis, SkyGalaxy3D, Vec3 } from '../logic/sky3d'
+import {
+  RESUME_IDLE_SEC, pilotFlyTo, pilotResume, pilotRotate, pilotStep, pilotTick, pilotTogglePause, pilotZoom, rebasePilot, startPilot,
+} from '../logic/sky3dPilot'
+import type { Pilot } from '../logic/sky3dPilot'
 import { glyphById } from './skyGlyphs'
 import { sky, tierStyle } from './skyColors'
 import { rootCoronaStops } from './skyGlow'
@@ -23,8 +27,14 @@ const FPS = 30
 const MAX_DPR = 1.5
 /** Сколько секунд после движения мыши или клавиши видны кнопки. */
 const CONTROLS_SEC = 4
-/** Фон — шапка сферы: камера качается вокруг взгляда «спереди» и назад не смотрит. */
-const BACKDROP = backdropStars(1100, 'stargaze-sky3d', 0.3)
+/** Фон — сфера без «затылка»: ручная камера поворачивается шире облёта, но назад не смотрит. */
+const BACKDROP = backdropStars(2400, 'stargaze-sky3d', -0.5)
+/** Радиан поворота камеры на пиксель перетаскивания. */
+const DRAG_RAD_PER_PX = 0.005
+/** Чувствительность колеса: показатель множителя расстояния на пиксель прокрутки. */
+const WHEEL_ZOOM = 0.0014
+/** Нажатие, не ушедшее дальше стольких пикселей, — клик, а не перетаскивание. */
+const CLICK_SLOP_PX = 6
 /** Звёзды в 3D чуть крупнее, чем мини-созвездия обзора: смотрят издалека, с дивана. */
 const STAR_SIZE = 1.3
 
@@ -179,22 +189,25 @@ function drawGalaxy(
   }
 }
 
-/** 3D-небо — режим просмотра: камера сама облетает галактики (заставка). Действий нет;
- * выход — кнопка или Esc. Вся геометрия — в logic/sky3d, здесь только отрисовка на Canvas 2D. */
+/** 3D-небо — режим просмотра: камера сама облетает галактики (заставка), а мышью или
+ * пальцем её можно взять в руки — вращать, приближать, подлетать к галактике кликом.
+ * Действий над миром нет; выход — кнопка или Esc. Геометрия и правила полёта — в
+ * logic/sky3d и logic/sky3dPilot, здесь только ввод и отрисовка на Canvas 2D. */
 export function Sky3D({ store, layoutFrom, onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const scene = useMemo(() => buildSkyScene(store, layoutFrom ?? store), [store, layoutFrom])
   const plan = useMemo(() => flightPlan(scene), [scene])
-  // время облёта переживает пересборку сцены: синхронизация store не отбрасывает камеру к началу
-  const clock = useRef({ sec: 0, last: 0, paused: false })
+  // пилот переживает пересборку сцены: синхронизация store не отбрасывает камеру к началу
+  const pilot = useRef<Pilot | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
+  const [hud, setHud] = useState({ manual: false, paused: false })
   const [controls, setControls] = useState(true)
-  const [paused, setPaused] = useState(false)
 
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
+    pilot.current = pilot.current ? rebasePilot(pilot.current, plan) : startPilot(plan)
     const sprites = makeSprites(scene.galaxies)
     const glyphs = new Map<string, Path2D[]>()
     for (const g of scene.galaxies) {
@@ -215,46 +228,110 @@ export function Sky3D({ store, layoutFrom, onClose }: Props) {
     resize()
     window.addEventListener('resize', resize)
 
-    let shownFocus: string | null | undefined
+    // ── ввод: одна точка — вращение, две — щипок-зум, короткое нажатие — подлёт к галактике ──
+    const pointers = new Map<number, { x: number; y: number }>()
+    let press: { x: number; y: number; moved: boolean } | null = null
+    let pinchSpan = 0
+    let basis: CameraBasis | null = null // базис последнего кадра — по нему клик ищет галактику
+    const pointAt = (e: PointerEvent) => {
+      const box = canvas.getBoundingClientRect()
+      return { x: e.clientX - box.left, y: e.clientY - box.top }
+    }
+    const onDown = (e: PointerEvent) => {
+      canvas.setPointerCapture(e.pointerId)
+      pointers.set(e.pointerId, pointAt(e))
+      press = pointers.size === 1 ? { ...pointAt(e), moved: false } : null
+      pinchSpan = 0
+    }
+    const onMove = (e: PointerEvent) => {
+      const now = pointAt(e)
+      const prev = pointers.get(e.pointerId)
+      if (!prev) { // курсор просто ведут: над галактикой он подсказывает, что по ней можно кликнуть
+        canvas.classList.toggle('over-galaxy', !!basis && pickGalaxy(scene, basis, now.x, now.y) !== null)
+        return
+      }
+      if (pointers.size === 1) {
+        if (press && !press.moved && Math.hypot(now.x - press.x, now.y - press.y) < CLICK_SLOP_PX) return
+        if (press) press.moved = true
+        // «тянем небо за собой»: вправо — камера уходит влево, вниз — поднимается
+        pilot.current = pilotRotate(pilot.current!, plan, -(now.x - prev.x) * DRAG_RAD_PER_PX, (now.y - prev.y) * DRAG_RAD_PER_PX)
+      }
+      pointers.set(e.pointerId, now)
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()]
+        const span = Math.hypot(a.x - b.x, a.y - b.y)
+        if (pinchSpan > 0 && span > 0) pilot.current = pilotZoom(pilot.current!, plan, pinchSpan / span)
+        pinchSpan = span
+      }
+    }
+    const onUp = (e: PointerEvent) => {
+      const click = e.type === 'pointerup' && pointers.size === 1 && press && !press.moved ? press : null
+      pointers.delete(e.pointerId)
+      press = null
+      pinchSpan = 0
+      const hit = click && basis ? pickGalaxy(scene, basis, click.x, click.y) : null
+      const stop = hit ? plan.stops.findIndex((s) => s.galaxyId === hit) : -1
+      if (stop >= 0) pilot.current = pilotFlyTo(pilot.current!, plan, stop)
+    }
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const delta = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaY // мышь со «строками» → пиксели
+      pilot.current = pilotZoom(pilot.current!, plan, Math.exp(clamp(delta, -400, 400) * WHEEL_ZOOM))
+    }
+    canvas.addEventListener('pointerdown', onDown)
+    canvas.addEventListener('pointermove', onMove)
+    canvas.addEventListener('pointerup', onUp)
+    canvas.addEventListener('pointercancel', onUp)
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+
+    let shown: { focus: string | null; manual: boolean; paused: boolean } | null = null
     let raf = 0
     let lastDraw = 0
-    clock.current.last = 0
+    let last = 0
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame)
       if (now - lastDraw < 1000 / FPS - 2) return
       lastDraw = now
-      const c = clock.current
-      // облёт идёт по настоящему времени и при редких кадрах (слабый браузер, окно в фоне);
+      // полёт идёт по настоящему времени и при редких кадрах (слабый браузер, окно в фоне);
       // пауза дольше секунды — вкладку прятали — камеру не перебрасывает
-      if (c.last && !c.paused) c.sec += Math.min(1, (now - c.last) / 1000) * slow
-      c.last = now
-      const camera = flightCamera(plan, c.sec)
-      const basis = cameraBasis(camera, width, height)
+      const dt = last ? Math.min(1, (now - last) / 1000) * slow : 0
+      last = now
+      const p = pilotTick(pilot.current!, plan, dt, pointers.size > 0)
+      pilot.current = p
+      const view = cameraBasis({ eye: orbitEye(p.pose), target: p.pose.target }, width, height)
+      basis = view
+      const focus = plan.stops[p.stopIndex].galaxyId
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.clearRect(0, 0, width, height)
       ctx.fillStyle = '#dfe6ff'
+      const twinkle = now / 1000
       for (const s of BACKDROP) {
-        const p = projectDirection(s.direction, basis)
-        if (!p || p.x < 0 || p.y < 0 || p.x > width || p.y > height) continue
-        ctx.globalAlpha = s.alpha * (0.72 + 0.28 * Math.sin(c.sec * s.speed + s.phase))
-        ctx.fillRect(p.x, p.y, s.size, s.size)
+        const dot = projectDirection(s.direction, view)
+        if (!dot || dot.x < 0 || dot.y < 0 || dot.x > width || dot.y > height) continue
+        ctx.globalAlpha = s.alpha * (0.72 + 0.28 * Math.sin(twinkle * s.speed + s.phase))
+        ctx.fillRect(dot.x, dot.y, s.size, s.size)
       }
-      const depthOf = (p: Vec3) =>
-        (p.x - basis.eye.x) * basis.forward.x + (p.y - basis.eye.y) * basis.forward.y + (p.z - basis.eye.z) * basis.forward.z
+      const depthOf = (v: Vec3) =>
+        (v.x - view.eye.x) * view.forward.x + (v.y - view.eye.y) * view.forward.y + (v.z - view.eye.z) * view.forward.z
       const order = [...scene.galaxies].sort((a, b) => depthOf(b.center) - depthOf(a.center))
-      for (const g of order) drawGalaxy(ctx, g, basis, sprites, glyphs, dpr, g.id !== camera.galaxyId || camera.travelling)
+      for (const g of order) drawGalaxy(ctx, g, view, sprites, glyphs, dpr, g.id !== focus || p.travelling)
       ctx.globalAlpha = 1
 
-      if (camera.galaxyId !== shownFocus) {
-        shownFocus = camera.galaxyId
-        setFocusId(camera.galaxyId)
-      }
+      const manual = p.mode === 'manual'
+      if (!shown || shown.focus !== focus) setFocusId(focus)
+      if (!shown || shown.manual !== manual || shown.paused !== p.paused) setHud({ manual, paused: p.paused })
+      shown = { focus, manual, paused: p.paused }
     }
     raf = requestAnimationFrame(frame)
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
+      canvas.removeEventListener('pointerdown', onDown)
+      canvas.removeEventListener('pointermove', onMove)
+      canvas.removeEventListener('pointerup', onUp)
+      canvas.removeEventListener('pointercancel', onUp)
+      canvas.removeEventListener('wheel', onWheel)
     }
   }, [scene, plan])
 
@@ -267,14 +344,14 @@ export function Sky3D({ store, layoutFrom, onClose }: Props) {
       timer = window.setTimeout(() => setControls(false), CONTROLS_SEC * 1000)
     }
     const onKey = (e: KeyboardEvent) => {
-      const step = plan.holdSec + plan.travelSec
+      const p = pilot.current
       if (e.key === 'Escape') onClose()
-      else if (e.key === 'ArrowRight') clock.current.sec = (Math.floor(clock.current.sec / step) + 1) * step
-      else if (e.key === 'ArrowLeft') clock.current.sec = (Math.ceil(clock.current.sec / step) - 1) * step
+      else if (!p) return
+      else if (e.key === 'ArrowRight') pilot.current = pilotStep(p, plan, 1)
+      else if (e.key === 'ArrowLeft') pilot.current = pilotStep(p, plan, -1)
       else if (e.key === ' ') {
         e.preventDefault()
-        clock.current.paused = !clock.current.paused
-        setPaused(clock.current.paused)
+        pilot.current = pilotTogglePause(p, plan)
       }
       wake()
     }
@@ -295,20 +372,28 @@ export function Sky3D({ store, layoutFrom, onClose }: Props) {
   const lit = focus
     ? focus.stars.filter((s) => s.lit).length
     : scene.galaxies.reduce((sum, g) => sum + g.stars.filter((s) => s.lit).length, 0)
+  const steer = (move: (p: Pilot) => Pilot) => () => {
+    if (pilot.current) pilot.current = move(pilot.current)
+  }
 
   return (
     <div className={controls ? 'sky3d' : 'sky3d idle'} role="dialog" aria-label="3D-небо">
       <canvas ref={canvasRef} />
       <div className="sky3d-caption">
-        <div className="sky3d-kicker">3D-небо · облёт{paused ? ' · пауза' : ''}</div>
+        <div className="sky3d-kicker">3D-небо · {hud.manual ? 'ручной полёт' : hud.paused ? 'облёт · пауза' : 'облёт'}</div>
         <div className="sky3d-name">{focus ? focus.name : 'Всё небо'}</div>
         <div className="sky3d-meta">
           {total > 0 ? `зажжено ${lit} из ${total}` : focus ? 'без звёзд' : scene.galaxies.length ? 'звёзд пока нет' : 'навыков пока нет'}
         </div>
       </div>
       <div className="sky3d-controls">
-        <span className="sky3d-hint">← → галактики · пробел — пауза · Esc — выход</span>
-        <button className="sky-reset" onClick={onClose} title="Вернуться к обычному небу">✕ Выйти из 3D</button>
+        <span className="sky3d-hint">тяни — вращать · колесо — зум · клик по галактике — подлететь</span>
+        {hud.manual && (
+          <button className="sky-reset" onClick={steer((p) => pilotResume(p, plan))}
+            title={`Вернуть автопролёт сейчас; сам он вернётся через ${RESUME_IDLE_SEC} с покоя`}>▶ Облёт</button>
+        )}
+        <button className="sky-reset" onClick={steer((p) => pilotFlyTo(p, plan, 0))} title="Отлететь и увидеть всё небо">⌖ Обзор</button>
+        <button className="sky-reset" onClick={onClose} title="Вернуться к обычному небу (Esc)">✕ Выйти из 3D</button>
       </div>
     </div>
   )

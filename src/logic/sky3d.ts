@@ -109,8 +109,27 @@ export interface FlightStop {
   target: Vec3
   /** Расстояние до цели на остановке. */
   distance: number
+  /** Ближе к цели камеру не пускает и ручной зум: у галактики это сфера её звёзд с запасом. */
+  minDistance: number
   /** Галактика остановки; null — обзор всего неба. */
   galaxyId: string | null
+}
+
+/** Камера на орбите вокруг цели: рыскание и тангаж в радианах, 0/0 — взгляд спереди. */
+export interface OrbitPose {
+  target: Vec3
+  distance: number
+  yaw: number
+  pitch: number
+}
+
+/** Точка, из которой смотрит камера в позе. */
+export function orbitEye(pose: OrbitPose): Vec3 {
+  return {
+    x: pose.target.x + pose.distance * Math.sin(pose.yaw) * Math.cos(pose.pitch),
+    y: pose.target.y - pose.distance * Math.sin(pose.pitch),
+    z: pose.target.z - pose.distance * Math.cos(pose.yaw) * Math.cos(pose.pitch),
+  }
 }
 
 export interface FlightPlan {
@@ -122,12 +141,13 @@ export interface FlightPlan {
   loopSec: number
 }
 
-export interface FlightFrame {
+export interface FlightFrame extends OrbitPose {
   eye: Vec3
-  target: Vec3
   /** Остановка, у которой камера стоит или от которой улетает. */
   stopIndex: number
-  /** Галактика в фокусе: в перелёте со второй половины пути — уже следующая; null — обзор. */
+  /** Остановка в фокусе: в перелёте со второй половины пути — уже следующая. */
+  focusIndex: number
+  /** Галактика в фокусе (остановки focusIndex); null — обзор. */
   galaxyId: string | null
   travelling: boolean
 }
@@ -138,6 +158,10 @@ export const FLIGHT_TRAVEL_SEC = 7
 const OVERVIEW_DISTANCE = 1200
 /** Дистанция до галактики в её радиусах: фигура занимает около двух третей кадра. */
 const GALAXY_DISTANCE_K = 3.3
+/** Ближний предел у галактики в её радиусах: камера остаётся снаружи сферы звёзд. */
+const GALAXY_MIN_DISTANCE_K = 1.25
+/** Ближний предел на обзорной остановке. */
+const OVERVIEW_MIN_DISTANCE = 400
 /** Покачивание камеры вокруг цели: рыскание и тангаж, радианы. Небо всегда видно
  * «спереди» — фигуры созвездий читаются как на обзоре, глубину даёт параллакс. */
 const YAW_SWING = 0.55
@@ -154,8 +178,10 @@ export function flightPlan(scene: SkyScene3D): FlightPlan {
   const tour = [...scene.galaxies].sort((a, b) =>
     Math.atan2(a.center.y, a.center.x) - Math.atan2(b.center.y, b.center.x) || a.id.localeCompare(b.id))
   const stops: FlightStop[] = [
-    { target: { x: 0, y: 0, z: 0 }, distance: OVERVIEW_DISTANCE, galaxyId: null },
-    ...tour.map((g) => ({ target: g.center, distance: g.radius * GALAXY_DISTANCE_K, galaxyId: g.id })),
+    { target: { x: 0, y: 0, z: 0 }, distance: OVERVIEW_DISTANCE, minDistance: OVERVIEW_MIN_DISTANCE, galaxyId: null },
+    ...tour.map((g) => ({
+      target: g.center, distance: g.radius * GALAXY_DISTANCE_K, minDistance: g.radius * GALAXY_MIN_DISTANCE_K, galaxyId: g.id,
+    })),
   ]
   return {
     stops,
@@ -165,10 +191,21 @@ export function flightPlan(scene: SkyScene3D): FlightPlan {
   }
 }
 
-const smooth = (u: number): number => u * u * (3 - 2 * u)
+/** Плавный ход 0..1 с нулевой скоростью на концах. */
+export const smooth = (u: number): number => u * u * (3 - 2 * u)
 const lerp = (a: number, b: number, u: number): number => a + (b - a) * u
 const lerp3 = (a: Vec3, b: Vec3, u: number): Vec3 => ({ x: lerp(a.x, b.x, u), y: lerp(a.y, b.y, u), z: lerp(a.z, b.z, u) })
 const dist = (a: Vec3, b: Vec3): number => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+
+/** Поза между a и b: u = 0 — a, u = 1 — b. Расстояние идёт по логарифму — зум ощущается ровным. */
+export function mixPose(a: OrbitPose, b: OrbitPose, u: number): OrbitPose {
+  return {
+    target: lerp3(a.target, b.target, u),
+    distance: Math.exp(lerp(Math.log(a.distance), Math.log(b.distance), u)),
+    yaw: lerp(a.yaw, b.yaw, u),
+    pitch: lerp(a.pitch, b.pitch, u),
+  }
+}
 
 /** Камера облёта в момент t (секунды, любое число — облёт цикличен). Чистая функция
  * времени: непрерывна по t, включая стык цикла, и периодична с периодом plan.loopSec. */
@@ -184,7 +221,7 @@ export function flightCamera(plan: FlightPlan, tSec: number): FlightFrame {
 
   let target: Vec3
   let distance: number
-  let galaxyId = from.galaxyId
+  let focusIndex = stopIndex
   if (!travelling) {
     target = from.target
     distance = from.distance * lerp(HOLD_FAR, HOLD_NEAR, local / plan.holdSec)
@@ -193,18 +230,14 @@ export function flightCamera(plan: FlightPlan, tSec: number): FlightFrame {
     const u = smooth(raw)
     target = lerp3(from.target, to.target, u)
     distance = lerp(from.distance * HOLD_NEAR, to.distance * HOLD_FAR, u) * (1 + TRAVEL_PULLBACK * Math.sin(Math.PI * raw))
-    if (raw >= 0.5) galaxyId = to.galaxyId
+    if (raw >= 0.5) focusIndex = (stopIndex + 1) % count
   }
   // один оборот покачивания на шаг облёта: каждая остановка начинается с одной и той же фазы
   const phase = (2 * Math.PI * t) / step
   const yaw = YAW_SWING * Math.sin(phase)
   const pitch = PITCH_SWING * Math.cos(phase)
-  const eye: Vec3 = {
-    x: target.x + distance * Math.sin(yaw) * Math.cos(pitch),
-    y: target.y - distance * Math.sin(pitch),
-    z: target.z - distance * Math.cos(yaw) * Math.cos(pitch),
-  }
-  return { eye, target, stopIndex, galaxyId, travelling }
+  const pose: OrbitPose = { target, distance, yaw, pitch }
+  return { ...pose, eye: orbitEye(pose), stopIndex, focusIndex, galaxyId: plan.stops[focusIndex].galaxyId, travelling }
 }
 
 // ── проекция ──
@@ -264,6 +297,18 @@ export function project(point: Vec3, basis: CameraBasis): Projected | null {
   if (depth < NEAR) return null
   const scale = basis.focal / depth
   return { x: basis.cx + dot(rel, basis.right) * scale, y: basis.cy - dot(rel, basis.up) * scale, scale, depth }
+}
+
+/** Галактика под точкой экрана: клик попадает, если он внутри видимого круга галактики
+ * (не меньше minPx — в далёкую тоже можно попасть). Из перекрывшихся — ближняя. null — мимо. */
+export function pickGalaxy(scene: SkyScene3D, basis: CameraBasis, x: number, y: number, minPx = 28): string | null {
+  let best: { id: string; depth: number } | null = null
+  for (const g of scene.galaxies) {
+    const p = project(g.center, basis)
+    if (!p || Math.hypot(x - p.x, y - p.y) > Math.max(minPx, g.radius * p.scale)) continue
+    if (!best || p.depth < best.depth) best = { id: g.id, depth: p.depth }
+  }
+  return best ? best.id : null
 }
 
 /** Направление на бесконечно далёкую точку → экран (фоновые звёзды: поворачиваются
