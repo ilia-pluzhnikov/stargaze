@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-17T19:24:54.944Z",
-  "generated_from_commit": "b0fb695a11bd9d2cf9dd6b99bc1247a79673809d",
+  "generated_at": "2026-11-18T10:22:12.331Z",
+  "generated_from_commit": "ccd70a8f5d9fee3a624fc38efa74a775a140e6f2",
   "scope": [
     "src/",
     "cli/",
@@ -69,7 +69,7 @@
           "symbol": "base: './'"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-sky",
@@ -138,7 +138,7 @@
           "symbol": "export function LitStar"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-sky3d",
@@ -149,22 +149,32 @@
       "role": "Режим просмотра-заставка: то же небо в объёме, камера сама летит от обзора к галактикам; ручная камера (поворот, зум, клик по галактике), подпись и выход",
       "external": false,
       "files": [
-        "src/components/Sky3D.tsx"
+        "src/components/Sky3D.tsx",
+        "src/hooks/useKeepAwake.ts",
+        "src/hooks/keepAwake.ts",
+        "src/assets/keep-awake.mp4"
       ],
       "entrypoints": [
         "<Sky3D/> из App.tsx — адрес #sky=3d или кнопка «◈ 3D-облёт»"
       ],
-      "tests": [],
+      "tests": [
+        "src/hooks/keepAwake.test.ts"
+      ],
       "constraints": [
         "Только просмотр: действий над миром нет",
         "Canvas 2D и заранее отрисованные спрайты, без three.js и других библиотек; кадр ограничен 30 к/с",
         "Свет звёзд — из рецепта skyGlow, числа не копируются; раскладка — та же seeded-раскладка, что в 2D",
-        "В режиме истории показывает то же прошлое и называет день"
+        "В режиме истории показывает то же прошлое и называет день",
+        "Держит экран: Screen Wake Lock, а если замок не пришёл за 2 с (webOS не отвечает) — беззвучный полноэкранный ролик под холстом; меньшее видео webOS не засчитывает, повтор ролика — только load()"
       ],
       "evidence": [
         {
           "path": "src/components/Sky3D.tsx",
           "symbol": "export function Sky3D"
+        },
+        {
+          "path": "src/hooks/keepAwake.ts",
+          "symbol": "export function keepAwake"
         },
         {
           "path": "src/components/Sky3D.tsx",
@@ -217,7 +227,7 @@
           "symbol": "export function Chronicle"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "web-modals",
@@ -544,7 +554,7 @@
           "symbol": "export const SPARKS_EPOCH"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-stars",
@@ -743,7 +753,7 @@
           "symbol": "export const MAX_ZOOM_IN = 5"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-sky3d",
@@ -790,7 +800,7 @@
           "symbol": "export const RESUME_IDLE_SEC = 30"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-address",
@@ -831,7 +841,7 @@
           "symbol": "export function withSky3d"
         }
       ],
-      "changed_since_previous": true
+      "changed_since_previous": false
     },
     {
       "id": "core-timeline",

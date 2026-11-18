@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { seedStore } from '../src/data/seed'
 import { addDays } from '../src/logic/dates'
 import { DEFAULT_TZ_OFFSET_MIN, todayInGameTz } from '../src/logic/sparks'
@@ -175,6 +175,13 @@ describe('api', () => {
     const r = await fetch(`${base}/`)
     expect(r.status).toBe(200)
     expect(await r.text()).toMatch(/привет/)
+  })
+  it('статика: ролик облёта отдаётся как video/mp4', async () => {
+    const { base, storePath } = await start()
+    writeFileSync(join(dirname(storePath), 'public', 'clip.mp4'), Buffer.from([0, 0, 0, 24]))
+    const r = await fetch(`${base}/clip.mp4`)
+    expect(r.status).toBe(200)
+    expect(r.headers.get('content-type')).toBe('video/mp4')
   })
   it('выход из корня статики — 404', async () => {
     const { base } = await start()
