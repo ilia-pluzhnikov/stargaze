@@ -12,6 +12,7 @@ import {
   rebasePilot, startPilot, stopIndexOf,
 } from '../logic/sky3dPilot'
 import type { Pilot } from '../logic/sky3dPilot'
+import { useKeepAwake } from '../hooks/useKeepAwake'
 import { ROOT_MINI_SCALE } from './Galaxy'
 import { glyphById } from './skyGlyphs'
 import { sky, tierStyle } from './skyColors'
@@ -336,6 +337,8 @@ export function Sky3D({ store, layoutFrom, startAt = null, asOfDay, onClose }: P
   const [focusId, setFocusId] = useState<string | null>(null)
   const [hud, setHud] = useState({ manual: false, paused: false })
   const [controls, setControls] = useState(true)
+  // Облёт смотрят без пульта: пока он на экране, телевизор не уходит в заставку
+  useKeepAwake(true)
 
   useEffect(() => {
     const canvas = canvasRef.current

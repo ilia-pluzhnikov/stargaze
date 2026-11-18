@@ -1,13 +1,21 @@
 {
-  "commit": "b0fb695a11bd9d2cf9dd6b99bc1247a79673809d",
+  "commit": "ccd70a8f5d9fee3a624fc38efa74a775a140e6f2",
   "working_tree_dirty": true,
   "dirty_files": [
-    "ocs/codemap/codemap.html",
+    "HANGELOG.md",
+    "docs/codemap/codemap.html",
     "docs/codemap/codemap.json",
     "docs/codemap/codemap.lock",
-    "docs/codemap/model.mjs"
+    "docs/codemap/model.mjs",
+    "server/app.test.ts",
+    "server/app.ts",
+    "src/assets/keep-awake.mp4",
+    "src/components/Sky3D.tsx",
+    "src/hooks/keepAwake.test.ts",
+    "src/hooks/keepAwake.ts",
+    "src/hooks/useKeepAwake.ts"
   ],
-  "generated_at": "2026-11-17T19:24:54.944Z",
+  "generated_at": "2026-11-18T10:22:12.331Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -30,7 +38,7 @@
     "tsconfig.json",
     "tsconfig.node.json"
   ],
-  "scanned_files": 97,
+  "scanned_files": 101,
   "fingerprint_algorithm": "sha256(sorted(\"<path>\u0000\" + sha256(file bytes; текст нормализован к LF)))",
   "modules": {
     "web-app": {
@@ -72,9 +80,13 @@
       "path": "src/components/Sky3D.tsx",
       "external": false,
       "files": [
-        "src/components/Sky3D.tsx"
+        "src/assets/keep-awake.mp4",
+        "src/components/Sky3D.tsx",
+        "src/hooks/keepAwake.test.ts",
+        "src/hooks/keepAwake.ts",
+        "src/hooks/useKeepAwake.ts"
       ],
-      "fingerprint": "a93bb9a1c2c5dd510bd58465c9aa51e340616987baaa0a5dd884f89dad88d177"
+      "fingerprint": "c679de40a2f0a3c0c70037ce37f145faf3639b295ffe3dc59906ad6e46a04c33"
     },
     "web-panels": {
       "path": "src/components/Journal.tsx",
@@ -271,7 +283,7 @@
         "server/app.ts",
         "server/main.ts"
       ],
-      "fingerprint": "952855eecc35fdda60b6792228887a2f9fa7d0dc14a4b7bc2deb8f17ce254198"
+      "fingerprint": "a7bec58f4bed9f9d48606e40fa6a239aa359b831f65607657e15e01dbca8f3b2"
     },
     "cli": {
       "path": "cli/app.ts",
@@ -313,25 +325,16 @@
     }
   },
   "previous": {
-    "commit": "b0fb695a11bd9d2cf9dd6b99bc1247a79673809d",
-    "generated_at": "2026-11-17T19:23:21.548Z",
+    "commit": "ccd70a8f5d9fee3a624fc38efa74a775a140e6f2",
+    "generated_at": "2026-11-18T09:59:50.134Z",
     "changed_modules": [
-      "web-app",
-      "web-sky",
-      "web-panels",
-      "core-sparks"
+      "web-sky3d"
     ],
-    "new_modules": [
-      "web-sky3d",
-      "core-panzoom",
-      "core-sky3d",
-      "core-address"
-    ],
+    "new_modules": [],
     "removed_modules": []
   },
   "unknowns": [
     "web-app: прямых тестов нет",
-    "web-sky3d: прямых тестов нет",
     "web-panels: прямых тестов нет",
     "web-modals: прямых тестов нет",
     "web-usestore: прямых тестов нет",

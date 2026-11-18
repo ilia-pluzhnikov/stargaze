@@ -40,6 +40,8 @@ const MIME: Record<string, string> = {
   '.json': 'application/json',
   '.txt': 'text/plain; charset=utf-8',
   '.woff2': 'font/woff2',
+  // ролик, которым 3D-облёт держит экран телевизора (src/hooks/keepAwake.ts)
+  '.mp4': 'video/mp4',
 }
 const BODY_LIMIT = 1_000_000
 
