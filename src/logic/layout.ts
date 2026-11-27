@@ -89,15 +89,6 @@ const SOFT_SKY_SLOTS = [
   { x: 700, y: 735 },
 ] as const
 
-/** Якоря, которые жили в коде до поля `skyPos`: небо владельца не сдвигается,
- * пока он не перенёс их в store. `skyPos` навыка важнее. */
-const LEGACY_PINS: Readonly<Record<string, SkyPoint>> = {
-  // Финансы — смысловой центр обзорного неба; якорь по постоянному id.
-  s_treasury: { x: MAIN_QUEST_ANCHOR.x, y: MAIN_QUEST_ANCHOR.y },
-  // Тело — нижний ряд между Режимом и Капиталом и свободой.
-  s_body: { x: 860, y: 825 },
-}
-
 /** Слот раскладки и полный размах джиттера вокруг него (по x и по y). */
 interface Slot extends SkyPoint {
   jitterX: number
@@ -234,17 +225,18 @@ function settle(order: readonly string[], pos: Map<string, SkyPoint>, pinned: Re
 /** Созвездия занимают мягкую смещённую сетку как в лаборатории (больше 12 —
  * ряды `denseSlotsAround`). Навыки назначаются слотам в круговом порядке hue:
  * похожие цвета остаются соседями, а id добавляет небольшой джиттер и поворот без
- * прыжков между загрузками. Закреплённая галактика (`skyPos`, иначе `LEGACY_PINS`)
- * встаёт на свою точку. В мягкой сетке она занимает свой слот, и остальным слоты
- * не пересдаются; в плотных рядах слотов не берёт — ряды обходят закреплённые
- * точки. Последним проходом `settle` разводит тех, кто всё же налез. */
+ * прыжков между загрузками. Закреплённая галактика (`skyPos`) встаёт на свою
+ * точку. В мягкой сетке она занимает свой слот, и остальным слоты не
+ * пересдаются; в плотных рядах слотов не берёт — ряды обходят закреплённые
+ * точки. Последним проходом `settle` разводит тех, кто всё же налез. Особых id
+ * нет: место любой галактики закрепляет только store. */
 export function constellationPlacements(skills: SkySkill[]): Map<string, SkyPlacement> {
   const byId = new Map(skills.map((skill) => [skill.id, skill]))
   const unique = [...byId.values()]
   const result = new Map<string, SkyPlacement>()
   if (!unique.length) return result
 
-  const pinOf = (skill: SkySkill): SkyPoint | undefined => skill.skyPos ?? LEGACY_PINS[skill.id]
+  const pinOf = (skill: SkySkill): SkyPoint | undefined => skill.skyPos
   const dense = unique.length > SOFT_SKY_SLOTS.length
   const pins = unique.map(pinOf).filter((pin): pin is SkyPoint => pin !== undefined)
   const base: Slot[] = dense

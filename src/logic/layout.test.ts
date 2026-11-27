@@ -67,24 +67,23 @@ describe('constellationPlacements', () => {
     }
   })
 
-  it('закрепляет Финансы по постоянному id независимо от названия', () => {
-    const fixture = skills.map((skill, i) => i === 4 ? { ...skill, id: 's_treasury' } : skill)
-    const before = constellationPlacements(fixture.map((skill) => ({ ...skill, name: 'Казна' })))
-    for (const name of ['Финансы', 'Finance', '', undefined]) {
-      const after = constellationPlacements(fixture.map((skill) => ({ ...skill, name })))
-      expect(after.get('s_treasury')).toMatchObject({ x: MAIN_QUEST_ANCHOR.x, y: MAIN_QUEST_ANCHOR.y })
-      expect([...after]).toEqual([...before])
-    }
+  it('особых id нет: s_treasury и s_body без skyPos — обычные галактики', () => {
+    const fixture = skills.map((skill, i) => (i === 4 ? { ...skill, id: 's_treasury' } : i === 7 ? { ...skill, id: 's_body' } : skill))
+    const placements = constellationPlacements(fixture)
+    expect(placements.get('s_treasury')).not.toMatchObject({ x: MAIN_QUEST_ANCHOR.x, y: MAIN_QUEST_ANCHOR.y })
+    expect(placements.get('s_body')).not.toMatchObject({ x: 860, y: 825 })
   })
 
-  // Только id/цвета неба: прогресс и пользовательские данные тестам не нужны.
-  const liveSky = [
+  // Только id/цвета неба и закрепления — как в store владельца: прогресс и
+  // пользовательские данные тестам не нужны. Финансы и Тело закреплены в store
+  // (раньше их места были зашиты в код по id).
+  const liveSky: SkySkill[] = [
     { id: 's_streams', hue: 355 }, { id: 's_b2b', hue: 355 },
     { id: 's_content', hue: 290 }, { id: 's_agents', hue: 200 },
-    { id: 's_treasury', hue: 52 }, { id: 's_scene', hue: 290 },
+    { id: 's_treasury', hue: 52, skyPos: { x: 900, y: 480 } }, { id: 's_scene', hue: 290 },
     { id: 's_crew', hue: 200 }, { id: 's_siam', hue: 140 },
     { id: 's_regime', hue: 140 }, { id: 's_product', hue: 355 },
-    { id: 's_body', hue: 140 }, { id: 's_freedom', hue: 45 },
+    { id: 's_body', hue: 140, skyPos: { x: 860, y: 825 } }, { id: 's_freedom', hue: 45 },
   ]
 
   // Снимок живого неба целиком: правки раскладки не двигают ни одной из 12 галактик.
@@ -122,13 +121,13 @@ describe('constellationPlacements', () => {
     expect(body.y - treasury.y).toBeGreaterThanOrEqual(330)
   })
 
-  it('якорь Тела переживает добавление, удаление, перестановку и перекраску галактик', () => {
+  it('закрепление Тела переживает добавление, удаление, перестановку и перекраску галактик', () => {
     const expected = constellationPlacements(liveSky).get('s_body')
-    const variants = [
+    const variants: SkySkill[][] = [
       [...liveSky].reverse(),
       liveSky.filter((skill) => skill.id !== 's_freedom'),
       [...liveSky, { id: 's_new', hue: 139 }], // >12 слотов
-      [{ id: 's_body', hue: 300, name: 'Body' }],
+      [{ id: 's_body', hue: 300, name: 'Body', skyPos: { x: 860, y: 825 } }],
       liveSky.map((skill) => ({ ...skill, hue: 0, name: 'Переименовано' })),
     ]
     for (const skills of variants) {
@@ -136,7 +135,7 @@ describe('constellationPlacements', () => {
     }
   })
 
-  it('якорь Тела не мутирует вход и не цепляется к чужому навыку по названию', () => {
+  it('раскладка не мутирует вход; название «Тело» у чужого навыка ничего не значит', () => {
     const before = structuredClone(liveSky)
     constellationPlacements(liveSky)
     expect(liveSky).toEqual(before)
@@ -233,15 +232,6 @@ describe('constellationPlacements', () => {
       const pinned = constellationPlacements(sky.map((skill, i) => (i === 2 ? { ...skill, skyPos: { x: 820, y: 520 } } : skill)))
       expect(pinned.get(sky[2].id)).toEqual({ x: 820, y: 520, rotation: automatic.get(sky[2].id)!.rotation })
       for (const { id } of sky.filter((_, i) => i !== 2)) expect(pinned.get(id), id).toEqual(automatic.get(id))
-    })
-
-    it('skyPos важнее старого якоря в коде', () => {
-      const placements = constellationPlacements(liveSky.map((skill) =>
-        skill.id === 's_treasury' ? { ...skill, skyPos: { x: 300, y: 500 } }
-          : skill.id === 's_body' ? { ...skill, skyPos: { x: 1200, y: 200 } } : skill,
-      ))
-      expect(placements.get('s_treasury')).toMatchObject({ x: 300, y: 500 })
-      expect(placements.get('s_body')).toMatchObject({ x: 1200, y: 200 })
     })
 
     it('точку вне рамки закрепление держит как есть', () => {
