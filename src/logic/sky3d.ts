@@ -1,5 +1,5 @@
 import type { SkyStore, Tier } from '../types'
-import { CONST_H, CONST_W, SKY_H, SKY_W, constellationPlacements, hashStr, layoutConstellation, mulberry32 } from './layout'
+import { CONST_H, CONST_W, SKY_H, SKY_W, constellationPlacements, hashStr, layoutConstellation, mulberry32, skySkillsOf } from './layout'
 import { skillStars } from './stars'
 import { constellationAsOf } from './timeline'
 
@@ -60,8 +60,7 @@ const seeded = (key: string): number => mulberry32(hashStr(key))()
  * видимость и свет — по `store`: в режиме истории store — проекция прошлого, галактики
  * и звёзды стоят на сегодняшних местах. Архивные навыки не рисуются. */
 export function buildSkyScene(store: SkyStore, layoutFrom: SkyStore = store): SkyScene3D {
-  const layoutSkills = layoutFrom.skills.filter((s) => !s.archived)
-  const placements = constellationPlacements(layoutSkills.map(({ id, hue, name }) => ({ id, hue, name })))
+  const placements = constellationPlacements(skySkillsOf(layoutFrom.skills))
   const galaxies: SkyGalaxy3D[] = []
   let sceneRadius = Math.hypot(SKY_W, SKY_H) / 2
   for (const skill of store.skills) {

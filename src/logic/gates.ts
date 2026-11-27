@@ -54,6 +54,7 @@ const SHAPES: { [T in Action['type']]: Fields<Extract<Action, { type: T }>> } = 
   claimReward: { itemId: 'id', ts: 'ts' },
   adjustSparks: { amount: 'number', note: 'string', day: 'day', ts: 'ts' },
   setGameTz: { offsetMin: 'number' },
+  setSkyPos: { skillId: 'id', pos: 'object?' },
 }
 
 const EXPECTED: Record<Kind, string> = {

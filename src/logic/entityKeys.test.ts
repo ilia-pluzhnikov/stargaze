@@ -38,7 +38,7 @@ const fullQuest: Required<Quest> = {
   dueDateHistory: [{ from: '2026-11-20', to: '2026-12-01', day: '2026-10-20', ts: 'T2', fee: 5 }],
   acceptedAt: 'T3', archivedAt: 'T4', createdAt: T0,
 }
-const fullSkill: Required<Skill> = { ...skill, id: 's_full', lore: 'школа', glyphId: 'g1' }
+const fullSkill: Required<Skill> = { ...skill, id: 's_full', lore: 'школа', glyphId: 'g1', skyPos: { x: 400, y: 300 } }
 const fullStar: Required<StarComponent> = {
   ...star, id: 'c_full', parentStarId: 'c1', tier: 'C', criteria: 'прочитать вывеску', xpTarget: 100,
   litAt: 'T5', evidence: 'прочитал',
@@ -154,7 +154,10 @@ describe('редьюсер: лишние поля payload не оседают в
   it('addSkill/updateSkill: вычисляемые поля из `skills --json` отбрасываются, lore/glyphId живут', () => {
     const computed = { level: 3, into: 10, toNext: 200, ranks: { total: 2, achieved: 1 } }
     const added = reducer(base(), { type: 'addSkill', skill: withExtra(fullSkill, computed) })
-    expect(added.skills.find((x) => x.id === 's_full')).toEqual(fullSkill)
+    // место на небе ставит только setSkyPos — skyPos из payload не оседает
+    const { skyPos: _sky, ...withoutSky } = fullSkill
+    expect(added.skills.find((x) => x.id === 's_full')).toEqual(withoutSky)
+    expect(Object.keys(added.skills.find((x) => x.id === 's_full')!)).not.toContain('skyPos')
     const polluted = base({ skills: [withExtra(skill, computed)] })
     const updated = reducer(polluted, { type: 'updateSkill', skill: { ...skill, name: 'Тайский язык' } })
     expect(updated.skills[0]).toEqual({ ...skill, name: 'Тайский язык' })

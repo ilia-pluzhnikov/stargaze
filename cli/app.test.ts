@@ -1315,3 +1315,56 @@ describe('cli: игровой пояс (tz)', () => {
     expect(run([]).err).toMatch(/tz \[±ЧЧ:ММ\]/)
   })
 })
+
+describe('cli: место галактики на небе (place)', () => {
+  it('без координат показывает место, выбранное раскладкой', () => {
+    const r = run(['place', 'sk_health'], tmpStore())
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/Здоровье: место выбирает раскладка — сейчас \(\d+, \d+\)$/)
+  })
+
+  it('закрепляет точку; --json — строка среза skills с sky.pinned', () => {
+    const p = tmpStore()
+    const r = run(['place', 'sk_health', '400', '300.5'], p)
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/Здоровье: закреплена в \(400, 301\)$/)
+    expect(loadStore(p).skills.find((sk) => sk.id === 'sk_health')!.skyPos).toEqual({ x: 400, y: 300.5 })
+    const row = JSON.parse(run(['place', 'sk_health', '--json'], p).out)
+    expect(row).toMatchObject({ id: 'sk_health', sky: { x: 400, y: 300.5, pinned: true } })
+    // повтор той же точки — не ошибка
+    expect(run(['place', 'sk_health', '400', '300.5'], p).code).toBe(0)
+  })
+
+  it('--auto снимает закрепление; без закрепления --auto — не ошибка', () => {
+    const p = tmpStore()
+    run(['place', 'sk_health', '400', '300'], p)
+    const r = run(['place', 'sk_health', '--auto'], p)
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/место выбирает раскладка/)
+    expect(Object.keys(loadStore(p).skills.find((sk) => sk.id === 'sk_health')!)).not.toContain('skyPos')
+    expect(run(['place', 'sk_health', '--auto'], p).code).toBe(0)
+  })
+
+  it('точка вне неба и кривые аргументы — код 2 с причиной, store не тронут', () => {
+    const p = tmpStore()
+    const before = readFileSync(p, 'utf8')
+    for (const [x, y] of [['1801', '10'], ['10', '1000.5'], ['abc', '10'], ['', '10']]) {
+      const r = run(['place', 'sk_health', x, y], p)
+      expect(r.code, `${x},${y}`).toBe(2)
+      expect(r.err).toMatch(/вне неба: x 0…1800, y 0…1000/)
+    }
+    expect(run(['place', 'sk_health', '400'], p).code).toBe(2)
+    expect(run(['place', 'sk_health', '400', '300', '--auto'], p).code).toBe(2)
+    expect(run(['place'], p).code).toBe(2)
+    expect(readFileSync(p, 'utf8')).toBe(before)
+  })
+
+  it('неизвестный навык — ошибка, архивный не ищется', () => {
+    const p = tmpStore()
+    expect(run(['place', 'нет-такого', '1', '2'], p).code).toBe(1)
+    // архив напрямую: у навыка демо-мира есть активные контракты, archiveSkill их не пропустит
+    const s = loadStore(p)
+    saveStore(p, { ...s, skills: s.skills.map((sk) => (sk.id === 'sk_health' ? { ...sk, archived: true } : sk)) })
+    expect(run(['place', 'sk_health'], p).code).toBe(1)
+  })
+})

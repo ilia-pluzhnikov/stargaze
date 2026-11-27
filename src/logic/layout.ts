@@ -1,4 +1,4 @@
-import type { StarComponent } from '../types'
+import type { Skill, StarComponent } from '../types'
 
 export const SKY_W = 1800
 export const SKY_H = 1000
@@ -32,10 +32,41 @@ export interface SkyPlacement {
   rotation: number
 }
 
+export interface SkyPoint {
+  x: number
+  y: number
+}
+
 export interface SkySkill {
   id: string
   hue: number
   name?: string
+  /** Закреплённая позиция галактики (`Skill.skyPos`); нет — место выбирает раскладка. */
+  skyPos?: SkyPoint
+}
+
+/** «Личное пространство» галактики: центры двух галактик ближе этого эллипса —
+ * (dx/x)² + (dy/y)² < 1 — значит, веера или подписи налезают друг на друга.
+ * Мини-созвездие — веер ~200 px шириной, от −125 до +80 по y, подпись до +165.
+ * Откалибровано по живому небу: его самая тесная пара (Сцена и Продукт) даёт
+ * ≈1,03 и на экране стоит чисто. */
+export const GALAXY_CLEARANCE = { x: 240, y: 270 } as const
+
+/** Рамка, из которой раскладка не выводит незакреплённые галактики: веер
+ * (±100 по x, вверх до −125) и подпись (вниз до +165) целиком внутри мира 1800×1000. */
+export const SKY_BOUNDS = { x0: 170, x1: SKY_W - 170, y0: 150, y1: SKY_H - 160 } as const
+
+const clampToBounds = (p: SkyPoint): SkyPoint => ({
+  x: Math.min(Math.max(p.x, SKY_BOUNDS.x0), SKY_BOUNDS.x1),
+  y: Math.min(Math.max(p.y, SKY_BOUNDS.y0), SKY_BOUNDS.y1),
+})
+
+/** Навыки неба из навыков store: архивные не светят, остальное — то, от чего
+ * зависит раскладка. Общий вход для 2D-неба, 3D-облёта и машинных срезов. */
+export function skySkillsOf(skills: readonly Pick<Skill, 'id' | 'hue' | 'name' | 'archived' | 'skyPos'>[]): SkySkill[] {
+  return skills
+    .filter((skill) => !skill.archived)
+    .map(({ id, hue, name, skyPos }) => (skyPos ? { id, hue, name, skyPos } : { id, hue, name }))
 }
 
 export const MAIN_QUEST_ANCHOR = { x: SKY_W / 2, y: SKY_H / 2 - 20 } as const
@@ -58,23 +89,121 @@ const SOFT_SKY_SLOTS = [
   { x: 700, y: 735 },
 ] as const
 
-/** Созвездия занимают мягкую смещённую сетку как в лаборатории. Навыки
- * назначаются слотам в круговом порядке hue: похожие цвета остаются соседями,
- * а id добавляет небольшой джиттер и поворот без прыжков между загрузками. */
+/** Якоря, которые жили в коде до поля `skyPos`: небо владельца не сдвигается,
+ * пока он не перенёс их в store. `skyPos` навыка важнее. */
+const LEGACY_PINS: Readonly<Record<string, SkyPoint>> = {
+  // Финансы — смысловой центр обзорного неба; якорь по постоянному id.
+  s_treasury: { x: MAIN_QUEST_ANCHOR.x, y: MAIN_QUEST_ANCHOR.y },
+  // Тело — нижний ряд между Режимом и Капиталом и свободой.
+  s_body: { x: 860, y: 825 },
+}
+
+/** Слот раскладки и полный размах джиттера вокруг него (по x и по y). */
+interface Slot extends SkyPoint {
+  jitterX: number
+  jitterY: number
+}
+
+/** Больше 12 галактик мягкая сетка не вмещает: ряды во всю ширину рамки.
+ * До 18 галактик — три ряда; вертикального запаса хватает, и каждый ряд
+ * растягивается на всю ширину, а джиттер по x ограничен запасом между соседями.
+ * Дальше — по ряду на каждые шесть, и ряды встают плотно: точки берутся из
+ * правильной решётки вразбежку (нечётные ряды сдвинуты на полшага), лишние
+ * снимаются с концов разных рядов, джиттера нет. Ряды без наложений по
+ * построению; так помещается 24 галактики — больше мир 1800×1000 не вмещает. */
+function denseSlots(n: number): Slot[] {
+  const { x: A, y: B } = GALAXY_CLEARANCE
+  const { x0, x1 } = SKY_BOUNDS
+  const rows = Math.max(3, Math.ceil(n / 6))
+  const slots: Slot[] = []
+  if (rows === 3) {
+    const [y0, y1] = [170, 810]
+    const gapY = (y1 - y0) / 2
+    const base = Math.floor(n / 3)
+    const extra = n % 3
+    // Лишняя точка — в средний ряд, две — в крайние: небо симметрично.
+    const fuller = extra === 1 ? [1] : extra === 2 ? [0, 2] : []
+    for (let r = 0; r < 3; r++) {
+      const count = base + (fuller.includes(r) ? 1 : 0)
+      const step = (x1 - x0) / (count - 0.5)
+      const shift = r % 2 === 0 ? 0 : 0.5
+      // Соседи по ряду сближаются не больше чем на размах — запас до эллипса.
+      const jitterX = Math.max(0, Math.min(40, step - A - 2))
+      const jitterY = Math.max(0, Math.min(28, gapY - B - 2))
+      for (let k = 0; k < count; k++) slots.push({ x: x0 + (k + shift) * step, y: y0 + gapY * r, jitterX, jitterY })
+    }
+    return slots
+  }
+  const perRow = Math.ceil(n / rows)
+  const step = (x1 - x0) / (perRow - 0.5)
+  const { y0, y1 } = SKY_BOUNDS
+  // Снимаемые точки — по одной в равномерно разнесённых рядах, попеременно справа и слева.
+  const drop = rows * perRow - n
+  const dropped = new Map(Array.from({ length: drop }, (_, k) => [Math.floor(((k + 0.5) * rows) / drop), k % 2 === 0 ? perRow - 1 : 0]))
+  for (let r = 0; r < rows; r++) {
+    const shift = r % 2 === 0 ? 0 : 0.5
+    for (let k = 0; k < perRow; k++) {
+      if (dropped.get(r) === k) continue
+      slots.push({ x: x0 + (k + shift) * step, y: y0 + ((y1 - y0) * r) / (rows - 1), jitterX: 0, jitterY: 0 })
+    }
+  }
+  return slots
+}
+
+/** Шаг сетки, по которой ищется свободное место налезшей галактике. */
+const FREE_SPOT_STEP = 10
+
+/** Разводит налезающие галактики. Закреплённые стоят где стоят; незакреплённые
+ * по очереди сверяются с уже поставленными, и налезшая (эллипс `GALAXY_CLEARANCE`)
+ * переезжает в ближайшую точку `SKY_BOUNDS`, свободную от всех поставленных с
+ * небольшим запасом. Кто ни на кого не налез, не двигается — такое небо остаётся
+ * байт в байт. Свободного места нет (галактик больше, чем вмещает мир) — галактика
+ * остаётся на своём. Очередь — упорядоченный список, а не вход: результат
+ * детерминирован. */
+function settle(order: readonly string[], pos: Map<string, SkyPoint>, pinned: ReadonlySet<string>): void {
+  const { x: A, y: B } = GALAXY_CLEARANCE
+  const placed = order.filter((id) => pinned.has(id)).map((id) => pos.get(id)!)
+  const clear = (p: SkyPoint, margin: number) =>
+    placed.every((q) => Math.hypot((p.x - q.x) / A, (p.y - q.y) / B) >= margin)
+  for (const id of order) {
+    if (pinned.has(id)) continue
+    const p = pos.get(id)!
+    if (!clear(p, 1)) {
+      let best: SkyPoint | null = null
+      let bestDist = Infinity
+      for (let x = SKY_BOUNDS.x0; x <= SKY_BOUNDS.x1; x += FREE_SPOT_STEP) {
+        for (let y = SKY_BOUNDS.y0; y <= SKY_BOUNDS.y1; y += FREE_SPOT_STEP) {
+          const dist = (x - p.x) ** 2 + (y - p.y) ** 2
+          // Запас сверх касания: соседи по сетке не встают вплотную.
+          if (dist < bestDist && clear({ x, y }, 1.01)) {
+            best = { x, y }
+            bestDist = dist
+          }
+        }
+      }
+      if (best) pos.set(id, best)
+    }
+    placed.push(pos.get(id)!)
+  }
+}
+
+/** Созвездия занимают мягкую смещённую сетку как в лаборатории (больше 12 —
+ * ряды `denseSlots`). Навыки назначаются слотам в круговом порядке hue: похожие
+ * цвета остаются соседями, а id добавляет небольшой джиттер и поворот без
+ * прыжков между загрузками. Закреплённая галактика (`skyPos`, иначе
+ * `LEGACY_PINS`) встаёт на свою точку, не сдвигая остальным слоты; последним
+ * проходом `settle` разводит тех, кто всё же налез. */
 export function constellationPlacements(skills: SkySkill[]): Map<string, SkyPlacement> {
   const byId = new Map(skills.map((skill) => [skill.id, skill]))
   const unique = [...byId.values()]
   const result = new Map<string, SkyPlacement>()
   if (!unique.length) return result
 
-  const slotsByAngle = Array.from({ length: unique.length }, (_, i) => {
-    if (i < SOFT_SKY_SLOTS.length) return SOFT_SKY_SLOTS[i]
-    const angle = i * 2.399963229728653 // золотой угол — фолбэк для >12 навыков
-    return {
-      x: MAIN_QUEST_ANCHOR.x + Math.cos(angle) * 690,
-      y: MAIN_QUEST_ANCHOR.y + Math.sin(angle) * 320,
-    }
-  }).sort((a, b) =>
+  const dense = unique.length > SOFT_SKY_SLOTS.length
+  const base: Slot[] = dense
+    ? denseSlots(unique.length)
+    : SOFT_SKY_SLOTS.slice(0, unique.length).map((slot) => ({ ...slot, jitterX: 80, jitterY: 54 }))
+  const slotsByAngle = base.sort((a, b) =>
     Math.atan2(a.y - MAIN_QUEST_ANCHOR.y, a.x - MAIN_QUEST_ANCHOR.x)
     - Math.atan2(b.y - MAIN_QUEST_ANCHOR.y, b.x - MAIN_QUEST_ANCHOR.x),
   )
@@ -106,36 +235,37 @@ export function constellationPlacements(skills: SkySkill[]): Map<string, SkyPlac
   }
   const ordered = [...byHue.slice(hueStart), ...byHue.slice(0, hueStart)]
 
+  const pos = new Map<string, SkyPoint>()
+  const rotation = new Map<string, number>()
+  const pinned = new Set<string>()
   for (let i = 0; i < ordered.length; i++) {
-    const { id } = ordered[i]
+    const { id, skyPos } = ordered[i]
     const slot = slots[i]
     const jitter = mulberry32(hashStr(`sky-jitter:${id}`))
     const angleRng = mulberry32(hashStr(`sky-rotation:${id}`))
-    const placement = {
-      x: Number((slot.x + (jitter() - 0.5) * 80).toFixed(2)),
-      y: Number((slot.y + (jitter() - 0.5) * 54).toFixed(2)),
-      rotation: Number(((angleRng() * 2 - 1) * 7).toFixed(2)),
+    const jittered = {
+      x: Number((slot.x + (jitter() - 0.5) * slot.jitterX).toFixed(2)),
+      y: Number((slot.y + (jitter() - 0.5) * slot.jitterY).toFixed(2)),
     }
-    result.set(id, placement)
+    // Мягкая сетка исторически шире рамки на джиттер — её не трогаем, чтобы
+    // старые небеса не сдвинулись; плотные ряды держим в рамке сразу.
+    const auto = dense ? clampToBounds(jittered) : jittered
+    rotation.set(id, Number(((angleRng() * 2 - 1) * 7).toFixed(2)))
+    // Закреплённая галактика занимает свой слот в общей раскладке и уходит на свою
+    // точку: остальные слоты не пересдаются, слот остаётся пустым.
+    const pin = skyPos ?? LEGACY_PINS[id]
+    if (pin) pinned.add(id)
+    pos.set(id, pin ? { x: pin.x, y: pin.y } : auto)
   }
 
-  // Финансы — смысловой центр обзорного неба. Постоянный id сохраняет якорь
-  // при переименовании; остальные навыки и цветовые кластеры не пересчитываются.
-  const treasury = unique.find((skill) => skill.id === 's_treasury')
-  if (treasury) {
-    result.set(treasury.id, {
-      x: MAIN_QUEST_ANCHOR.x,
-      y: MAIN_QUEST_ANCHOR.y,
-      rotation: result.get(treasury.id)?.rotation ?? 0,
-    })
+  settle(ordered.map(({ id }) => id), pos, pinned)
+
+  for (const { id } of ordered) {
+    const p = pos.get(id)!
+    // закреплённая точка — ровно та, что в store; раскладка округляет свои до сотых
+    const [x, y] = pinned.has(id) ? [p.x, p.y] : [Number(p.x.toFixed(2)), Number(p.y.toFixed(2))]
+    result.set(id, { x, y, rotation: rotation.get(id)! })
   }
-
-  // Тело — нижний ряд между Режимом и Капиталом и свободой. Якорь по id,
-  // а не по hue/числу навыков: новые галактики не возвращают его в чужие ветки.
-  // Применяем после общей раскладки, не сдвигая остальные созвездия.
-  const body = result.get('s_body')
-  if (body) result.set('s_body', { ...body, x: 860, y: 825 })
-
   return result
 }
 

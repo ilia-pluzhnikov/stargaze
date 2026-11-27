@@ -327,6 +327,25 @@ describe('API: экономика искр', () => {
       expect((await post(base, { type: 'setGameTz', offsetMin: '300' })).status).toBe(400)
       expect(readFileSync(storePath, 'utf8')).toBe(before)
     }))
+  it('setSkyPos: точка → 200 и в файле, повтор → Applied 0, вне неба → 422, id вместо skillId → 400', () =>
+    withApp(fixture(), async (base, storePath) => {
+      const res = await post(base, { type: 'setSkyPos', skillId: 's1', pos: { x: 400, y: 300 } })
+      expect(res.status).toBe(200)
+      expect(res.headers.get('stargaze-applied')).toBe('1')
+      expect((JSON.parse(readFileSync(storePath, 'utf8')) as Store).skills[0].skyPos).toEqual({ x: 400, y: 300 })
+      const again = await post(base, { type: 'setSkyPos', skillId: 's1', pos: { x: 400, y: 300 } })
+      expect(again.headers.get('stargaze-applied')).toBe('0')
+      const before = readFileSync(storePath, 'utf8')
+      const outside = await post(base, { type: 'setSkyPos', skillId: 's1', pos: { x: 2000, y: 300 } })
+      expect(outside.status).toBe(422)
+      expect(((await outside.json()) as { error: string }).error).toContain('skyPos')
+      expect((await post(base, { type: 'setSkyPos', id: 's1', pos: { x: 1, y: 2 } })).status).toBe(400)
+      expect(readFileSync(storePath, 'utf8')).toBe(before)
+      // pos: null — «поля нет»: снять закрепление
+      const freed = await post(base, { type: 'setSkyPos', skillId: 's1', pos: null })
+      expect(freed.headers.get('stargaze-applied')).toBe('1')
+      expect((await freed.json() as Store).skills[0]).not.toHaveProperty('skyPos')
+    }))
   // 18:30 UTC 09-10: в +7 это уже 09-11, в +5 — ещё 09-10. Гейт API обязан считать
   // день расчёта в поясе мира, как редьюсер, — иначе отказ разъедется с ядром
   it('гейт переноса считает день расчёта в поясе из store', () => {

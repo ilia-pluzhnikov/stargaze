@@ -41,6 +41,8 @@ export type Action =
   | { type: 'claimReward'; itemId: string; ts: string }
   | { type: 'adjustSparks'; amount: number; note: string; day: string; ts: string }
   | { type: 'setGameTz'; offsetMin: number } // минуты от UTC; негодный офсет — no-op
+  // место галактики на обзорном небе; без pos — снять закрепление (решает раскладка)
+  | { type: 'setSkyPos'; skillId: string; pos?: { x: number; y: number } }
 
 /** Все типы действий — для валидации на границе API. Полнота гарантируется компайл-проверкой ниже. */
 export const ACTION_TYPES = [
@@ -48,7 +50,7 @@ export const ACTION_TYPES = [
   'addSkill', 'updateSkill', 'archiveSkill',
   'addStar', 'updateStar', 'removeStar', 'lightStar', 'unlightStar',
   'proposeQuest', 'acceptQuest', 'rejectQuest',
-  'setCharacter', 'importStore', 'resetToSeed', 'setGameTz',
+  'setCharacter', 'importStore', 'resetToSeed', 'setGameTz', 'setSkyPos',
   'moveDueDate',
   'addWishlistItem', 'updateWishlistItem', 'archiveWishlistItem',
   'purchaseItem', 'spendSparks', 'claimReward', 'adjustSparks',
@@ -277,13 +279,16 @@ export function reducer(store: Store, action: Action): Store {
       }
     }
     case 'addSkill':
-      return { ...store, skills: [...store.skills, pickSkill(action.skill)] }
+      // место на небе ставит только setSkyPos — как и в updateSkill
+      return { ...store, skills: [...store.skills, pickSkill({ ...action.skill, skyPos: undefined })] }
     case 'updateSkill': {
       const prev = store.skills.find((s) => s.id === action.skill.id)
       if (!prev) return store
       // archived/createdAt пишет только редьюсер: иначе archived: true в payload спрятал бы
-      // навык мимо гейта archiveSkill (активные контракты), а false — разархивировал бы
-      const next = pickSkill({ ...action.skill, archived: prev.archived, createdAt: prev.createdAt })
+      // навык мимо гейта archiveSkill (активные контракты), а false — разархивировал бы.
+      // skyPos — только через setSkyPos: форма навыка в вебе собирает его заново без места
+      // на небе, и первая же правка стёрла бы закрепление
+      const next = pickSkill({ ...action.skill, archived: prev.archived, createdAt: prev.createdAt, skyPos: prev.skyPos })
       return { ...store, skills: store.skills.map((s) => (s.id === next.id ? next : s)) }
     }
     case 'archiveSkill':
@@ -388,6 +393,16 @@ export function reducer(store: Store, action: Action): Store {
     case 'resetToSeed':
       // пояс — где живёт игрок, а не содержимое демо-мира: сброс его не трогает
       return seedStore(store.tzOffsetMin)
+    case 'setSkyPos': {
+      const prev = store.skills.find((s) => s.id === action.skillId)
+      if (!prev) return store
+      // повтор — тот же store: ответ «не применилось» не зависит от порядка ключей в файле
+      if (action.pos ? prev.skyPos?.x === action.pos.x && prev.skyPos?.y === action.pos.y : !prev.skyPos) return store
+      // только x и y: лишнее в pos не оседает; негодную точку отвергает validateStore (422)
+      const { skyPos: _old, ...rest } = prev
+      const next: Skill = action.pos ? { ...rest, skyPos: { x: action.pos.x, y: action.pos.y } } : rest
+      return { ...store, skills: store.skills.map((s) => (s.id === next.id ? next : s)) }
+    }
     case 'setGameTz':
       // дни в логах записаны при создании и не пересчитываются; сдвинутся только
       // выводимые из ts (принятие квеста для капания) — максимум на сутки

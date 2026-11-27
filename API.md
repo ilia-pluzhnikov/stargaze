@@ -143,9 +143,11 @@ curl -s -X POST http://stargaze:8643/api/action \
 ```json
 [
   { "id": "sk_health", "name": "💪 Здоровье", "level": 1, "into": 0, "toNext": 100,
-    "ranks": { "total": 5, "achieved": 1 }, "hue": 145, "glyphId": "caduceus" },
+    "ranks": { "total": 5, "achieved": 1 }, "hue": 145, "glyphId": "caduceus",
+    "sky": { "x": 400, "y": 300, "pinned": true } },
   { "id": "sk_craft", "name": "🎨 Творчество", "level": 3, "into": 40, "toNext": 200,
-    "ranks": { "total": 0, "achieved": 0 }, "hue": 280 }
+    "ranks": { "total": 0, "achieved": 0 }, "hue": 280,
+    "sky": { "x": 1418.35, "y": 237, "pinned": false } }
 ]
 ```
 
@@ -159,6 +161,12 @@ curl -s -X POST http://stargaze:8643/api/action \
   (`delta`, `lantern`, `tower`, …; сами контуры — там же). У навыка без глифа
   ключа `glyphId` нет вовсе — не `null`, как у необязательных полей квестов и
   звёзд. Id, которого нет в каталоге, — тоже «без глифа».
+- `sky` — где галактика стоит на обзорном небе сейчас: точка мира 1800×1000
+  (x вправо, y вниз), та же, что рисуют 2D-небо и 3D-облёт. `pinned: true` —
+  место закреплено в store (поле навыка `skyPos`, действие `setSkyPos`);
+  `false` — точку выбирает раскладка, и она сдвигается, когда меняется набор
+  навыков или их оттенки. Поле дописано в конец строки: прежние поля и их
+  порядок не менялись.
 
 ### `GET /api/ranks?skill=<id>`
 
@@ -209,7 +217,7 @@ Id сущности передаётся в поле по её типу — `que
 передаются объектом целиком (поля — `src/types.ts`); лишние поля, например
 вычисляемые `children` и `progress` из `cli.js quest --json`, отбрасываются.
 
-Необязательное поле (`result`, `force`, `evidence`, `opId`) можно опустить
+Необязательное поле (`result`, `force`, `evidence`, `opId`, `pos`) можно опустить
 или прислать `null` — это одно и то же.
 
 | `type` | Поля | Заметки |
@@ -222,7 +230,7 @@ Id сущности передаётся в поле по её типу — `que
 | `addQuest` / `updateQuest` | `quest` | после принятия награда, тип и срок контракта заморожены |
 | `archiveQuest` | `questId`, `day`, `ts` | отмена активного контракта списывает неустойку |
 | `moveDueDate` | `questId`, `to`, `day`, `ts` | три бесплатных переноса за 7 дней, дальше платно |
-| `addSkill` / `updateSkill` | `skill` | `archived` и `createdAt` в `updateSkill` не меняются: архив — только `archiveSkill` |
+| `addSkill` / `updateSkill` | `skill` | `archived` и `createdAt` в `updateSkill` не меняются: архив — только `archiveSkill`; `skyPos` из `skill` не берётся ни там, ни там — место на небе меняет только `setSkyPos` |
 | `archiveSkill` | `skillId` | |
 | `addStar` / `updateStar` | `star` | |
 | `removeStar` / `unlightStar` | `starId` | |
@@ -235,6 +243,7 @@ Id сущности передаётся в поле по её типу — `que
 | `claimReward` | `itemId`, `ts` | big-награда за зажжённую звезду |
 | `adjustSparks` | `amount`, `note`, `day`, `ts` | ручная корректировка с причиной, любой знак |
 | `setGameTz` | `offsetMin` | игровой пояс мира в минутах от UTC: целое, кратное 15, −720…840; по умолчанию 420 (UTC+7) |
+| `setSkyPos` | `skillId`, `pos?` | закрепить галактику в точке `pos: { x, y }` мира неба: x 0…1800, y 0…1000; без `pos` — снять закрепление, место снова выбирает раскладка. Точка вне неба — 422 |
 | `importStore` | `store` | заменяет состояние целиком |
 | `resetToSeed` | — | демо-мир вместо текущего состояния |
 

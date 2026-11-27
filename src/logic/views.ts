@@ -7,6 +7,7 @@ import {
   FREE_MOVES_PER_7D, emissionInDays, gameTzOffset, ledgerTotal, movesUsedIn7d, provisionForQuest, provisionTotal, sparksBalance,
 } from './sparks'
 import { weeklyXp } from './stats'
+import { constellationPlacements, skySkillsOf } from './layout'
 
 // Машинные срезы store для голов: CLI печатает их в `--json`, HTTP API отдаёт
 // GET-маршрутами — один и тот же JSON (контракт описан в API.md: имена и
@@ -144,19 +145,25 @@ export interface SkillRow {
   ranks: { total: number; achieved: number }
   hue: number // оттенок галактики, как в store
   glyphId?: string // глиф созвездия, как в store; у навыка без глифа ключа нет
+  /** Где галактика стоит на обзорном небе (мир 1800×1000): фактическая точка
+   * раскладки; pinned — место закреплено в store (`skyPos`, действие setSkyPos). */
+  sky: { x: number; y: number; pinned: boolean }
 }
 
 /** Живые навыки — `skills`: уровень, ранги и облик галактики (оттенок, глиф).
  * Облик — поля навыка как есть: необязательный glyphId без значения в строку
  * не попадает (ключа нет, не null) — как необязательные поля квестов и звёзд. */
 export function skillsView(store: Store): SkillRow[] {
+  const placements = constellationPlacements(skySkillsOf(store.skills))
   return store.skills.filter((sk) => !sk.archived).map((sk) => {
     const info = skillLevel(skillXpTotal(store.xpLog, sk.id))
+    const place = placements.get(sk.id)!
     return {
       id: sk.id, name: `${sk.emoji} ${sk.name}`, level: info.level, into: info.into, toNext: info.toNext,
       ranks: galaxySummary(store.stars, sk.id),
       hue: sk.hue,
       ...(sk.glyphId !== undefined ? { glyphId: sk.glyphId } : {}),
+      sky: { x: place.x, y: place.y, pinned: sk.skyPos !== undefined },
     }
   })
 }

@@ -18,6 +18,10 @@ export interface Skill {
   lore?: string // абзац-описание школы под именем галактики; нет = показываем wantStatement
   hue: number // 0..360 — оттенок галактики
   glyphId?: string // глиф-фигура созвездия (см. components/skyGlyphs.ts); нет = без глифа
+  /** Закреплённое место галактики на обзорном небе, в координатах мира 1800×1000
+   * (`logic/layout.ts`). Нет = место выбирает раскладка. Меняется только действием
+   * `setSkyPos`: правка навыка его не трогает. */
+  skyPos?: { x: number; y: number }
   archived: boolean
   createdAt: string // ISO
 }

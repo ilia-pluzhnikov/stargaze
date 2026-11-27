@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { TIERS } from '../types'
 import type { Skill, SkyStore, StarComponent } from '../types'
-import { SKY_H, SKY_W, constellationPlacements } from '../logic/layout'
+import { SKY_H, SKY_W, constellationPlacements, skySkillsOf } from '../logic/layout'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { Galaxy } from './Galaxy'
 import { displaySkillName } from './GalaxyHud'
@@ -42,10 +42,7 @@ export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory, onOpen3d }
   // Раскладка и фон — по сегодняшнему набору: слоты зависят от числа навыков и их hue,
   // иначе при движении по времени галактики прыгают, а фон плывёт
   const layoutSkills = useMemo(() => layout.skills.filter((s) => !s.archived), [layout.skills])
-  const placements = useMemo(
-    () => constellationPlacements(layoutSkills.map(({ id, hue, name }) => ({ id, hue, name }))),
-    [layoutSkills],
-  )
+  const placements = useMemo(() => constellationPlacements(skySkillsOf(layoutSkills)), [layoutSkills])
   const backdropHue = layoutSkills.length
     ? Math.round(layoutSkills.reduce((sum, skill) => sum + skill.hue, 0) / layoutSkills.length)
     : 230
