@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-27T17:45:03.859Z",
-  "generated_from_commit": "7c990b9752c7d1af9757089638c4c94a4167d72c",
+  "generated_at": "2026-11-27T19:18:47.615Z",
+  "generated_from_commit": "857e6be62723ff38a8a72ec2cba4e23600e3bed3",
   "scope": [
     "src/",
     "cli/",
@@ -69,7 +69,7 @@
           "symbol": "base: './'"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "web-sky",
@@ -139,7 +139,7 @@
           "symbol": "export function LitStar"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "web-sky3d",
@@ -263,7 +263,7 @@
           "symbol": "export function DataModal"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "web-usestore",
@@ -420,7 +420,7 @@
           "symbol": "satisfies Record<keyof Quest, true>"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "core-gates",
@@ -462,7 +462,7 @@
           "symbol": "export function storeChanged"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "core-views",
@@ -685,7 +685,7 @@
           "symbol": "export const LEGACY_STORE_KEY = 'questlog.v3'"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "core-layout",
@@ -693,7 +693,7 @@
       "path": "src/logic/layout.ts",
       "kind": "core",
       "tier": 3,
-      "role": "Детерминированные позиции: россыпь галактик по растущему овалу, кадр обзора всего неба и скелет дерева звёзд (ствол → ветки-ступени)",
+      "role": "Детерминированные позиции: галактики встают на небо по одной и больше не двигаются, кадр обзора всего неба и скелет дерева звёзд (ствол → ветки-ступени)",
       "external": false,
       "files": [
         "src/logic/layout.ts"
@@ -709,10 +709,11 @@
       ],
       "constraints": [
         "Позиции — seeded PRNG от id сущностей, никакого Math.random()",
-        "Небо не ограничено и не уплотняется: место галактики — овал по её рисунку (galaxyFootprint), между местами воздух SKY_GAP, вселенная-овал растёт с их общей площадью — рядов и сеток нет",
+        "Галактики встают по порядку создания навыков (createdAt, потом id); место зависит только от созданных раньше — новая галактика, новые звёзды и смена оттенка прежних не двигают",
+        "Небо не ограничено и не уплотняется: место у всех одного размера (GALAXY_CLEARANCE), между местами воздух SKY_GAP — рядов и сеток нет; место архивной галактики занято для созданных до архивации и свободно для созданных после (Skill.archivedAt)",
         "Кадр обзора skyView вписывает всё небо; приближение малого неба — не больше SKY_MAX_ZOOM",
         "Закреплённая галактика (Skill.skyPos, точка в пределах ±SKY_REACH) стоит в своей точке; закрепление на её же месте небо не меняет",
-        "Правка констант россыпи переставляет небо всем: незакреплённую россыпь и закреплённое небо владельца держат снимки в layout.test.ts",
+        "Правка констант раскладки переставляет небо всем: незакреплённое небо и закреплённое небо владельца держат снимки в layout.test.ts",
         "Дерево звёзд вписывается в кадр созвездия равномерным сжатием; кламп — только страховка"
       ],
       "evidence": [
@@ -737,7 +738,7 @@
           "symbol": "export function mulberry32"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "core-panzoom",
@@ -940,7 +941,7 @@
           "symbol": "export function isCalendarDay"
         }
       ],
-      "changed_since_previous": false
+      "changed_since_previous": true
     },
     {
       "id": "core-storage",
