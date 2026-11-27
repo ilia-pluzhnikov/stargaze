@@ -36,7 +36,7 @@ const SHAPES: { [T in Action['type']]: Fields<Extract<Action, { type: T }>> } = 
   rejectQuest: { questId: 'id' },
   addSkill: { skill: 'object' },
   updateSkill: { skill: 'object' },
-  archiveSkill: { skillId: 'id' },
+  archiveSkill: { skillId: 'id', ts: 'ts?' },
   addStar: { star: 'object' },
   updateStar: { star: 'object' },
   removeStar: { starId: 'id' },

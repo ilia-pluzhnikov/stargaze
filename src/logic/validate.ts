@@ -67,6 +67,8 @@ export function validateStore(x: unknown): string[] {
       errors.push(`skills[${i}]: битые строковые поля`)
     if (!isNum(s.hue)) errors.push(`skills[${i}] (${s.id}): hue — не число`)
     if (typeof s.archived !== 'boolean') errors.push(`skills[${i}] (${s.id}): archived — не boolean`)
+    if (s.archivedAt !== undefined && !isStr(s.archivedAt))
+      errors.push(`skills[${i}] (${s.id}): archivedAt — не строка`)
     if (s.glyphId !== undefined && !isStr(s.glyphId))
       errors.push(`skills[${i}] (${s.id}): glyphId — не строка`)
     if (s.skyPos !== undefined && !isSkyPos(s.skyPos))

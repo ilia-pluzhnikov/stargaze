@@ -599,6 +599,13 @@ describe('место галактики на небе: setSkyPos', () => {
     expect(place(s, 'нет-такого', { x: 1, y: 2 })).toBe(s)
   })
 
+  it('момент архивации навыка — строка: иное validateStore отвергает', () => {
+    const s = base()
+    const gone = (archivedAt: unknown) => ({ ...s, skills: [{ ...s.skills[0], archived: true, archivedAt }] }) as unknown as Store
+    expect(validateStore(gone('2026-11-28T10:00:00.000Z'))).toEqual([])
+    expect(validateStore(gone(1730000000))).toEqual([expect.stringMatching(/archivedAt — не строка/)])
+  })
+
   it('негодная точка доходит до validateStore и отвергается им (422 у API)', () => {
     for (const pos of [{ x: -10001, y: 10 }, { x: 10, y: 10000.5 }, { x: 1e9, y: 0 }, { x: NaN, y: 5 }, { x: Infinity, y: 5 }, { x: '400', y: 300 }, { y: 300 }, {}, { X: 900, Y: 480 }]) {
       const errors = validateStore(place(base(), 's1', pos))

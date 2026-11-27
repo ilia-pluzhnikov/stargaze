@@ -32,6 +32,7 @@ describe('actionShapeError: валидная форма', () => {
     { type: 'addSkill', skill: base().skills[0] },
     { type: 'updateSkill', skill: base().skills[0] },
     { type: 'archiveSkill', skillId: 's1' },
+    { type: 'archiveSkill', skillId: 's1', ts: TS },
     { type: 'addStar', star: base().stars[0] },
     { type: 'updateStar', star: base().stars[0] },
     { type: 'removeStar', starId: 'c1' },
@@ -115,6 +116,7 @@ describe('actionShapeError: отказы', () => {
   it('строковые поля', () => {
     expect(actionShapeError({ type: 'rejectQuest', questId: 5 })).toBe('rejectQuest: questId — ожидается строка-id')
     expect(actionShapeError({ type: 'acceptQuest', questId: 'q1', ts: 1730000000 })).toBe('acceptQuest: ts — ожидается строка ISO-времени')
+    expect(actionShapeError({ type: 'archiveSkill', skillId: 's1', ts: 1730000000 })).toBe('archiveSkill: ts — ожидается строка ISO-времени')
     expect(actionShapeError({ type: 'spendSparks', amount: 5, note: 5, day: DAY, ts: TS })).toBe('spendSparks: note — ожидается строка')
   })
 

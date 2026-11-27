@@ -482,7 +482,7 @@ export default function App() {
               pushToast(skillArchiveBlock)
               return
             }
-            dispatch({ type: 'archiveSkill', skillId: panelSkill.id })
+            dispatch({ type: 'archiveSkill', skillId: panelSkill.id, ts: new Date().toISOString() })
             setSkillPanelId(null)
             // адрес архивной галактики больше никуда не ведёт — не оставляем его в строке браузера
             if (galaxy?.id === panelSkill.id) goTo({})

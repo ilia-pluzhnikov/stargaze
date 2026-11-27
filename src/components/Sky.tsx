@@ -34,10 +34,11 @@ export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory, onOpen3d }
   const [hover, setHover] = useState<StarHover | null>(null)
   const layout = layoutFrom ?? store
   const skills = useMemo(() => store.skills.filter((s) => !s.archived), [store.skills])
-  // Раскладка, кадр и фон — по сегодняшнему набору: места зависят от числа навыков, их hue
-  // и колец созвездий, иначе при движении по времени галактики прыгают, а фон плывёт
+  // Раскладка, кадр и фон — по сегодняшнему набору: кадр зависит от набора галактик и колец
+  // созвездий, фон — от оттенков; иначе при движении по времени кадр прыгает, а фон плывёт
   const layoutSkills = useMemo(() => layout.skills.filter((s) => !s.archived), [layout.skills])
-  const skySkills = useMemo(() => skySkillsOf(layoutSkills, layout.stars), [layoutSkills, layout.stars])
+  // в раскладку идут и архивные навыки: их места на небе остаются за ними
+  const skySkills = useMemo(() => skySkillsOf(layout.skills, layout.stars), [layout.skills, layout.stars])
   const placements = useMemo(() => constellationPlacements(skySkills), [skySkills])
   // Обзор — всё небо целиком: кадр растёт вместе с небом, галактики не уплотняются
   const view = useMemo(() => skyView(skySkills, placements), [skySkills, placements])

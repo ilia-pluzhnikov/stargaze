@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { Skill, SkyStore, StarComponent } from '../types'
+import { constellationPlacements, skySkillsOf } from '../logic/layout'
 import { skyAsOf } from '../logic/timeline'
 import { GalaxyView } from './GalaxyView'
 import type { GalaxyActions } from './GalaxyView'
@@ -19,9 +20,9 @@ const star = (id: string, skillId: string, createdDay: string, over: Partial<Sta
   ({ id, skillId, parentStarId: null, tier: 'D', title: id, createdAt: at(createdDay), ...over })
 
 // «eng» старше «run»; «call» перевешена под более новую «club» — в прошлом она висит на «a1».
-// Проверка «позиции — сегодняшние» обязана отличать layoutFrom от его отсутствия, поэтому
-// раскладка прошлого набора сама по себе должна быть другой: hue подобраны так, что «eng»
-// в одиночку встаёт в другой слот неба, чем рядом с «run», а поздняя корневая «b1» сужает клин «a1»
+// Проверка «позиции звёзд — сегодняшние» обязана отличать layoutFrom от его отсутствия, поэтому
+// раскладка прошлого набора звёзд сама по себе должна быть другой: поздняя корневая «b1» сужает
+// клин «a1». Галактикам layoutFrom для места не нужен: новая галактика прежних не двигает
 const fx: SkyStore = {
   skills: [skill('eng', '2026-03-01', 20), skill('run', '2026-06-01', 200)],
   stars: [
@@ -127,9 +128,34 @@ describe('прошлое рисуется в сегодняшней раскла
     for (const t of then) expect(today).toContain(t)
   })
 
-  it('контроль чувствительности: без layoutFrom то же прошлое раскладывается иначе', () => {
+  it('небо: и без layoutFrom галактики прошлого на сегодняшних местах — поздние галактики ранних не двигают', () => {
     const skyToday = transformsOf(renderSky(fx), 'galaxy-g')
-    expect(transformsOf(renderSky(past), 'galaxy-g').every((t) => skyToday.includes(t))).toBe(false)
+    const then = transformsOf(renderSky(past), 'galaxy-g')
+    expect(then).toHaveLength(1)
+    expect(skyToday).toContain(then[0])
+  })
+
+  it('архивный навык держит место для созданных до архивации: веб ставит галактики туда же, куда срез skills', () => {
+    const store: SkyStore = {
+      ...fx,
+      skills: [
+        fx.skills[0], { ...skill('old', '2026-04-01', 90), archived: true, archivedAt: at('2026-06-15') },
+        fx.skills[1], skill('new', '2026-07-01', 300),
+      ],
+    }
+    const places = constellationPlacements(skySkillsOf(store.skills, store.stars))
+    const drawn = transformsOf(renderSky(store), 'galaxy-g')
+    expect(drawn).toHaveLength(3)
+    for (const id of ['eng', 'run', 'new']) {
+      const { x, y } = places.get(id)!
+      expect(drawn.some((t) => t.includes(`translate(${x}`) && t.includes(`${y})`)), id).toBe(true)
+    }
+    // без архивного «run» встал бы иначе — место за ним действительно держится
+    const without = constellationPlacements(skySkillsOf(store.skills.filter((s) => !s.archived), store.stars))
+    expect(without.get('run')).not.toEqual(places.get('run'))
+  })
+
+  it('контроль чувствительности: без layoutFrom звёзды того же прошлого раскладываются иначе', () => {
     const engToday = transformsOf(renderGalaxy(fx, 'eng'), 'star-g')
     expect(transformsOf(renderGalaxy(past, 'eng'), 'star-g').every((t) => engToday.includes(t))).toBe(false)
   })
