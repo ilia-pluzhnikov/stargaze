@@ -600,7 +600,7 @@ describe('место галактики на небе: setSkyPos', () => {
   })
 
   it('негодная точка доходит до validateStore и отвергается им (422 у API)', () => {
-    for (const pos of [{ x: -1, y: 10 }, { x: 10, y: 1001 }, { x: 1801, y: 0 }, { x: NaN, y: 5 }, { x: '400', y: 300 }, { y: 300 }]) {
+    for (const pos of [{ x: -1, y: 10 }, { x: 10, y: 1001 }, { x: 1801, y: 0 }, { x: NaN, y: 5 }, { x: '400', y: 300 }, { y: 300 }, {}, { X: 900, Y: 480 }]) {
       const errors = validateStore(place(base(), 's1', pos))
       expect(errors, JSON.stringify(pos)).toEqual([expect.stringMatching(/skyPos — ожидается/)])
     }

@@ -1359,6 +1359,16 @@ describe('cli: место галактики на небе (place)', () => {
     expect(readFileSync(p, 'utf8')).toBe(before)
   })
 
+  it('закрепление поверх соседки — предупреждение с её именем', () => {
+    const p = tmpStore()
+    const other = JSON.parse(run(['place', 'sk_craft', '--json'], p).out) as { sky: { x: number; y: number } }
+    run(['place', 'sk_craft', String(other.sky.x), String(other.sky.y)], p)
+    const r = run(['place', 'sk_health', String(other.sky.x), String(other.sky.y)], p)
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/внимание: налезает на Творчество/)
+    expect(run(['place', 'sk_learn'], p).out).not.toMatch(/внимание/)
+  })
+
   it('неизвестный навык — ошибка, архивный не ищется', () => {
     const p = tmpStore()
     expect(run(['place', 'нет-такого', '1', '2'], p).code).toBe(1)

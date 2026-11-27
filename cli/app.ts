@@ -12,7 +12,7 @@ import {
   movesUsedIn7d, parseTzOffset, provisionForQuest, purchasedDays, sparksBalance, todayInGameTz,
 } from '../src/logic/sparks'
 import { weeklyXp } from '../src/logic/stats'
-import { SKY_H, SKY_W } from '../src/logic/layout'
+import { SKY_H, SKY_W, constellationPlacements, crowdedWith, skySkillsOf } from '../src/logic/layout'
 import {
   ViewError, parseWeeks, questView, questsView, ranksView, skillsView, starsView, statsView, statusView, walletView,
   wishlistView,
@@ -1118,6 +1118,12 @@ function cmdPlace(ctx: Ctx, args: string[], auto: boolean): number {
   ctx.io.out(row.sky.pinned
     ? `${row.name}: закреплена в ${at}`
     : `${row.name}: место выбирает раскладка — сейчас ${at}`)
+  // на плотном небе вокруг закреплённой точки места может не хватить — говорим, кому тесно
+  const crowded = crowdedWith(constellationPlacements(skySkillsOf(s.skills)), skillId)
+  if (crowded.length > 0) {
+    const names = crowded.map((id) => s.skills.find((sk) => sk.id === id)!.name).join(', ')
+    ctx.io.out(`внимание: налезает на ${names} — сдвинь точку или сними закрепление (--auto)`)
+  }
   return 0
 }
 

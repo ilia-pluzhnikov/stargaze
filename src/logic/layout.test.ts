@@ -9,6 +9,7 @@ import {
   GALAXY_CLEARANCE,
   SKY_BOUNDS,
   constellationPlacements,
+  crowdedWith,
   layoutConstellation,
   mulberry32,
   skySkillsOf,
@@ -260,6 +261,44 @@ describe('constellationPlacements', () => {
       }
     })
 
+    it('плотное небо обходит закрепления: одно — чисто до 21 галактики, три — до 17', () => {
+      const rnd = mulberry32(2024)
+      const pinAt = () => ({ x: Math.round(200 + rnd() * 1400), y: Math.round(170 + rnd() * 660) })
+      for (const [pinCount, maxN] of [[1, 21], [3, 17]]) {
+        for (let n = 13; n <= maxN; n++) {
+          for (let seed = 1; seed <= 6; seed++) {
+            const sky = randomSky(n, n * 100 + seed + pinCount)
+            const pinned = new Set<string>()
+            for (let k = 0; k < pinCount; k++) {
+              const i = (seed * 7 + k * 5) % n
+              sky[i] = { ...sky[i], skyPos: pinAt() }
+              pinned.add(sky[i].id)
+            }
+            const placements = constellationPlacements(sky)
+            // две закреплённые друг на друга — воля владельца, их пары не считаем
+            const free = new Map([...placements].filter(([id]) => !pinned.has(id)))
+            for (const [id, p] of placements) {
+              if (!pinned.has(id)) continue
+              expect(tightest(new Map([...free, [id, p]])), `pins=${pinCount} n=${n} seed=${seed}`).toBeGreaterThanOrEqual(0.999)
+            }
+            for (const id of pinned) expect(placements.get(id)).toMatchObject(sky.find((skill) => skill.id === id)!.skyPos!)
+          }
+        }
+      }
+    })
+
+    it('20 навыков и закрепление в центре: соседи не встают на закреплённую (пример ревью)', () => {
+      const sky: SkySkill[] = Array.from({ length: 20 }, (_, i) => ({ id: `s${String(i + 1).padStart(2, '0')}`, hue: (i * 37) % 360 }))
+      sky[0] = { ...sky[0], skyPos: { x: 900, y: 480 } }
+      expect(tightest(constellationPlacements(sky))).toBeGreaterThanOrEqual(0.999)
+    })
+
+    it('в плотном небе незакреплённых может остаться одна — она в рамке', () => {
+      const sky = randomSky(14, 3).map((skill, i) => (i === 0 ? skill : { ...skill, skyPos: { x: 100 + i * 100, y: 100 } }))
+      const lone = constellationPlacements(sky).get(sky[0].id)!
+      expect(inBounds(lone)).toBe(true)
+    })
+
     it('две закреплённые в одной точке так и стоят; все закреплённые — все на местах', () => {
       const twin = constellationPlacements([
         { id: 'a', hue: 10, skyPos: { x: 600, y: 400 } },
@@ -271,6 +310,15 @@ describe('constellationPlacements', () => {
       const all = randomSky(13, 5).map((skill, i) => ({ ...skill, skyPos: { x: 100 + i * 10, y: 100 + i * 5 } }))
       const placements = constellationPlacements(all)
       all.forEach((skill, i) => expect(placements.get(skill.id)).toMatchObject({ x: 100 + i * 10, y: 100 + i * 5 }))
+    })
+  })
+
+  describe('crowdedWith', () => {
+    it('называет налезающих соседей, чистое небо — пусто', () => {
+      const placements = new Map([['a', { x: 500, y: 500 }], ['b', { x: 600, y: 520 }], ['c', { x: 1400, y: 500 }]])
+      expect(crowdedWith(placements, 'a')).toEqual(['b'])
+      expect(crowdedWith(placements, 'c')).toEqual([])
+      expect(crowdedWith(placements, 'нет')).toEqual([])
     })
   })
 

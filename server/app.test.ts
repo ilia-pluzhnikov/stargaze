@@ -345,6 +345,8 @@ describe('API: экономика искр', () => {
       const freed = await post(base, { type: 'setSkyPos', skillId: 's1', pos: null })
       expect(freed.headers.get('stargaze-applied')).toBe('1')
       expect((await freed.json() as Store).skills[0]).not.toHaveProperty('skyPos')
+      // пустая точка у незакреплённого навыка — тоже 422, а не тихий no-op
+      expect((await post(base, { type: 'setSkyPos', skillId: 's1', pos: {} })).status).toBe(422)
     }))
   // 18:30 UTC 09-10: в +7 это уже 09-11, в +5 — ещё 09-10. Гейт API обязан считать
   // день расчёта в поясе мира, как редьюсер, — иначе отказ разъедется с ядром

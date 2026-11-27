@@ -130,7 +130,9 @@ function denseSlots(n: number): Slot[] {
       // Соседи по ряду сближаются не больше чем на размах — запас до эллипса.
       const jitterX = Math.max(0, Math.min(40, step - A - 2))
       const jitterY = Math.max(0, Math.min(28, gapY - B - 2))
-      for (let k = 0; k < count; k++) slots.push({ x: x0 + (k + shift) * step, y: y0 + gapY * r, jitterX, jitterY })
+      for (let k = 0; k < count; k++) {
+        slots.push({ x: count === 1 ? (x0 + x1) / 2 : x0 + (k + shift) * step, y: y0 + gapY * r, jitterX, jitterY })
+      }
     }
     return slots
   }
@@ -150,6 +152,46 @@ function denseSlots(n: number): Slot[] {
   return slots
 }
 
+/** Сколько галактик плотная решётка вмещает без наложений (4 ряда по 6). */
+const DENSE_CAPACITY = 24
+
+/** Налезают ли две точки по эллипсу `GALAXY_CLEARANCE` с запасом `margin`;
+ * `slack` — на сколько точка ещё может сдвинуться джиттером (по x и по y). */
+function crowds(a: SkyPoint, b: SkyPoint, margin: number, slack: { x: number; y: number } = { x: 0, y: 0 }): boolean {
+  const dx = Math.max(0, Math.abs(a.x - b.x) - slack.x) / GALAXY_CLEARANCE.x
+  const dy = Math.max(0, Math.abs(a.y - b.y) - slack.y) / GALAXY_CLEARANCE.y
+  return dx * dx + dy * dy < margin * margin
+}
+
+/** С кем галактика `id` налезает на небе (эллипс `GALAXY_CLEARANCE`): пусто —
+ * стоит чисто. Для предупреждения после закрепления: закреплённая точка — воля
+ * владельца, а места вокруг неё на плотном небе может не хватить. */
+export function crowdedWith(placements: ReadonlyMap<string, SkyPoint>, id: string): string[] {
+  const p = placements.get(id)
+  if (!p) return []
+  return [...placements].filter(([other, q]) => other !== id && crowds(p, q, 1)).map(([other]) => other)
+}
+
+/** Плотные ряды для n незакреплённых галактик в обход закреплённых точек.
+ * Слот, на который налезает закреплённая (с учётом его джиттера), выбывает;
+ * не хватает свободных — решётка уплотняется, пока мир вмещает её без наложений
+ * (`DENSE_CAPACITY`). Лишние свободные слоты снимаются — ближайшие к закреплённым.
+ * Не вместилось и так — обычные ряды на n, остальное решает `settle`. */
+function denseSlotsAround(n: number, pins: readonly SkyPoint[]): Slot[] {
+  if (pins.length === 0 || n === 0) return denseSlots(n)
+  const free = (m: number) => denseSlots(m).filter((slot) =>
+    pins.every((pin) => !crowds(slot, pin, 1.01, { x: slot.jitterX / 2, y: slot.jitterY / 2 })))
+  for (let m = n; m <= Math.max(n, DENSE_CAPACITY); m++) {
+    const slots = free(m)
+    if (slots.length < n) continue
+    const nearestPin = (slot: Slot) => Math.min(...pins.map((pin) =>
+      ((slot.x - pin.x) / GALAXY_CLEARANCE.x) ** 2 + ((slot.y - pin.y) / GALAXY_CLEARANCE.y) ** 2))
+    const dropped = new Set([...slots].sort((a, b) => nearestPin(a) - nearestPin(b)).slice(0, slots.length - n))
+    return slots.filter((slot) => !dropped.has(slot))
+  }
+  return denseSlots(n)
+}
+
 /** Шаг сетки, по которой ищется свободное место налезшей галактике. */
 const FREE_SPOT_STEP = 10
 
@@ -161,14 +203,15 @@ const FREE_SPOT_STEP = 10
  * остаётся на своём. Очередь — упорядоченный список, а не вход: результат
  * детерминирован. */
 function settle(order: readonly string[], pos: Map<string, SkyPoint>, pinned: ReadonlySet<string>): void {
-  const { x: A, y: B } = GALAXY_CLEARANCE
   const placed = order.filter((id) => pinned.has(id)).map((id) => pos.get(id)!)
-  const clear = (p: SkyPoint, margin: number) =>
-    placed.every((q) => Math.hypot((p.x - q.x) / A, (p.y - q.y) / B) >= margin)
+  const clear = (p: SkyPoint, margin: number) => placed.every((q) => !crowds(p, q, margin))
+  // Поставленных только прибавляется: не нашлось места одной — не найдётся и следующим,
+  // перебор рамки дальше не нужен (за пределом вместимости он стоил бы сотни мс).
+  let exhausted = false
   for (const id of order) {
     if (pinned.has(id)) continue
     const p = pos.get(id)!
-    if (!clear(p, 1)) {
+    if (!exhausted && !clear(p, 1)) {
       let best: SkyPoint | null = null
       let bestDist = Infinity
       for (let x = SKY_BOUNDS.x0; x <= SKY_BOUNDS.x1; x += FREE_SPOT_STEP) {
@@ -182,26 +225,30 @@ function settle(order: readonly string[], pos: Map<string, SkyPoint>, pinned: Re
         }
       }
       if (best) pos.set(id, best)
+      else exhausted = true
     }
     placed.push(pos.get(id)!)
   }
 }
 
 /** Созвездия занимают мягкую смещённую сетку как в лаборатории (больше 12 —
- * ряды `denseSlots`). Навыки назначаются слотам в круговом порядке hue: похожие
- * цвета остаются соседями, а id добавляет небольшой джиттер и поворот без
- * прыжков между загрузками. Закреплённая галактика (`skyPos`, иначе
- * `LEGACY_PINS`) встаёт на свою точку, не сдвигая остальным слоты; последним
- * проходом `settle` разводит тех, кто всё же налез. */
+ * ряды `denseSlotsAround`). Навыки назначаются слотам в круговом порядке hue:
+ * похожие цвета остаются соседями, а id добавляет небольшой джиттер и поворот без
+ * прыжков между загрузками. Закреплённая галактика (`skyPos`, иначе `LEGACY_PINS`)
+ * встаёт на свою точку. В мягкой сетке она занимает свой слот, и остальным слоты
+ * не пересдаются; в плотных рядах слотов не берёт — ряды обходят закреплённые
+ * точки. Последним проходом `settle` разводит тех, кто всё же налез. */
 export function constellationPlacements(skills: SkySkill[]): Map<string, SkyPlacement> {
   const byId = new Map(skills.map((skill) => [skill.id, skill]))
   const unique = [...byId.values()]
   const result = new Map<string, SkyPlacement>()
   if (!unique.length) return result
 
+  const pinOf = (skill: SkySkill): SkyPoint | undefined => skill.skyPos ?? LEGACY_PINS[skill.id]
   const dense = unique.length > SOFT_SKY_SLOTS.length
+  const pins = unique.map(pinOf).filter((pin): pin is SkyPoint => pin !== undefined)
   const base: Slot[] = dense
-    ? denseSlots(unique.length)
+    ? denseSlotsAround(unique.length - pins.length, pins)
     : SOFT_SKY_SLOTS.slice(0, unique.length).map((slot) => ({ ...slot, jitterX: 80, jitterY: 54 }))
   const slotsByAngle = base.sort((a, b) =>
     Math.atan2(a.y - MAIN_QUEST_ANCHOR.y, a.x - MAIN_QUEST_ANCHOR.x)
@@ -238,24 +285,29 @@ export function constellationPlacements(skills: SkySkill[]): Map<string, SkyPlac
   const pos = new Map<string, SkyPoint>()
   const rotation = new Map<string, number>()
   const pinned = new Set<string>()
-  for (let i = 0; i < ordered.length; i++) {
-    const { id, skyPos } = ordered[i]
-    const slot = slots[i]
-    const jitter = mulberry32(hashStr(`sky-jitter:${id}`))
+  let next = 0
+  for (const skill of ordered) {
+    const { id } = skill
     const angleRng = mulberry32(hashStr(`sky-rotation:${id}`))
+    rotation.set(id, Number(((angleRng() * 2 - 1) * 7).toFixed(2)))
+    const pin = pinOf(skill)
+    if (pin) {
+      // В мягкой сетке закреплённая занимает свой слот: остальные слоты не
+      // пересдаются, слот остаётся пустым. Плотные ряды её уже обошли.
+      if (!dense) next++
+      pinned.add(id)
+      pos.set(id, { x: pin.x, y: pin.y })
+      continue
+    }
+    const slot = slots[next++]
+    const jitter = mulberry32(hashStr(`sky-jitter:${id}`))
     const jittered = {
       x: Number((slot.x + (jitter() - 0.5) * slot.jitterX).toFixed(2)),
       y: Number((slot.y + (jitter() - 0.5) * slot.jitterY).toFixed(2)),
     }
     // Мягкая сетка исторически шире рамки на джиттер — её не трогаем, чтобы
     // старые небеса не сдвинулись; плотные ряды держим в рамке сразу.
-    const auto = dense ? clampToBounds(jittered) : jittered
-    rotation.set(id, Number(((angleRng() * 2 - 1) * 7).toFixed(2)))
-    // Закреплённая галактика занимает свой слот в общей раскладке и уходит на свою
-    // точку: остальные слоты не пересдаются, слот остаётся пустым.
-    const pin = skyPos ?? LEGACY_PINS[id]
-    if (pin) pinned.add(id)
-    pos.set(id, pin ? { x: pin.x, y: pin.y } : auto)
+    pos.set(id, dense ? clampToBounds(jittered) : jittered)
   }
 
   settle(ordered.map(({ id }) => id), pos, pinned)

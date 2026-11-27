@@ -396,8 +396,13 @@ export function reducer(store: Store, action: Action): Store {
     case 'setSkyPos': {
       const prev = store.skills.find((s) => s.id === action.skillId)
       if (!prev) return store
-      // повтор — тот же store: ответ «не применилось» не зависит от порядка ключей в файле
-      if (action.pos ? prev.skyPos?.x === action.pos.x && prev.skyPos?.y === action.pos.y : !prev.skyPos) return store
+      // повтор — тот же store: ответ «не применилось» не зависит от порядка ключей в файле.
+      // Сверка — только с существующим закреплением: pos без x/y у незакреплённого навыка
+      // иначе совпал бы с «нет поля» (undefined === undefined) и ушёл тихим no-op мимо 422
+      const same = action.pos
+        ? prev.skyPos !== undefined && prev.skyPos.x === action.pos.x && prev.skyPos.y === action.pos.y
+        : prev.skyPos === undefined
+      if (same) return store
       // только x и y: лишнее в pos не оседает; негодную точку отвергает validateStore (422)
       const { skyPos: _old, ...rest } = prev
       const next: Skill = action.pos ? { ...rest, skyPos: { x: action.pos.x, y: action.pos.y } } : rest
