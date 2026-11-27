@@ -1,21 +1,13 @@
 {
-  "commit": "ccd70a8f5d9fee3a624fc38efa74a775a140e6f2",
+  "commit": "7c990b9752c7d1af9757089638c4c94a4167d72c",
   "working_tree_dirty": true,
   "dirty_files": [
-    "HANGELOG.md",
-    "docs/codemap/codemap.html",
+    "ocs/codemap/codemap.html",
     "docs/codemap/codemap.json",
     "docs/codemap/codemap.lock",
-    "docs/codemap/model.mjs",
-    "server/app.test.ts",
-    "server/app.ts",
-    "src/assets/keep-awake.mp4",
-    "src/components/Sky3D.tsx",
-    "src/hooks/keepAwake.test.ts",
-    "src/hooks/keepAwake.ts",
-    "src/hooks/useKeepAwake.ts"
+    "docs/codemap/model.mjs"
   ],
-  "generated_at": "2026-11-18T10:22:12.331Z",
+  "generated_at": "2026-11-27T17:45:03.859Z",
   "scanned_scope": [
     "src/",
     "cli/",
@@ -74,7 +66,7 @@
         "src/components/skyHistory.test.tsx",
         "src/hooks/usePanZoom.ts"
       ],
-      "fingerprint": "636ee337709a559d45a535c79e81b9e1c1e91205b60383202ee705de21a688e8"
+      "fingerprint": "d133a350cd497b8745020ef40b2869e6037b84bfd7a1e562b40abfde9a645e5e"
     },
     "web-sky3d": {
       "path": "src/components/Sky3D.tsx",
@@ -142,7 +134,7 @@
         "src/logic/store.test.ts",
         "src/logic/store.ts"
       ],
-      "fingerprint": "e167307ed9359ed89bf3dceb68d0f66e8fe01ad85c21c215054beca9612113a6"
+      "fingerprint": "de280c151361b3209813deac2aa06a2296ad09a4554b0310fd1e30f53d5f5a1e"
     },
     "core-gates": {
       "path": "src/logic/gates.ts",
@@ -151,7 +143,7 @@
         "src/logic/gates.test.ts",
         "src/logic/gates.ts"
       ],
-      "fingerprint": "1c9e89d2e76e29b1e3b466b50e98aad7485da63160c228a0352db55e0a86a884"
+      "fingerprint": "908440954edcbf0307432169a2b8fa737aa5877d593d26edd91af26c53465e23"
     },
     "core-views": {
       "path": "src/logic/views.ts",
@@ -160,7 +152,7 @@
         "src/logic/views.test.ts",
         "src/logic/views.ts"
       ],
-      "fingerprint": "d72dcc6da1e38b02cb4444f775f1d1cadcdf9e365d01e644e0da9f6a06c156bf"
+      "fingerprint": "abf1431b8eefdaa4929e3ebd36c24007a4ef6ee9f1959eb240420bd578640d93"
     },
     "core-sparks": {
       "path": "src/logic/sparks.ts",
@@ -207,7 +199,7 @@
         "src/logic/validate.test.ts",
         "src/logic/validate.ts"
       ],
-      "fingerprint": "772a14295b8fa65e9e2474f0b8cee704d9cea18f96b4f5348b40bab531615e2f"
+      "fingerprint": "6a3114e4eaed3ce26d3a30f44a712e3e1e8c484624f7b79c4aa72e517308d1f1"
     },
     "core-layout": {
       "path": "src/logic/layout.ts",
@@ -216,7 +208,7 @@
         "src/logic/layout.test.ts",
         "src/logic/layout.ts"
       ],
-      "fingerprint": "675b72ae2e7fb880bba43b251c963ca930f4c8e2ae6e7402fa50970a332f574f"
+      "fingerprint": "2c8888f80a5dd98150c200fcbbd42b5a63783b1c58754aaed053a572d7ae631a"
     },
     "core-panzoom": {
       "path": "src/logic/panZoom.ts",
@@ -225,7 +217,7 @@
         "src/logic/panZoom.test.ts",
         "src/logic/panZoom.ts"
       ],
-      "fingerprint": "d911c73e4175f918e064b6abbf46d9319c0f58c8c44c4169fa8088ca905d2bb4"
+      "fingerprint": "1b193a3a0769836dfc46e356efaed1ef3c532eeaa0d0dcd26348a7b322c6366d"
     },
     "core-sky3d": {
       "path": "src/logic/sky3d.ts",
@@ -236,7 +228,7 @@
         "src/logic/sky3dPilot.test.ts",
         "src/logic/sky3dPilot.ts"
       ],
-      "fingerprint": "9230d35a1ec62b2ead2dd24bd0745e7245ab217c2304a28c2b5872337fe47d6d"
+      "fingerprint": "637dd583a4a30e1d1e11f3adea302a2f6bf71f1b0c4abad24bb8ce8c8ab9322d"
     },
     "core-address": {
       "path": "src/logic/address.ts",
@@ -264,7 +256,7 @@
         "src/logic/dates.ts",
         "src/types.ts"
       ],
-      "fingerprint": "f92416afb04b156b25b41c975f2cc7449885a762419af0eb59c892a3a5094d28"
+      "fingerprint": "5ebb23f67b4fd0bc01eaf1832e5e575c815114345d6ea1382dd76b0b9f309b9c"
     },
     "core-storage": {
       "path": "src/logic/storage.ts",
@@ -283,7 +275,7 @@
         "server/app.ts",
         "server/main.ts"
       ],
-      "fingerprint": "a7bec58f4bed9f9d48606e40fa6a239aa359b831f65607657e15e01dbca8f3b2"
+      "fingerprint": "213bf4dc91f5c8858a9386a28f2e10de0559214c99ef9e4d92b7cdaacf5a6c3a"
     },
     "cli": {
       "path": "cli/app.ts",
@@ -296,7 +288,7 @@
         "cli/main.ts",
         "cli/smoke.test.ts"
       ],
-      "fingerprint": "40eca7f4838a58d286090e11c0c3ee5dc34036e698cb96db656ee74030416e43"
+      "fingerprint": "8e881cbf185d649ddc64fd0cd2c7c45c8794de9c12d098b29120919b7efa346d"
     },
     "store-json": {
       "path": null,
@@ -325,11 +317,9 @@
     }
   },
   "previous": {
-    "commit": "ccd70a8f5d9fee3a624fc38efa74a775a140e6f2",
-    "generated_at": "2026-11-18T09:59:50.134Z",
-    "changed_modules": [
-      "web-sky3d"
-    ],
+    "commit": "7c990b9752c7d1af9757089638c4c94a4167d72c",
+    "generated_at": "2026-11-27T17:44:36.693Z",
+    "changed_modules": [],
     "new_modules": [],
     "removed_modules": []
   },
