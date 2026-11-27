@@ -23,7 +23,8 @@ export type Action =
   | { type: 'rejectQuest'; questId: string }
   | { type: 'addSkill'; skill: Skill }
   | { type: 'updateSkill'; skill: Skill }
-  | { type: 'archiveSkill'; skillId: string }
+  // ts — момент архивации: с ним галактики, созданные раньше, на небе не сдвигаются
+  | { type: 'archiveSkill'; skillId: string; ts?: string }
   | { type: 'addStar'; star: StarComponent }
   | { type: 'updateStar'; star: StarComponent }
   | { type: 'removeStar'; starId: string }
@@ -279,16 +280,18 @@ export function reducer(store: Store, action: Action): Store {
       }
     }
     case 'addSkill':
-      // место на небе ставит только setSkyPos — как и в updateSkill
-      return { ...store, skills: [...store.skills, pickSkill({ ...action.skill, skyPos: undefined })] }
+      // место на небе ставит только setSkyPos, момент архивации — только archiveSkill, как и в updateSkill
+      return { ...store, skills: [...store.skills, pickSkill({ ...action.skill, skyPos: undefined, archivedAt: undefined })] }
     case 'updateSkill': {
       const prev = store.skills.find((s) => s.id === action.skill.id)
       if (!prev) return store
       // archived/createdAt пишет только редьюсер: иначе archived: true в payload спрятал бы
       // навык мимо гейта archiveSkill (активные контракты), а false — разархивировал бы.
       // skyPos — только через setSkyPos: форма навыка в вебе собирает его заново без места
-      // на небе, и первая же правка стёрла бы закрепление
-      const next = pickSkill({ ...action.skill, archived: prev.archived, createdAt: prev.createdAt, skyPos: prev.skyPos })
+      // на небе, и первая же правка стёрла бы закрепление. archivedAt — пара к archived
+      const next = pickSkill({
+        ...action.skill, archived: prev.archived, archivedAt: prev.archivedAt, createdAt: prev.createdAt, skyPos: prev.skyPos,
+      })
       return { ...store, skills: store.skills.map((s) => (s.id === next.id ? next : s)) }
     }
     case 'archiveSkill':
@@ -298,7 +301,9 @@ export function reducer(store: Store, action: Action): Store {
       // архив навыка прячет созвездие вместе с квестами; xpLog не трогаем
       return {
         ...store,
-        skills: store.skills.map((s) => (s.id === action.skillId ? { ...s, archived: true } : s)),
+        // момент архивации пишется один раз: повтор по уже архивному навыку его не сдвигает
+        skills: store.skills.map((s) =>
+          s.id !== action.skillId || s.archived ? s : { ...s, archived: true, ...(action.ts ? { archivedAt: action.ts } : {}) }),
         quests: store.quests.map((q) => {
           if (q.skillId !== action.skillId || q.status === 'archived') return q
           const { proposalNote, ...rest } = q

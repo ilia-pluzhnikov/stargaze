@@ -39,19 +39,25 @@ export interface SkyPoint {
 
 export interface SkySkill {
   id: string
-  hue: number
-  name?: string
+  /** Когда навык создан (`Skill.createdAt`): в этом порядке галактики встают на
+   * небо, при равенстве — по id. Нет или не читается — раньше всех. */
+  createdAt?: string
   /** Число колец созвездия — глубина дерева звёзд навыка (`constellationRings`):
-   * чем их больше, тем больше места галактика занимает на небе. Нет — полный размер. */
+   * чем их больше, тем больше галактика в кадре обзора. Нет — полный размер. */
   rings?: number
   /** У галактики есть глиф-фигура (`Skill.glyphId`): она занимает место и без звёзд. */
   glyph?: boolean
   /** Закреплённая позиция галактики (`Skill.skyPos`); нет — место выбирает раскладка. */
   skyPos?: SkyPoint
+  /** Навык в архиве с этого момента (`Skill.archivedAt`): на небе его нет. Для
+   * галактик, созданных раньше, его место по-прежнему занято — от архивации они
+   * не сдвигаются; созданным позже оно свободно. */
+  archivedAt?: string
 }
 
-/** Центр вселенной: вокруг него рассыпаются галактики. Небо не ограничено —
- * `SKY_W`×`SKY_H` задают только пропорции кадра и его размер при масштабе 1. */
+/** Центр неба: здесь встаёт первая галактика, остальные — вокруг. Небо не
+ * ограничено — `SKY_W`×`SKY_H` задают только пропорции кадра и его размер при
+ * масштабе 1. */
 export const SKY_CENTER = { x: SKY_W / 2, y: SKY_H / 2 } as const
 
 /** Дальше этого от начала координат галактику не закрепить (`Skill.skyPos`):
@@ -132,11 +138,14 @@ export function constellationRings(stars: readonly Pick<StarComponent, 'id' | 'p
   }
 }
 
-/** Навыки неба из навыков и звёзд store: архивные не светят, остальное — то, от
- * чего зависит раскладка (оттенок, число колец созвездия, глиф, закрепление).
- * Общий вход для 2D-неба, 3D-облёта и машинных срезов. */
+/** Навыки неба из навыков и звёзд store — то, от чего зависит небо: порядок
+ * создания и закрепление (место галактики), число колец созвездия и глиф (её
+ * размер в кадре обзора). Архивные с моментом архивации тоже здесь: их места
+ * заняты для галактик, созданных раньше. Архивный без момента (ушёл в архив до
+ * появления `archivedAt`) на небо не влияет. Общий вход для 2D-неба, 3D-облёта
+ * и машинных срезов. */
 export function skySkillsOf(
-  skills: readonly Pick<Skill, 'id' | 'hue' | 'name' | 'archived' | 'skyPos' | 'glyphId'>[],
+  skills: readonly Pick<Skill, 'id' | 'createdAt' | 'archived' | 'archivedAt' | 'skyPos' | 'glyphId'>[],
   stars: readonly Pick<StarComponent, 'id' | 'skillId' | 'parentStarId'>[],
 ): SkySkill[] {
   const bySkill = new Map<string, Pick<StarComponent, 'id' | 'parentStarId'>[]>()
@@ -146,12 +155,13 @@ export function skySkillsOf(
     else bySkill.set(star.skillId, [star])
   }
   return skills
-    .filter((skill) => !skill.archived)
-    .map(({ id, hue, name, skyPos, glyphId }) => ({
-      id, hue, name,
+    .filter((skill) => !skill.archived || skill.archivedAt !== undefined)
+    .map(({ id, createdAt, archived, archivedAt, skyPos, glyphId }) => ({
+      id, createdAt,
       rings: constellationRings(bySkill.get(id) ?? []),
       ...(glyphId !== undefined ? { glyph: true } : {}),
       ...(skyPos ? { skyPos } : {}),
+      ...(archived && archivedAt !== undefined ? { archivedAt } : {}),
     }))
 }
 
@@ -191,261 +201,221 @@ export function crowdedWith(skills: readonly SkySkill[], placements: ReadonlyMap
   return [...bodies.values()].filter((other) => other.id !== id && separation(own, other) < 1).map((other) => other.id)
 }
 
-/** Воздух между галактиками: центры соседей не ближе этой доли касания. Небо
- * не уплотняется — с ростом числа галактик растёт вселенная, а не теснота. */
+/** Воздух между галактиками: места соседей не ближе этой доли касания. Небо
+ * не уплотняется — с ростом числа галактик оно растёт вширь, а не в тесноту. */
 export const SKY_GAP = 1.24
 /** Поле вокруг неба в кадре обзора. */
 const VIEW_PAD = 40
-/** Доля вселенной, занятая галактиками с их воздухом, с которой начинается
- * подбор её размера; не уложилось — вселенная растёт шагами `UNIVERSE_GROWTH`. */
-const SKY_FILL = 0.6
-const UNIVERSE_GROWTH = 1.04
-const UNIVERSE_ATTEMPTS = 80
-/** Сколько случайных точек пробуется на каждую галактику («лучший кандидат»). */
-const CANDIDATES = 40
-const RELAX_ITERATIONS = 120
 
-/** Вселенная — горизонтальный овал, вписанный в кадр шириной `w` с пропорциями
- * `SKY_W`:`SKY_H`: в нём лежат центры галактик, поля — под саму галактику. */
-function universeOf(w: number): { rx: number; ry: number } {
-  const h = (w * SKY_H) / SKY_W
-  return {
-    rx: Math.max(1, w / 2 - GALAXY_CLEARANCE.x / 2 - VIEW_PAD),
-    ry: Math.max(1, h / 2 - GALAXY_CLEARANCE.y / 2 - VIEW_PAD),
-  }
+/** Место галактики в раскладке — полного размера `GALAXY_CLEARANCE`, у всех
+ * одинаковое: сколько в галактике звёзд, раскладке неважно, поэтому новые
+ * звёзды небо не двигают. Расстояние между местами — в долях касания: 1 —
+ * касаются, `SKY_GAP` — между ними положенный воздух. */
+const apart = (ax: number, ay: number, bx: number, by: number): number =>
+  Math.hypot((ax - bx) / GALAXY_CLEARANCE.x, (ay - by) / GALAXY_CLEARANCE.y)
+/** Центр места ниже точки галактики: веер над ней выше, чем подпись под ней. */
+const PLACE_DROP = LABEL_BOTTOM - GALAXY_CLEARANCE.y / 2
+
+/** Раскладка считает в сотых: те же числа уходят в срезы и в закрепления. */
+const cents = (value: number): number => Math.round(value * 100) / 100 || 0
+
+/** Сколько мест пробуется вокруг каждой уже стоящей галактики. */
+const SPOT_TRIES = 12
+/** Новая галактика встаёт к соседке не вплотную: от воздуха `SKY_GAP` до этой
+ * доли сверх него — иначе небо складывалось бы в соты. */
+const SPOT_SPREAD = 0.35
+/** Случайная (от id галактики) добавка к цене места: без неё небо росло бы
+ * ровными кольцами вокруг середины. */
+const SPOT_NOISE = 0.5
+/** Вес кадра в цене места: место, из-за которого обзору пришлось бы отъехать,
+ * дороже — небо заполняет экран, а не тянется в одну сторону. */
+const SPOT_FRAME = 0.7
+/** Цена места на одной высоте с соседкой (ближе `ROW_SPAN` мест по горизонтали,
+ * в полосе `ROW_BAND` высоты места): галактики не выстраиваются в ряды. */
+const SPOT_ROW = 1
+const ROW_SPAN = 3
+const ROW_BAND = 0.3
+/** Небо растёт овалом, вписанным в кадр `SKY_W`:`SKY_H`: его полуоси в местах
+ * галактик связаны как rx = `OVAL_STRETCH`·ry + `OVAL_CORE` (поля кадра и само
+ * место по высоте съедают больше, чем по ширине). */
+const OVAL_STRETCH = ((SKY_W / SKY_H) * GALAXY_CLEARANCE.y) / GALAXY_CLEARANCE.x
+const OVAL_CORE = ((SKY_W / SKY_H) * (GALAXY_CLEARANCE.y / 2 + VIEW_PAD) - (GALAXY_CLEARANCE.x / 2 + VIEW_PAD)) / GALAXY_CLEARANCE.x
+
+/** Галактика в очереди на небо: когда создана и с какого момента в архиве
+ * (`Infinity` — не в архиве). Время — миллисекунды: строки ISO с разными
+ * поясами как строки не сравнить. */
+interface Arrival {
+  id: string
+  born: number
+  gone: number
 }
 
-/** Ширина кадра, с которой начинается подбор вселенной: площадь овала вместе с
- * каймой под галактики равна площади всех галактик с воздухом, делённой на
- * `SKY_FILL`. Больше галактик или колец — шире вселенная (как корень из площади). */
-function universeStart(bodies: readonly Body[]): number {
-  let area = 0
-  let a = 0
-  let b = 0
-  for (const body of bodies) {
-    area += body.a * body.b
-    a += body.a
-    b += body.b
-  }
-  const need = (area * SKY_GAP * SKY_GAP) / SKY_FILL
-  const ratio = SKY_H / SKY_W
-  // (X + p)(X·ratio + q) = need, X — половина ширины кадра
-  const p = (SKY_GAP * a) / bodies.length - GALAXY_CLEARANCE.x / 2 - VIEW_PAD
-  const q = (SKY_GAP * b) / bodies.length - GALAXY_CLEARANCE.y / 2 - VIEW_PAD
-  const k = q + p * ratio
-  return (-k + Math.sqrt(k * k - 4 * ratio * (p * q - need))) / ratio
+/** Момент из строки ISO; дробные секунды длиннее миллисекунд обрезаются — их
+ * разбирают не все движки. Нет строки или она не читается — `fallback`. */
+function momentOf(iso: string | undefined, fallback: number): number {
+  if (iso === undefined) return fallback
+  const ms = Date.parse(iso.replace(/(\.\d{3})\d+/, '$1'))
+  return Number.isNaN(ms) ? fallback : ms
 }
 
-/** Во сколько раз расстояние по горизонтали весит больше при выборе точек
- * россыпи: вселенная шире, чем выше (`SKY_W`:`SKY_H`), а место галактики выше,
- * чем шире. Постоянное число, а не размеры вселенной: рисунок россыпи не должен
- * зависеть от того, насколько она выросла. */
-const SPOT_STRETCH = ((SKY_W / SKY_H) * GALAXY_CLEARANCE.y) / GALAXY_CLEARANCE.x
-
-/** Рисунок россыпи: n точек единичного круга, случайных, но детерминированных
- * от `seed`. «Лучший кандидат» — из `CANDIDATES` случайных берётся самая далёкая
- * от уже поставленных, поэтому россыпь ровная, но без рядов. Точки идут по углу
- * вокруг центра, начиная за самым широким просветом: галактики в круговом
- * порядке hue встают на них подряд, и похожие цвета остаются соседями.
- *
- * Рисунок зависит только от набора id и числа галактик — не от их размеров:
- * когда созвездие вырастает, вселенная растягивается, а галактики остаются на
- * своих местах россыпи. */
-function scatterSpots(n: number, seed: string): SkyPoint[] {
-  const rnd = mulberry32(hashStr(`sky-scatter:${seed}`))
-  const spots: { x: number; y: number; angle: number }[] = []
-  for (let i = 0; i < n; i++) {
-    let best = { x: 0, y: 0, angle: 0 }
-    let bestScore = -1
-    for (let k = 0; k < CANDIDATES; k++) {
-      // равномерно по площади круга: корень из случайного радиуса
-      const radius = Math.sqrt(rnd())
-      const angle = rnd() * Math.PI * 2
-      const x = Math.cos(angle) * radius
-      const y = Math.sin(angle) * radius
-      let score = Infinity
-      for (const spot of spots) score = Math.min(score, ((x - spot.x) * SPOT_STRETCH) ** 2 + (y - spot.y) ** 2)
-      if (score > bestScore) {
-        best = { x, y, angle }
-        bestScore = score
+/** Места галактик без оглядки на закрепления: точки неба в порядке очереди.
+ * Галактики встают по одной. Первая — в центр; каждая следующая пробует места
+ * вокруг уже стоящих (случайные, но детерминированные от её id) и берёт самое
+ * дешёвое из свободных: ближе к середине неба, не раздвигает кадр, не в ряд с
+ * соседками. Место зависит только от галактик, вставших раньше, — поэтому новая
+ * галактика никого не двигает: небо из n галактик — начало неба из n+1.
+ * Галактика, ушедшая в архив до появления новой, для неё уже не стоит. */
+function naturalSpots(queue: readonly Arrival[]): SkyPoint[] {
+  const all: SkyPoint[] = []
+  const ratio = SKY_W / SKY_H
+  for (const { id, born } of queue) {
+    const spots = all.filter((_, i) => queue[i].gone > born)
+    let spot: SkyPoint | null = null
+    if (!spots.length) spot = { x: SKY_CENTER.x, y: SKY_CENTER.y - PLACE_DROP }
+    else {
+      let x0 = Infinity
+      let x1 = -Infinity
+      let y0 = Infinity
+      let y1 = -Infinity
+      for (const at of spots) {
+        x0 = Math.min(x0, at.x)
+        x1 = Math.max(x1, at.x)
+        y0 = Math.min(y0, at.y)
+        y1 = Math.max(y1, at.y)
       }
-    }
-    spots.push(best)
-  }
-  spots.sort((p, q) => p.angle - q.angle || p.x - q.x || p.y - q.y)
-  let start = 0
-  let largestGap = -1
-  for (let i = 0; i < n; i++) {
-    const next = i === n - 1 ? spots[0].angle + Math.PI * 2 : spots[i + 1].angle
-    if (next - spots[i].angle > largestGap) {
-      largestGap = next - spots[i].angle
-      start = (i + 1) % n
-    }
-  }
-  return spots.map((_, i) => spots[(start + i) % n])
-}
-
-/** Одна попытка россыпи во вселенной шириной `w`: галактики встают на точки
- * рисунка `spots` (по порядку), растянутого на овал вселенной, и расталкиваются
- * до воздуха `SKY_GAP`. false — не уложились, вселенная мала. */
-function scatter(bodies: Body[], spots: readonly SkyPoint[], w: number): boolean {
-  const n = bodies.length
-  const { rx, ry } = universeOf(w)
-  bodies.forEach((body, i) => {
-    body.x = SKY_CENTER.x + spots[i].x * rx
-    body.y = SKY_CENTER.y + spots[i].y * ry
-  })
-
-  // Расталкивание: пары ближе воздуха расходятся (Якоби — все сдвиги считаются
-  // от прежних позиций), центры остаются в овале вселенной. Плоские массивы и
-  // пары i<j: расчёт идёт в рендере, на телевизоре каждая попытка на счету.
-  const reach = SKY_GAP + 0.02
-  const sx = new Float64Array(n)
-  const sy = new Float64Array(n)
-  for (let iter = 0; iter < RELAX_ITERATIONS; iter++) {
-    sx.fill(0)
-    sy.fill(0)
-    let crowded = false
-    for (let i = 0; i < n; i++) {
-      const p = bodies[i]
-      for (let j = i + 1; j < n; j++) {
-        const q = bodies[j]
-        const spanX = p.a + q.a
-        const spanY = p.b + q.b
-        const nx = (p.x - q.x) / spanX
-        const ny = (p.y - q.y) / spanY
-        const d = Math.sqrt(nx * nx + ny * ny)
-        if (d >= reach) continue
-        crowded = true
-        // совпали — расходятся по x в разные стороны
-        const ux = d < 1e-9 ? 1 : nx / d
-        const uy = d < 1e-9 ? 0 : ny / d
-        const push = (reach - d) / 2
-        sx[i] += ux * push * spanX
-        sy[i] += uy * push * spanY
-        sx[j] -= ux * push * spanX
-        sy[j] -= uy * push * spanY
+      const rnd = mulberry32(hashStr(`sky-spot:${id}`))
+      const midX = (x0 + x1) / 2
+      const midY = (y0 + y1) / 2
+      let bestCost = Infinity
+      for (const near of spots) {
+        for (let k = 0; k < SPOT_TRIES; k++) {
+          const angle = rnd() * Math.PI * 2
+          const reach = SKY_GAP * (1 + SPOT_SPREAD * rnd())
+          const noise = SPOT_NOISE * rnd()
+          const x = cents(near.x + Math.cos(angle) * reach * GALAXY_CLEARANCE.x)
+          const y = cents(near.y + Math.sin(angle) * reach * GALAXY_CLEARANCE.y)
+          const away = Math.hypot(
+            Math.max(0, Math.abs(x - midX) / GALAXY_CLEARANCE.x - OVAL_CORE) / OVAL_STRETCH,
+            (y - midY) / GALAXY_CLEARANCE.y,
+          )
+          // ширина кадра, в который небо поместится вместе с этим местом, — в ширинах места
+          const frame = Math.max(
+            Math.max(x1, x) - Math.min(x0, x) + GALAXY_CLEARANCE.x + VIEW_PAD * 2,
+            (Math.max(y1, y) - Math.min(y0, y) + GALAXY_CLEARANCE.y + VIEW_PAD * 2) * ratio,
+          ) / GALAXY_CLEARANCE.x
+          let cost = away + noise + SPOT_FRAME * frame
+          if (cost >= bestCost) continue
+          let free = true
+          for (const other of spots) {
+            if (apart(x, y, other.x, other.y) < SKY_GAP) {
+              free = false
+              break
+            }
+            if (Math.abs(x - other.x) < ROW_SPAN * GALAXY_CLEARANCE.x)
+              cost += SPOT_ROW * Math.max(0, 1 - Math.abs(y - other.y) / (ROW_BAND * GALAXY_CLEARANCE.y))
+          }
+          if (!free || cost >= bestCost) continue
+          spot = { x, y }
+          bestCost = cost
+        }
       }
+      // все пробы заняты (небо не ограничено, так что это теория) — правее всех
+      spot ??= { x: cents(x1 + SKY_GAP * GALAXY_CLEARANCE.x + 1), y: cents(midY) }
     }
-    if (!crowded) return true
-    for (let i = 0; i < n; i++) {
-      const dx = bodies[i].x + sx[i] - SKY_CENTER.x
-      const dy = bodies[i].y + sy[i] - SKY_CENTER.y
-      const out = (dx / rx) ** 2 + (dy / ry) ** 2
-      const back = out > 1 ? 1 / Math.sqrt(out) : 1
-      bodies[i].x = SKY_CENTER.x + dx * back
-      bodies[i].y = SKY_CENTER.y + dy * back
-    }
+    all.push(spot)
   }
-  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (separation(bodies[i], bodies[j]) < SKY_GAP) return false
-  return true
+  return all
 }
 
-/** Шаг сетки, по которой ищется свободное место галактике, налезшей на закреплённую. */
+/** Шаг сетки, по которой ищется свободное место галактике, которой не хватило воздуха. */
 const FREE_SPOT_STEP = 10
 const FREE_SPOT_RINGS = 2000
+/** Рядом с закреплённой раскладка терпит чуть меньше воздуха: закрепление по
+ * целым координатам (их показывает `place`) не должно сдвигать соседей. */
+const PIN_SLACK = 0.01
 
-/** Закреплённые галактики стоят где стоят, остальные — на своих местах россыпи.
- * Незакреплённая, которой закреплённая не оставила воздуха, переезжает в
- * ближайшую свободную точку: небо не ограничено, такая точка есть всегда.
- * Кому закреплённые не мешают, не двигается — закрепление галактики на её же
- * месте небо не меняет. */
-function settle(bodies: readonly Body[], pinned: ReadonlySet<string>): void {
-  const placed = bodies.filter((body) => pinned.has(body.id))
-  const moving: Body[] = []
-  // допуск: закреплённая точка округлена до сотых, россыпь — нет
-  for (const body of bodies) {
-    if (pinned.has(body.id)) continue
-    if (placed.some((pin) => separation(body, pin) < SKY_GAP - 0.01)) moving.push(body)
-  }
-  for (const body of bodies) if (!pinned.has(body.id) && !moving.includes(body)) placed.push(body)
-  for (const body of moving) {
-    const x0 = body.x
-    const y0 = body.y
-    let bestX = x0
-    let bestY = y0
-    let bestDist = Infinity
-    const tryAt = (ix: number, iy: number): void => {
-      const dist = ix * ix + iy * iy
-      if (dist >= bestDist) return
-      body.x = x0 + ix * FREE_SPOT_STEP
-      body.y = y0 + iy * FREE_SPOT_STEP
-      if (placed.some((other) => separation(body, other) < SKY_GAP)) return
-      bestX = body.x
-      bestY = body.y
-      bestDist = dist
-    }
-    // Квадратные кольца вокруг своей точки; нашлось в кольце k — до k·√2 может
-    // лежать точка ближе по прямой, дальше искать незачем.
-    let last = FREE_SPOT_RINGS
-    for (let ring = 1; ring <= last; ring++) {
-      for (let i = -ring; i <= ring; i++) {
-        tryAt(i, -ring)
-        tryAt(i, ring)
-      }
-      for (let i = -ring + 1; i < ring; i++) {
-        tryAt(-ring, i)
-        tryAt(ring, i)
-      }
-      if (bestDist < Infinity) last = Math.min(last, Math.ceil(ring * Math.SQRT2))
-    }
-    body.x = bestX
-    body.y = bestY
-    placed.push(body)
-  }
+/** Занятая точка неба: закреплена ли и до какого момента занята (архив). */
+interface Taken extends SkyPoint {
+  pinned: boolean
+  gone: number
 }
 
-/** Раскладка обзорного неба. Вселенная — горизонтальный овал, который растёт
- * вместе с небом: у каждой галактики своё место-овал (`galaxyFootprint`, растёт
- * с числом колец созвездия), между местами — воздух `SKY_GAP`, и размер
- * вселенной подбирается под их общую площадь. Небо не уплотняется и не
- * выстраивается в ряды: больше галактик — шире вселенная, а кадр обзора
- * (`skyView`) отъезжает, чтобы показать её целиком.
+/** Ближайшая к точке `from` точка, где месту галактики хватает воздуха до всех
+ * `taken`: небо не ограничено, такая точка есть всегда. */
+function freeSpotNear(from: SkyPoint, taken: readonly SkyPoint[]): SkyPoint {
+  let best = from
+  let bestDist = Infinity
+  const tryAt = (ix: number, iy: number): void => {
+    const dist = ix * ix + iy * iy
+    if (dist >= bestDist) return
+    const x = cents(from.x + ix * FREE_SPOT_STEP)
+    const y = cents(from.y + iy * FREE_SPOT_STEP)
+    if (taken.some((other) => apart(x, y, other.x, other.y) < SKY_GAP)) return
+    best = { x, y }
+    bestDist = dist
+  }
+  // Квадратные кольца вокруг своей точки; нашлось в кольце k — до k·√2 может
+  // лежать точка ближе по прямой, дальше искать незачем.
+  let last = FREE_SPOT_RINGS
+  for (let ring = 1; ring <= last; ring++) {
+    for (let i = -ring; i <= ring; i++) {
+      tryAt(i, -ring)
+      tryAt(i, ring)
+    }
+    for (let i = -ring + 1; i < ring; i++) {
+      tryAt(-ring, i)
+      tryAt(ring, i)
+    }
+    if (bestDist < Infinity) last = Math.min(last, Math.ceil(ring * Math.SQRT2))
+  }
+  return best
+}
+
+/** Раскладка обзорного неба. Галактики встают на небо по одной, в порядке
+ * создания навыков: каждая берёт свободное место рядом с уже стоящими
+ * (`naturalSpots`) и больше с него не уходит. Новая галактика небо не
+ * переставляет; новые звёзды — тоже: место у всех одного размера
+ * `GALAXY_CLEARANCE`, между местами воздух `SKY_GAP`. Небо не ограничено и не
+ * уплотняется: больше галактик — шире небо, кадр обзора (`skyView`) отъезжает.
  *
- * Галактики рассыпаются по овалу случайно, но детерминированно от набора id;
- * по кругу — в порядке hue, поворот — от id. Закреплённая (`skyPos`) встаёт
- * в свою точку, а её место в россыпи остаётся пустым: остальные не сдвигаются,
- * пока она им не мешает (`settle`). */
+ * Закреплённая (`skyPos`) стоит в своей точке, а её место остаётся пустым.
+ * Незакреплённая, которой закреплённые не оставили воздуха, отходит в ближайшую
+ * свободную точку; выбирают по порядку создания, так что и здесь новая
+ * галактика прежних не двигает. Архивной (`archivedAt`) на небе нет; её место —
+ * собственное или закреплённое — занято для галактик, созданных до архивации
+ * (они не сдвигаются), и свободно для созданных после. Поворот — от id. */
 export function constellationPlacements(skills: SkySkill[]): Map<string, SkyPlacement> {
   const byId = new Map(skills.map((skill) => [skill.id, skill]))
-  const unique = [...byId.values()]
   const result = new Map<string, SkyPlacement>()
-  if (!unique.length) return result
+  if (!byId.size) return result
 
-  const hueOf = (skill: SkySkill) => ((skill.hue % 360) + 360) % 360
-  const byHue = unique.sort((a, b) => hueOf(a) - hueOf(b) || a.id.localeCompare(b.id))
-  let hueStart = 0
-  let largestHueGap = -1
-  for (let i = 0; i < byHue.length; i++) {
-    const current = hueOf(byHue[i])
-    const next = i === byHue.length - 1 ? hueOf(byHue[0]) + 360 : hueOf(byHue[i + 1])
-    const gap = next - current
-    if (gap > largestHueGap) {
-      largestHueGap = gap
-      hueStart = (i + 1) % byHue.length
+  const queue = [...byId.values()]
+    .map((skill) => ({ skill, id: skill.id, born: momentOf(skill.createdAt, -Infinity), gone: momentOf(skill.archivedAt, Infinity) }))
+    .sort((a, b) => a.born - b.born || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  const spots = naturalSpots(queue)
+
+  // занятые точки: сначала все закреплённые, потом — незакреплённые по мере расстановки
+  const taken: Taken[] = []
+  for (const { skill, gone } of queue) if (skill.skyPos) taken.push({ ...skill.skyPos, pinned: true, gone })
+  const pins = taken.length
+
+  queue.forEach(({ skill, born, gone }, i) => {
+    let at = skill.skyPos
+    if (!at) {
+      at = spots[i]
+      // без закреплений все стоят на своих местах — воздух между ними уже есть
+      if (pins) {
+        const { x, y } = at
+        // ушедшие в архив до появления этой галактики ей не мешают
+        const around = taken.filter((other) => other.gone > born)
+        if (around.some((other) => apart(x, y, other.x, other.y) < (other.pinned ? SKY_GAP - PIN_SLACK : SKY_GAP)))
+          at = freeSpotNear(at, around)
+      }
+      taken.push({ x: at.x, y: at.y, pinned: false, gone })
     }
-  }
-  const ordered = [...byHue.slice(hueStart), ...byHue.slice(0, hueStart)]
-
-  const bodies = ordered.map(bodyOf)
-  const spots = scatterSpots(bodies.length, ordered.map(({ id }) => id).sort().join('|'))
-  let w = universeStart(bodies)
-  for (let attempt = 0; attempt < UNIVERSE_ATTEMPTS && !scatter(bodies, spots, w); attempt++) w *= UNIVERSE_GROWTH
-
-  const pinned = new Set<string>()
-  ordered.forEach((skill, i) => {
-    if (!skill.skyPos) return
-    pinned.add(skill.id)
-    bodies[i].x = skill.skyPos.x
-    bodies[i].y = skill.skyPos.y + bodies[i].drop
-  })
-  if (pinned.size > 0 && pinned.size < bodies.length) settle(bodies, pinned)
-
-  ordered.forEach((skill, i) => {
+    if (skill.archivedAt !== undefined) return
     const angleRng = mulberry32(hashStr(`sky-rotation:${skill.id}`))
     const rotation = Number(((angleRng() * 2 - 1) * 7).toFixed(2))
-    // закреплённая точка — ровно та, что в store; раскладка округляет свои до сотых
-    const at = skill.skyPos ?? { x: Number(bodies[i].x.toFixed(2)), y: Number((bodies[i].y - bodies[i].drop).toFixed(2)) }
     result.set(skill.id, { x: at.x, y: at.y, rotation })
   })
   return result

@@ -22,7 +22,7 @@ const RETIRED_QUEST_KEYS: readonly string[] = ['daysOfWeek']
 
 const SKILL_KEYS = {
   id: true, emoji: true, name: true, wantStatement: true, lore: true, hue: true, glyphId: true,
-  skyPos: true, archived: true, createdAt: true,
+  skyPos: true, archived: true, archivedAt: true, createdAt: true,
 } satisfies Record<keyof Skill, true>
 
 const STAR_KEYS = {

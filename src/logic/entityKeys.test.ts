@@ -38,7 +38,7 @@ const fullQuest: Required<Quest> = {
   dueDateHistory: [{ from: '2026-11-20', to: '2026-12-01', day: '2026-10-20', ts: 'T2', fee: 5 }],
   acceptedAt: 'T3', archivedAt: 'T4', createdAt: T0,
 }
-const fullSkill: Required<Skill> = { ...skill, id: 's_full', lore: 'школа', glyphId: 'g1', skyPos: { x: 400, y: 300 } }
+const fullSkill: Required<Skill> = { ...skill, id: 's_full', lore: 'школа', glyphId: 'g1', skyPos: { x: 400, y: 300 }, archivedAt: 'T6' }
 const fullStar: Required<StarComponent> = {
   ...star, id: 'c_full', parentStarId: 'c1', tier: 'C', criteria: 'прочитать вывеску', xpTarget: 100,
   litAt: 'T5', evidence: 'прочитал',
@@ -154,9 +154,9 @@ describe('редьюсер: лишние поля payload не оседают в
   it('addSkill/updateSkill: вычисляемые поля из `skills --json` отбрасываются, lore/glyphId живут', () => {
     const computed = { level: 3, into: 10, toNext: 200, ranks: { total: 2, achieved: 1 } }
     const added = reducer(base(), { type: 'addSkill', skill: withExtra(fullSkill, computed) })
-    // место на небе ставит только setSkyPos — skyPos из payload не оседает
-    const { skyPos: _sky, ...withoutSky } = fullSkill
-    expect(added.skills.find((x) => x.id === 's_full')).toEqual(withoutSky)
+    // место на небе ставит только setSkyPos, момент архивации — только archiveSkill: из payload они не оседают
+    const { skyPos: _sky, archivedAt: _gone, ...own } = fullSkill
+    expect(added.skills.find((x) => x.id === 's_full')).toEqual(own)
     expect(Object.keys(added.skills.find((x) => x.id === 's_full')!)).not.toContain('skyPos')
     const polluted = base({ skills: [withExtra(skill, computed)] })
     const updated = reducer(polluted, { type: 'updateSkill', skill: { ...skill, name: 'Тайский язык' } })
@@ -169,6 +169,22 @@ describe('редьюсер: лишние поля payload не оседают в
     expect(hidden.skills[0]).toEqual({ ...skill, name: 'Новое' })
     const archived = base({ skills: [{ ...skill, archived: true }] })
     expect(reducer(archived, { type: 'updateSkill', skill: { ...skill, archived: false } }).skills[0].archived).toBe(true)
+  })
+
+  it('archivedAt — момент архивации: пишет только archiveSkill, один раз; правка навыка и addSkill его не трогают', () => {
+    const s = base({ quests: [] }) // активный контракт держал бы архив
+    const gone = reducer(s, { type: 'archiveSkill', skillId: skill.id, ts: 'T7' })
+    expect(gone.skills[0]).toEqual({ ...skill, archived: true, archivedAt: 'T7' })
+    // повтор по архивному навыку момент не сдвигает
+    expect(reducer(gone, { type: 'archiveSkill', skillId: skill.id, ts: 'T8' })).toEqual(gone)
+    // без ts архив работает как раньше — момента просто нет
+    expect(reducer(s, { type: 'archiveSkill', skillId: skill.id }).skills[0]).toEqual({ ...skill, archived: true })
+    // правка навыка момент не стирает и не подделывает
+    const edited = reducer(gone, { type: 'updateSkill', skill: { ...skill, name: 'Новое', archivedAt: 'T9' } })
+    expect(edited.skills[0]).toEqual({ ...skill, name: 'Новое', archived: true, archivedAt: 'T7' })
+    expect(reducer(s, { type: 'updateSkill', skill: { ...skill, archivedAt: 'T9' } }).skills[0]).toEqual(skill)
+    const added = reducer(s, { type: 'addSkill', skill: { ...skill, id: 's_new', archivedAt: 'T9' } })
+    expect(added.skills[1]).toEqual({ ...skill, id: 's_new' })
   })
 
   it('updateSkill чужого id — тот же store', () => {
