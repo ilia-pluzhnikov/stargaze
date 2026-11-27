@@ -1037,9 +1037,17 @@ button.chronicle-quest-title:focus-visible { outline: 2px solid var(--accent); o
 }
 .modal .hint { color: var(--faint); font-size: 12px; margin-top: 8px; }
 .modal .err { color: var(--danger); font-size: 12.5px; margin-top: 8px; }
-.glyph-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; min-width: 0; }
+/* Глифы по темам: в теме до 5 глифов, темы — в две колонки, чтобы форма не вытягивалась */
+.glyph-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.glyph-none { font-size: 12px; color: var(--faint); padding: 2px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.glyph-none:hover { color: var(--dim); border-color: var(--line-hover); }
+.glyph-none.on { color: var(--ink); border-color: var(--accent); background: rgba(255, 119, 21, 0.1); }
+.glyph-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.glyph-group-name { color: var(--faint); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+@media (max-width: 420px) { .glyph-groups { grid-template-columns: 1fr; } }
+.glyph-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; min-width: 0; }
 .glyph-cell {
-  aspect-ratio: 1; padding: 4px; min-width: 0;
+  aspect-ratio: 1; padding: 3px; min-width: 0;
   background: var(--card);
   border: 1px solid var(--line); border-radius: var(--radius-sm);
   color: var(--dim); cursor: pointer;

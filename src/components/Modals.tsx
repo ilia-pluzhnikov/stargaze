@@ -8,7 +8,7 @@ import { migrateStore } from '../logic/migrate'
 import { validateStore } from '../logic/validate'
 import { childrenOf, skillStars } from '../logic/stars'
 import { rarityVar, sky } from './skyColors'
-import { SKY_GLYPHS } from './skyGlyphs'
+import { SKY_GLYPH_GROUPS, SKY_GLYPHS, glyphById } from './skyGlyphs'
 
 /* ── Квест ─────────────────────────────────────── */
 
@@ -421,6 +421,7 @@ export function SkillModal({ initial, onSave, onClose }: SkillModalProps) {
   const [want, setWant] = useState(initial?.wantStatement ?? '')
   const [hue, setHue] = useState<number>(initial?.hue ?? Math.floor(Math.random() * 360))
   const [glyphId, setGlyphId] = useState<string | undefined>(initial?.glyphId)
+  const glyph = glyphById(glyphId)
   const [err, setErr] = useState<string | null>(null)
 
   const save = () => {
@@ -475,23 +476,33 @@ export function SkillModal({ initial, onSave, onClose }: SkillModalProps) {
           </div>
         </div>
         <div className="field">
-          <label>Глиф созвездия</label>
-          <div className="glyph-grid">
-            <button type="button" className={glyphId === undefined ? 'glyph-cell on' : 'glyph-cell'}
-              onClick={() => setGlyphId(undefined)} title="Без глифа">—</button>
-            {SKY_GLYPHS.map((g) => (
-              <button type="button" key={g.id} className={glyphId === g.id ? 'glyph-cell on' : 'glyph-cell'}
-                onClick={() => setGlyphId(g.id)} title={g.name}>
-                <svg viewBox="230 150 560 660" aria-hidden>
-                  <g fill="none" stroke="currentColor" strokeWidth={16} strokeLinecap="round" strokeLinejoin="round">
-                    {g.paths.map((d, i) => (
-                      <path key={i} d={d} />
-                    ))}
-                  </g>
-                </svg>
-              </button>
+          <div className="glyph-head">
+            <label>Глиф созвездия</label>
+            <button type="button" className={glyphId === undefined ? 'glyph-none on' : 'glyph-none'}
+              onClick={() => setGlyphId(undefined)}>без глифа</button>
+          </div>
+          <div className="glyph-groups">
+            {SKY_GLYPH_GROUPS.map((grp) => (
+              <div key={grp.id}>
+                <div className="glyph-group-name" title={grp.about}>{grp.name}</div>
+                <div className="glyph-grid">
+                  {SKY_GLYPHS.filter((g) => g.group === grp.id).map((g) => (
+                    <button type="button" key={g.id} className={glyphId === g.id ? 'glyph-cell on' : 'glyph-cell'}
+                      onClick={() => setGlyphId(g.id)} title={`${g.name} — ${g.meaning}`} aria-label={g.name}>
+                      <svg viewBox="230 150 560 660" aria-hidden>
+                        <g fill="none" stroke="currentColor" strokeWidth={16} strokeLinecap="round" strokeLinejoin="round">
+                          {g.paths.map((d, i) => (
+                            <path key={i} d={d} />
+                          ))}
+                        </g>
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
+          <div className="hint">{glyph ? `${glyph.name} — ${glyph.meaning}` : 'Без глифа — только звёзды'}</div>
         </div>
         {err && <div className="err">{err}</div>}
         <div className="modal-actions">
