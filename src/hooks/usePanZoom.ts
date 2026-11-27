@@ -35,11 +35,24 @@ function frameOf(svg: SVGSVGElement): Frame | null {
   return frame.width > 0 && frame.height > 0 ? frame : null
 }
 
-export function usePanZoom(worldW: number, worldH: number): PanZoom {
-  const [vb, setVb] = useState<ViewBox>({ x: 0, y: 0, w: worldW, h: worldH })
+/** Полный вид мира — прямоугольник `worldW`×`worldH` с началом в (`worldX`, `worldY`);
+ *  `baseW` — ширина кадра натурального масштаба (предел приближения, см. `World.base`).
+ *  Мир сменился (небо выросло, и обзор теперь другой) — кадр возвращается к полному виду. */
+export function usePanZoom(worldW: number, worldH: number, worldX = 0, worldY = 0, baseW = worldW): PanZoom {
+  const world = useMemo(
+    () => ({ x: worldX, y: worldY, w: worldW, h: worldH, base: baseW }),
+    [worldX, worldY, worldW, worldH, baseW],
+  )
+  const [view, setView] = useState<{ world: ViewBox; vb: ViewBox }>({ world, vb: world })
+  // Сброс при смене мира — прямо в рендере: эффект показал бы один кадр со старым видом.
+  if (view.world !== world) setView({ world, vb: world })
+  const vb = view.world === world ? view.vb : world
+  const setVb = useCallback(
+    (next: (v: ViewBox) => ViewBox) => setView((s) => (s.world === world ? { world, vb: next(s.vb) } : { world, vb: next(world) })),
+    [world],
+  )
   const [isPanning, setIsPanning] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
-  const world = useMemo(() => ({ w: worldW, h: worldH }), [worldW, worldH])
   const pointers = useRef(new Map<number, Point>()) // указатели, прижатые к небу, в экранных координатах
   const moved = useRef(false) // жест перестал быть кликом: сдвиг дальше допуска или второй палец
   const suppressClick = useRef(false)
@@ -58,7 +71,7 @@ export function usePanZoom(worldW: number, worldH: number): PanZoom {
     }
     svg.addEventListener('wheel', onWheel, { passive: false })
     return () => svg.removeEventListener('wheel', onWheel)
-  }, [world])
+  }, [world, setVb])
 
   const onPointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return
@@ -105,7 +118,7 @@ export function usePanZoom(worldW: number, worldH: number): PanZoom {
       if (!frame) return
       setVb((v) => gestureView(v, frame, world, before, after))
     },
-    [world],
+    [world, setVb],
   )
 
   const endPointer = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
@@ -125,8 +138,8 @@ export function usePanZoom(worldW: number, worldH: number): PanZoom {
     e.preventDefault()
   }, [])
 
-  const isMoved = vb.x !== 0 || vb.y !== 0 || vb.w !== worldW
-  const reset = useCallback(() => setVb({ x: 0, y: 0, w: worldW, h: worldH }), [worldW, worldH])
+  const isMoved = vb.x !== world.x || vb.y !== world.y || vb.w !== world.w
+  const reset = useCallback(() => setVb(() => world), [world, setVb])
 
   return {
     svgRef,

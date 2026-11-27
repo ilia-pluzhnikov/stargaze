@@ -336,7 +336,7 @@ describe('API: экономика искр', () => {
       const again = await post(base, { type: 'setSkyPos', skillId: 's1', pos: { x: 400, y: 300 } })
       expect(again.headers.get('stargaze-applied')).toBe('0')
       const before = readFileSync(storePath, 'utf8')
-      const outside = await post(base, { type: 'setSkyPos', skillId: 's1', pos: { x: 2000, y: 300 } })
+      const outside = await post(base, { type: 'setSkyPos', skillId: 's1', pos: { x: 20000, y: 300 } })
       expect(outside.status).toBe(422)
       expect(((await outside.json()) as { error: string }).error).toContain('skyPos')
       expect((await post(base, { type: 'setSkyPos', id: 's1', pos: { x: 1, y: 2 } })).status).toBe(400)

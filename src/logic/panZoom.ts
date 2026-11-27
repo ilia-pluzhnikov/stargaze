@@ -22,9 +22,16 @@ export interface Frame {
   height: number
 }
 
+/** Мир, по которому ходит кадр: его полный вид. Начало — (x, y), по умолчанию (0, 0). */
 export interface World {
   w: number
   h: number
+  x?: number
+  y?: number
+  /** Ширина кадра натурального масштаба. Предел приближения считается от неё,
+   * если мир шире: выросшее небо можно приблизить так же близко, как маленькое.
+   * По умолчанию — ширина мира. */
+  base?: number
 }
 
 export const MAX_ZOOM_IN = 5 // во сколько раз можно приблизить относительно полного вида
@@ -33,9 +40,11 @@ const MIN_PINCH_SPAN_PX = 1 // пальцы в одной точке масшт�
 
 /** Центр кадра не выпускаем за границы мира — небо нельзя утащить в пустоту насовсем. */
 export function clampView(v: ViewBox, world: World): ViewBox {
+  const x0 = world.x ?? 0
+  const y0 = world.y ?? 0
   return {
-    x: Math.min(Math.max(v.x, -v.w / 2), world.w - v.w / 2),
-    y: Math.min(Math.max(v.y, -v.h / 2), world.h - v.h / 2),
+    x: Math.min(Math.max(v.x, x0 - v.w / 2), x0 + world.w - v.w / 2),
+    y: Math.min(Math.max(v.y, y0 - v.h / 2), y0 + world.h - v.h / 2),
     w: v.w,
     h: v.h,
   }
@@ -54,7 +63,8 @@ export function toWorld(v: ViewBox, frame: Frame, p: Point): Point {
  *  Колесо — `from === to`, драг — `factor = 1`, щипок — и то и другое разом. */
 export function moveView(v: ViewBox, frame: Frame, world: World, from: Point, to: Point, factor = 1): ViewBox {
   const scale = Number.isFinite(factor) && factor > 0 ? factor : 1
-  const w = Math.min(Math.max(v.w * scale, world.w / MAX_ZOOM_IN), world.w / MAX_ZOOM_OUT)
+  const closest = Math.min(world.w, world.base ?? world.w) / MAX_ZOOM_IN
+  const w = Math.min(Math.max(v.w * scale, closest), world.w / MAX_ZOOM_OUT)
   const k = w / v.w
   if (k === 1 && from.x === to.x && from.y === to.y) return v
   const held = toWorld(v, frame, from)

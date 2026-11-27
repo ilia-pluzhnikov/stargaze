@@ -1,7 +1,7 @@
 import type { LedgerEvent, Quest, StarComponent, Store, WishlistItem, XpEvent } from '../types'
 import { TIERS, WISHLIST_EMOJI_MAX } from '../types'
 import { isCalendarDay } from './dates'
-import { SKY_H, SKY_W } from './layout'
+import { SKY_REACH } from './layout'
 import { isGameTzOffset, XP_REWARD_MAX } from './sparks'
 
 // Техническая целостность store. Чистая: работает в браузере (import) и в node
@@ -19,9 +19,9 @@ const isObj = (x: unknown): x is Record<string, unknown> =>
 const isStr = (x: unknown): x is string => typeof x === 'string'
 const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
 const isInt = (x: unknown): x is number => isNum(x) && Number.isInteger(x)
-/** Точка мира неба 1800×1000 (`logic/layout.ts`): закрепление галактики. */
+/** Точка неба (`logic/layout.ts`) в пределах ±`SKY_REACH`: закрепление галактики. */
 const isSkyPos = (x: unknown): boolean =>
-  isObj(x) && isNum(x.x) && isNum(x.y) && x.x >= 0 && x.x <= SKY_W && x.y >= 0 && x.y <= SKY_H
+  isObj(x) && isNum(x.x) && isNum(x.y) && Math.abs(x.x) <= SKY_REACH && Math.abs(x.y) <= SKY_REACH
 // деньги (цены, суммы ledger) — только точная целочисленная арифметика
 const isSafeInt = (x: unknown): x is number => isNum(x) && Number.isSafeInteger(x)
 
@@ -70,7 +70,7 @@ export function validateStore(x: unknown): string[] {
     if (s.glyphId !== undefined && !isStr(s.glyphId))
       errors.push(`skills[${i}] (${s.id}): glyphId — не строка`)
     if (s.skyPos !== undefined && !isSkyPos(s.skyPos))
-      errors.push(`skills[${i}] (${s.id}): skyPos — ожидается { x: 0…${SKY_W}, y: 0…${SKY_H} }`)
+      errors.push(`skills[${i}] (${s.id}): skyPos — ожидается { x, y } в пределах ±${SKY_REACH}`)
   })
 
   const starById = new Map(stars.map((c) => [c.id, c]))

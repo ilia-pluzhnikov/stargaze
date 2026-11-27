@@ -145,8 +145,9 @@ export interface SkillRow {
   ranks: { total: number; achieved: number }
   hue: number // оттенок галактики, как в store
   glyphId?: string // глиф созвездия, как в store; у навыка без глифа ключа нет
-  /** Где галактика стоит на обзорном небе (мир 1800×1000): фактическая точка
-   * раскладки; pinned — место закреплено в store (`skyPos`, действие setSkyPos). */
+  /** Где галактика стоит на обзорном небе: фактическая точка раскладки в
+   * координатах неба (небо не ограничено, кадр обзора подстраивается под него);
+   * pinned — место закреплено в store (`skyPos`, действие setSkyPos). */
   sky: { x: number; y: number; pinned: boolean }
 }
 
@@ -154,7 +155,7 @@ export interface SkillRow {
  * Облик — поля навыка как есть: необязательный glyphId без значения в строку
  * не попадает (ключа нет, не null) — как необязательные поля квестов и звёзд. */
 export function skillsView(store: Store): SkillRow[] {
-  const placements = constellationPlacements(skySkillsOf(store.skills))
+  const placements = constellationPlacements(skySkillsOf(store.skills, store.stars))
   return store.skills.filter((sk) => !sk.archived).map((sk) => {
     const info = skillLevel(skillXpTotal(store.xpLog, sk.id))
     const place = placements.get(sk.id)!

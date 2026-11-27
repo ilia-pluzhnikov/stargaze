@@ -250,7 +250,7 @@ describe('skillsView / ranksView / starsView', () => {
     ],
   })
   it('skillsView: архив выпадает, имя с эмодзи, ранги сводкой, облик — hue и glyphId как в store', () => {
-    const sky = constellationPlacements(skySkillsOf(s.skills))
+    const sky = constellationPlacements(skySkillsOf(s.skills, s.stars))
     const at = (id: string) => ({ x: sky.get(id)!.x, y: sky.get(id)!.y, pinned: false })
     expect(skillsView(s)).toEqual([
       { id: 's_run', name: '🏃 Бег', level: 1, into: 0, toNext: 100, ranks: { total: 2, achieved: 1 }, hue: 210, glyphId: 'delta', sky: at('s_run') },
@@ -262,7 +262,7 @@ describe('skillsView / ranksView / starsView', () => {
     const rows = skillsView(pinned)
     expect(rows.map((r) => r.id)).toEqual(['s_a', 's_b'])
     expect(rows[0].sky).toEqual({ x: 300, y: 700, pinned: true })
-    const auto = constellationPlacements([{ id: 's_a', hue: 10, name: '', skyPos: { x: 300, y: 700 } }, { id: 's_b', hue: 200, name: '' }]).get('s_b')!
+    const auto = constellationPlacements(skySkillsOf(pinned.skills, pinned.stars)).get('s_b')!
     expect(rows[1].sky).toEqual({ x: auto.x, y: auto.y, pinned: false })
   })
   it('skillsView: прежние поля — в прежнем порядке, облик дописан в конец; без глифа ключа glyphId нет', () => {

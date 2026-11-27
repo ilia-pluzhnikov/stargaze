@@ -1,4 +1,4 @@
-import { flightCamera, mixPose, smooth } from './sky3d'
+import { ORBIT_MAX_DISTANCE, flightCamera, mixPose, smooth } from './sky3d'
 import type { FlightPlan, OrbitPose } from './sky3d'
 
 // Пилот 3D-неба: кто ведёт камеру — автопролёт или человек. Чистые функции от
@@ -30,10 +30,11 @@ export interface Pilot {
 }
 
 /** Пределы ручной камеры. Небо всегда видно «спереди»: сбоку созвездия вырождаются в
- * линию, сзади — зеркальны; дальше MAX_DISTANCE небо превращается в точку. */
+ * линию, сзади — зеркальны. Дальний предел — в плане облёта (`FlightPlan.maxDistance`):
+ * `ORBIT_MAX_DISTANCE`, пока небо в него помещается, и обзор всего неба с запасом, когда выросло. */
 export const ORBIT_YAW_MAX = 1.25
 export const ORBIT_PITCH_MAX = 0.85
-export const ORBIT_MAX_DISTANCE = 2600
+export { ORBIT_MAX_DISTANCE }
 /** Секунд покоя, после которых автопролёт продолжается сам. */
 export const RESUME_IDLE_SEC = 30
 /** Секунд на плавный возврат от ручной позы к автопролёту. */
@@ -47,7 +48,7 @@ const copyPose = ({ target, distance, yaw, pitch }: OrbitPose): OrbitPose => ({ 
 function limited(pose: OrbitPose, plan: FlightPlan, stopIndex: number): OrbitPose {
   return {
     target: pose.target,
-    distance: clamp(pose.distance, plan.stops[stopIndex].minDistance, ORBIT_MAX_DISTANCE),
+    distance: clamp(pose.distance, plan.stops[stopIndex].minDistance, plan.maxDistance),
     yaw: clamp(pose.yaw, -ORBIT_YAW_MAX, ORBIT_YAW_MAX),
     pitch: clamp(pose.pitch, -ORBIT_PITCH_MAX, ORBIT_PITCH_MAX),
   }

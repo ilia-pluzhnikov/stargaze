@@ -1345,13 +1345,23 @@ describe('cli: место галактики на небе (place)', () => {
     expect(run(['place', 'sk_health', '--auto'], p).code).toBe(0)
   })
 
+  it('небо не ограничено кадром: точка за прежним миром 1800×1000 и с минусом (после --) закрепляется', () => {
+    const p = tmpStore()
+    expect(run(['place', 'sk_health', '2600', '1400'], p).code).toBe(0)
+    expect(loadStore(p).skills.find((sk) => sk.id === 'sk_health')!.skyPos).toEqual({ x: 2600, y: 1400 })
+    const r = run(['place', 'sk_health', '--store', p, '--', '-300', '2400.5'])
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/Здоровье: закреплена в \(-300, 240[01]\)$/)
+    expect(loadStore(p).skills.find((sk) => sk.id === 'sk_health')!.skyPos).toEqual({ x: -300, y: 2400.5 })
+  })
+
   it('точка вне неба и кривые аргументы — код 2 с причиной, store не тронут', () => {
     const p = tmpStore()
     const before = readFileSync(p, 'utf8')
-    for (const [x, y] of [['1801', '10'], ['10', '1000.5'], ['abc', '10'], ['', '10']]) {
+    for (const [x, y] of [['10001', '10'], ['10', '10000.5'], ['abc', '10'], ['', '10'], ['Infinity', '5']]) {
       const r = run(['place', 'sk_health', x, y], p)
       expect(r.code, `${x},${y}`).toBe(2)
-      expect(r.err).toMatch(/вне неба: x 0…1800, y 0…1000/)
+      expect(r.err).toMatch(/вне неба: x и y — числа в пределах ±10000/)
     }
     expect(run(['place', 'sk_health', '400'], p).code).toBe(2)
     expect(run(['place', 'sk_health', '400', '300', '--auto'], p).code).toBe(2)

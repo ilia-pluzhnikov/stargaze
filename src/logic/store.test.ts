@@ -600,13 +600,13 @@ describe('место галактики на небе: setSkyPos', () => {
   })
 
   it('негодная точка доходит до validateStore и отвергается им (422 у API)', () => {
-    for (const pos of [{ x: -1, y: 10 }, { x: 10, y: 1001 }, { x: 1801, y: 0 }, { x: NaN, y: 5 }, { x: '400', y: 300 }, { y: 300 }, {}, { X: 900, Y: 480 }]) {
+    for (const pos of [{ x: -10001, y: 10 }, { x: 10, y: 10000.5 }, { x: 1e9, y: 0 }, { x: NaN, y: 5 }, { x: Infinity, y: 5 }, { x: '400', y: 300 }, { y: 300 }, {}, { X: 900, Y: 480 }]) {
       const errors = validateStore(place(base(), 's1', pos))
       expect(errors, JSON.stringify(pos)).toEqual([expect.stringMatching(/skyPos — ожидается/)])
     }
-    // края мира — годные точки
-    expect(validateStore(place(base(), 's1', { x: 0, y: 1000 }))).toEqual([])
-    expect(validateStore(place(base(), 's1', { x: 1800, y: 0 }))).toEqual([])
+    // небо не ограничено кадром: годится любая точка в пределах ±SKY_REACH, и за прежним кадром 1800×1000
+    expect(validateStore(place(base(), 's1', { x: -10000, y: 10000 }))).toEqual([])
+    expect(validateStore(place(base(), 's1', { x: 2600, y: -340.5 }))).toEqual([])
   })
 
   it('updateSkill не стирает и не меняет закрепление; addSkill его не заводит', () => {

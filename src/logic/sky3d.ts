@@ -1,13 +1,13 @@
 import type { SkyStore, Tier } from '../types'
-import { CONST_H, CONST_W, SKY_H, SKY_W, constellationPlacements, hashStr, layoutConstellation, mulberry32, skySkillsOf } from './layout'
+import { CONST_H, CONST_W, SKY_MAX_ZOOM, constellationPlacements, hashStr, layoutConstellation, mulberry32, skySkillsOf, skyView } from './layout'
 import { skillStars } from './stars'
 import { constellationAsOf } from './timeline'
 
 // 3D-небо: то же небо, что на обзоре, плюс глубина. Чистая математика без DOM —
 // сцена, облёт камеры и проекция. Всё детерминировано: третья координата — seeded
 // PRNG от id сущностей (как раскладка неба), камера — функция времени, без случайности.
-// Мир — в единицах обзорного неба (SKY_W×SKY_H), начало в центре, ось y вниз (как на
-// экране), z — от зрителя вглубь.
+// Мир — в единицах обзорного неба, начало в центре кадра обзора (`skyView`), ось y вниз
+// (как на экране), z — от зрителя вглубь.
 
 export interface Vec3 {
   x: number
@@ -60,16 +60,20 @@ const seeded = (key: string): number => mulberry32(hashStr(key))()
  * видимость и свет — по `store`: в режиме истории store — проекция прошлого, галактики
  * и звёзды стоят на сегодняшних местах. Архивные навыки не рисуются. */
 export function buildSkyScene(store: SkyStore, layoutFrom: SkyStore = store): SkyScene3D {
-  const placements = constellationPlacements(skySkillsOf(layoutFrom.skills))
+  const skySkills = skySkillsOf(layoutFrom.skills, layoutFrom.stars)
+  const placements = constellationPlacements(skySkills)
+  // Небо растёт вместе с числом галактик — центр и размах сцены берутся из кадра обзора.
+  const view = skyView(skySkills, placements)
+  const origin = { x: view.x + view.w / 2, y: view.y + view.h / 2 }
   const galaxies: SkyGalaxy3D[] = []
-  let sceneRadius = Math.hypot(SKY_W, SKY_H) / 2
+  let sceneRadius = Math.hypot(view.w, view.h) / 2
   for (const skill of store.skills) {
     if (skill.archived) continue
     const place = placements.get(skill.id)
     if (!place) continue // предусловие store ⊆ layoutFrom нарушено — такой навык некуда ставить
     const center: Vec3 = {
-      x: place.x - SKY_W / 2,
-      y: place.y - SKY_H / 2,
+      x: place.x - origin.x,
+      y: place.y - origin.y,
       z: (seeded(`sky3d-depth:${skill.id}`) * 2 - 1) * SKY_DEPTH,
     }
     const rot = (place.rotation * Math.PI) / 180
@@ -138,6 +142,8 @@ export interface FlightPlan {
   travelSec: number
   /** Период облёта: камера в t и t + loopSec совпадает. */
   loopSec: number
+  /** Дальше этого ручную камеру не отвести: обзор всего неба с запасом. */
+  maxDistance: number
 }
 
 export interface FlightFrame extends OrbitPose {
@@ -153,8 +159,14 @@ export interface FlightFrame extends OrbitPose {
 
 export const FLIGHT_HOLD_SEC = 15
 export const FLIGHT_TRAVEL_SEC = 7
-/** Дистанция обзорного плана: небо целиком помещается в кадр 16:9 (см. FOCAL_K). */
+/** Дистанция обзорного плана для неба в кадр масштаба 1 (двенадцать больших галактик).
+ * Обзор считается по самим галактикам (`overviewDistance`); ближе, чем на эту дистанцию,
+ * делённую на `SKY_MAX_ZOOM`, он не подходит и к маленькому небу — как обзор 2D. */
 const OVERVIEW_DISTANCE = 1200
+/** Кадр, под который считается обзор: телевизор 16:9. */
+const OVERVIEW_ASPECT = 16 / 9
+/** Дальний предел ручной камеры, пока небо в него помещается (дальше оно превращается в точку). */
+export const ORBIT_MAX_DISTANCE = 2600
 /** Дистанция до галактики в её радиусах: фигура занимает около двух третей кадра. */
 const GALAXY_DISTANCE_K = 3.3
 /** Ближний предел у галактики в её радиусах: камера остаётся снаружи сферы звёзд. */
@@ -174,10 +186,11 @@ const TRAVEL_PULLBACK = 0.45
 /** Маршрут облёта: обзор всего неба, затем галактики по кругу (по углу вокруг центра
  * неба — соседние остановки рядом, перелёты короткие), и снова обзор. */
 export function flightPlan(scene: SkyScene3D): FlightPlan {
+  const overview = overviewDistance(scene.galaxies)
   const tour = [...scene.galaxies].sort((a, b) =>
     Math.atan2(a.center.y, a.center.x) - Math.atan2(b.center.y, b.center.x) || a.id.localeCompare(b.id))
   const stops: FlightStop[] = [
-    { target: { x: 0, y: 0, z: 0 }, distance: OVERVIEW_DISTANCE, minDistance: OVERVIEW_MIN_DISTANCE, galaxyId: null },
+    { target: { x: 0, y: 0, z: 0 }, distance: overview, minDistance: OVERVIEW_MIN_DISTANCE, galaxyId: null },
     ...tour.map((g) => ({
       target: g.center, distance: g.radius * GALAXY_DISTANCE_K, minDistance: g.radius * GALAXY_MIN_DISTANCE_K, galaxyId: g.id,
     })),
@@ -187,7 +200,37 @@ export function flightPlan(scene: SkyScene3D): FlightPlan {
     holdSec: FLIGHT_HOLD_SEC,
     travelSec: FLIGHT_TRAVEL_SEC,
     loopSec: stops.length * (FLIGHT_HOLD_SEC + FLIGHT_TRAVEL_SEC),
+    // выросшее небо видно целиком и из рук: предел — дальше всего, куда заходит автопролёт
+    // (дальняя точка обзорной остановки и отход в перелёте), иначе перехват дёрнул бы камеру
+    maxDistance: Math.max(ORBIT_MAX_DISTANCE, overview * HOLD_FAR * (1 + TRAVEL_PULLBACK)),
   }
+}
+
+/** Дистанция обзорной остановки: центры всех галактик в кадре 16:9, пока камера стоит у
+ * остановки, — при её покачивании и наезде от `HOLD_FAR` до `HOLD_NEAR`. Небо выросло — камера отходит;
+ * маленькое небо — подходит, но не ближе обзора 2D (`SKY_MAX_ZOOM`): иначе глубина неба
+ * (`SKY_DEPTH`) раздувает ближние галактики. */
+function overviewDistance(galaxies: readonly SkyGalaxy3D[]): number {
+  const tanY = 0.5 / FOCAL_K
+  const tanX = tanY * OVERVIEW_ASPECT
+  const origin: Vec3 = { x: 0, y: 0, z: 0 }
+  const step = FLIGHT_HOLD_SEC + FLIGHT_TRAVEL_SEC
+  const SAMPLES = 30
+  let distance = OVERVIEW_DISTANCE / SKY_MAX_ZOOM
+  for (let i = 0; i <= SAMPLES; i++) {
+    const local = (FLIGHT_HOLD_SEC * i) / SAMPLES
+    const phase = (2 * Math.PI * local) / step
+    const eye = orbitEye({ target: origin, distance: 1, yaw: YAW_SWING * Math.sin(phase), pitch: PITCH_SWING * Math.cos(phase) })
+    const { right, up, forward } = cameraBasis({ eye, target: origin }, OVERVIEW_ASPECT, 1)
+    const zoom = lerp(HOLD_FAR, HOLD_NEAR, local / FLIGHT_HOLD_SEC)
+    for (const g of galaxies) {
+      // точка в кадре, пока её смещение вбок не больше глубины × тангенс полуугла обзора
+      const along = dot(g.center, forward)
+      const need = Math.max(Math.abs(dot(g.center, right)) / tanX, Math.abs(dot(g.center, up)) / tanY) - along
+      distance = Math.max(distance, need / zoom)
+    }
+  }
+  return distance
 }
 
 /** Плавный ход 0..1 с нулевой скоростью на концах. */

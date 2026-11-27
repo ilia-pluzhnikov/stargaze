@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { TIERS } from '../types'
 import type { Skill, SkyStore, StarComponent } from '../types'
-import { SKY_H, SKY_W, constellationPlacements, skySkillsOf } from '../logic/layout'
+import { SKY_W, constellationPlacements, skySkillsOf, skyView } from '../logic/layout'
 import { usePanZoom } from '../hooks/usePanZoom'
 import { Galaxy } from './Galaxy'
 import { displaySkillName } from './GalaxyHud'
@@ -31,18 +31,21 @@ interface StarHover {
 }
 
 export function Sky({ store, layoutFrom, onOpenGalaxy, onOpenHistory, onOpen3d }: Props) {
-  const pz = usePanZoom(SKY_W, SKY_H)
   const [hover, setHover] = useState<StarHover | null>(null)
+  const layout = layoutFrom ?? store
+  const skills = useMemo(() => store.skills.filter((s) => !s.archived), [store.skills])
+  // Раскладка, кадр и фон — по сегодняшнему набору: места зависят от числа навыков, их hue
+  // и колец созвездий, иначе при движении по времени галактики прыгают, а фон плывёт
+  const layoutSkills = useMemo(() => layout.skills.filter((s) => !s.archived), [layout.skills])
+  const skySkills = useMemo(() => skySkillsOf(layoutSkills, layout.stars), [layoutSkills, layout.stars])
+  const placements = useMemo(() => constellationPlacements(skySkills), [skySkills])
+  // Обзор — всё небо целиком: кадр растёт вместе с небом, галактики не уплотняются
+  const view = useMemo(() => skyView(skySkills, placements), [skySkills, placements])
+  const pz = usePanZoom(view.w, view.h, view.x, view.y, SKY_W)
   // Пан уводит звёзды из-под курсора — иначе после отпускания остаётся устаревший тултип.
   useEffect(() => {
     if (pz.isPanning) setHover(null)
   }, [pz.isPanning])
-  const layout = layoutFrom ?? store
-  const skills = useMemo(() => store.skills.filter((s) => !s.archived), [store.skills])
-  // Раскладка и фон — по сегодняшнему набору: слоты зависят от числа навыков и их hue,
-  // иначе при движении по времени галактики прыгают, а фон плывёт
-  const layoutSkills = useMemo(() => layout.skills.filter((s) => !s.archived), [layout.skills])
-  const placements = useMemo(() => constellationPlacements(skySkillsOf(layoutSkills)), [layoutSkills])
   const backdropHue = layoutSkills.length
     ? Math.round(layoutSkills.reduce((sum, skill) => sum + skill.hue, 0) / layoutSkills.length)
     : 230
