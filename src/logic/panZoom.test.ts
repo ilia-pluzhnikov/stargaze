@@ -78,6 +78,37 @@ describe('clampView', () => {
     const v: ViewBox = { x: 120, y: 80, w: 400, h: 240 }
     expect(clampView(v, world)).toEqual(v)
   })
+
+  it('мир со смещённым началом (обзор выросшего неба): центр кадра не выходит за его края', () => {
+    const shifted = { x: -200, y: 300, w: 1000, h: 600 }
+    const inside: ViewBox = { x: -150, y: 350, w: 400, h: 240 }
+    expect(clampView(inside, shifted)).toEqual(inside)
+    expect(clampView({ x: -900, y: -50, w: 400, h: 240 }, shifted)).toEqual({ x: -400, y: 180, w: 400, h: 240 })
+    expect(clampView({ x: 900, y: 1200, w: 400, h: 240 }, shifted)).toEqual({ x: 600, y: 780, w: 400, h: 240 })
+  })
+
+  it('зум и пан в смещённом мире держат точку под курсором и пределы зума — от ширины мира', () => {
+    const shifted = { x: -200, y: 300, w: 1000, h: 600 }
+    const start: ViewBox = { x: -200, y: 300, w: 1000, h: 600 }
+    const cursor = at(100, 260)
+    const held = toWorld(start, frame, cursor)
+    const v = moveView(start, frame, shifted, cursor, cursor, 0.5)
+    expect(v.w).toBe(500)
+    expectPoint(toWorld(v, frame, cursor), held)
+    expect(moveView(start, frame, shifted, cursor, cursor, 1e-6).w).toBeCloseTo(1000 / MAX_ZOOM_IN, 6)
+    expect(moveView(start, frame, shifted, cursor, cursor, 1e6).w).toBeCloseTo(1000 / MAX_ZOOM_OUT, 6)
+  })
+
+  it('мир шире натурального кадра (выросшее небо): приблизить можно так же близко, как маленькое', () => {
+    const cursor = at(100, 260)
+    const huge = { x: -4000, y: -2400, w: 10000, h: 6000, base: 1000 }
+    const start: ViewBox = { x: -4000, y: -2400, w: 10000, h: 6000 }
+    expect(moveView(start, frame, huge, cursor, cursor, 1e-6).w).toBeCloseTo(1000 / MAX_ZOOM_IN, 6)
+    expect(moveView(start, frame, huge, cursor, cursor, 1e6).w).toBeCloseTo(10000 / MAX_ZOOM_OUT, 6)
+    // мир уже натурального кадра (маленькое небо): предел — от его собственной ширины
+    const small = { x: 0, y: 0, w: 600, h: 360, base: 1000 }
+    expect(moveView({ x: 0, y: 0, w: 600, h: 360 }, frame, small, cursor, cursor, 1e-6).w).toBeCloseTo(600 / MAX_ZOOM_IN, 6)
+  })
 })
 
 describe('gestureView', () => {

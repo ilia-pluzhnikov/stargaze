@@ -49,6 +49,7 @@ describe('actionShapeError: валидная форма', () => {
     { type: 'claimReward', itemId: 'w2', ts: TS },
     { type: 'adjustSparks', amount: -5, note: 'поправка', day: DAY, ts: TS },
     { type: 'setGameTz', offsetMin: 300 },
+    { type: 'setSkyPos', skillId: 's1', pos: { x: 400, y: 300 } },
   ]
 
   it('образцы покрывают все типы действий', () => {
@@ -63,6 +64,8 @@ describe('actionShapeError: валидная форма', () => {
     expect(actionShapeError({ type: 'completeQuest', questId: 'q1', day: DAY, ts: TS })).toBeNull()
     expect(actionShapeError({ type: 'lightStar', starId: 'c1', ts: TS })).toBeNull()
     expect(actionShapeError({ type: 'purchaseItem', itemId: 'w1', day: DAY, ts: TS })).toBeNull()
+    expect(actionShapeError({ type: 'setSkyPos', skillId: 's1' })).toBeNull() // снять закрепление
+    expect(actionShapeError({ type: 'setSkyPos', skillId: 's1', pos: null })).toBeNull()
   })
 
   // мусорный ts по форме — строка: отказ по нему — дело гейтов и validateStore (422)
@@ -97,6 +100,12 @@ describe('actionShapeError: отказы', () => {
     expect(actionShapeError({ type: 'archiveSkill', id: 's1' })).toBe('archiveSkill: поле называется skillId, не id')
     expect(actionShapeError({ type: 'lightStar', id: 'c1', ts: TS })).toBe('lightStar: поле называется starId, не id')
     expect(actionShapeError({ type: 'purchaseItem', id: 'w1', day: DAY, ts: TS })).toBe('purchaseItem: поле называется itemId, не id')
+    expect(actionShapeError({ type: 'setSkyPos', id: 's1', pos: { x: 1, y: 2 } })).toBe('setSkyPos: поле называется skillId, не id')
+  })
+
+  it('setSkyPos: pos — объект, а не пара чисел или строка', () => {
+    for (const pos of [[400, 300], '400,300', 400])
+      expect(actionShapeError({ type: 'setSkyPos', skillId: 's1', pos }), JSON.stringify(pos)).toBe('setSkyPos: pos — ожидается объект')
   })
 
   it('id рядом с верным полем — не ошибка формы', () => {

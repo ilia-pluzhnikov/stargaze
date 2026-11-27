@@ -5,6 +5,7 @@ import {
   projectDirection,
 } from './sky3d'
 import type { Vec3 } from './sky3d'
+import { SKY_MAX_ZOOM } from './layout'
 
 const TS = '2026-10-01T05:00:00.000Z'
 const skill = (id: string, over: Partial<Skill> = {}): Skill =>
@@ -37,6 +38,17 @@ describe('buildSkyScene', () => {
     shuffled.skills.reverse()
     const byId = (scene: typeof a) => new Map(scene.galaxies.map((g) => [g.id, g]))
     for (const [id, g] of byId(buildSkyScene(shuffled))) expect(g, id).toEqual(byId(a).get(id))
+  })
+
+  it('начало координат сцены — центр неба, где бы оно ни стояло: галактики лежат вокруг нуля', () => {
+    const many = world({ skills: Array.from({ length: 40 }, (_, i) => skill(`s_${i}`, { hue: i * 9, glyphId: 'delta' })) })
+    const shifted = world({ skills: many.skills.map((sk, i) => ({ ...sk, skyPos: { x: 5000 + (i % 8) * 400, y: -3000 + Math.floor(i / 8) * 400 } })) })
+    for (const scene of [buildSkyScene(many), buildSkyScene(shifted)]) {
+      const xs = scene.galaxies.map((g) => g.center.x)
+      const ys = scene.galaxies.map((g) => g.center.y)
+      expect(Math.abs(Math.min(...xs) + Math.max(...xs))).toBeLessThan(120)
+      expect(Math.abs(Math.min(...ys) + Math.max(...ys))).toBeLessThan(120)
+    }
   })
 
   it('архив не рисуется; hue и glyphId — как у навыка, без глифа ключа нет', () => {
@@ -107,6 +119,54 @@ describe('buildSkyScene', () => {
 describe('flightPlan / flightCamera', () => {
   const plan = flightPlan(buildSkyScene(sky()))
   const step = FLIGHT_HOLD_SEC + FLIGHT_TRAVEL_SEC
+
+  describe('обзорная остановка вписывает небо в кадр', () => {
+    const glyphSky = (n: number) => world({ skills: Array.from({ length: n }, (_, i) => skill(`g_${i}`, { hue: (i * 37) % 360, glyphId: 'delta' })) })
+    const farPin = glyphSky(12)
+    farPin.skills[0] = { ...farPin.skills[0], skyPos: { x: 900, y: -1500 } }
+    const skies: [string, SkyStore][] = [
+      ['3 галактики', sky()], ['12 галактик', glyphSky(12)], ['40 галактик', glyphSky(40)], ['закрепление вдали', farPin],
+    ]
+
+    it('центры всех галактик в кадре 16:9 всё время стоянки — при любом размере неба', () => {
+      for (const [name, store] of skies) {
+        const scene = buildSkyScene(store)
+        const overview = flightPlan(scene)
+        for (let t = 0; t < FLIGHT_HOLD_SEC; t += 0.25) {
+          const basis = cameraBasis(flightCamera(overview, t), 1920, 1080)
+          for (const g of scene.galaxies) {
+            const p = project(g.center, basis)
+            expect(p, `${name}, t=${t}, ${g.id}`).not.toBeNull()
+            expect(p!.x, `${name}, t=${t}, ${g.id}`).toBeGreaterThanOrEqual(-0.5)
+            expect(p!.x).toBeLessThanOrEqual(1920.5)
+            expect(p!.y, `${name}, t=${t}, ${g.id}`).toBeGreaterThanOrEqual(-0.5)
+            expect(p!.y).toBeLessThanOrEqual(1080.5)
+          }
+        }
+      }
+    })
+
+    it('небо выросло — обзор отходит; маленькое небо — подходит, но не ближе обзора 2D', () => {
+      const distance = (store: SkyStore) => flightPlan(buildSkyScene(store)).stops[0].distance
+      const [d3, d12, d40] = [distance(sky()), distance(glyphSky(12)), distance(glyphSky(40))]
+      expect(d3).toBeCloseTo(1200 / SKY_MAX_ZOOM, 6)
+      expect(d12).toBeGreaterThan(d3)
+      expect(d40).toBeGreaterThan(d12 * 1.5)
+      expect(distance(farPin)).toBeGreaterThan(d12 * 1.5)
+      expect(distance(world())).toBeCloseTo(1200 / SKY_MAX_ZOOM, 6)
+    })
+
+    it('ручное приближение на обзоре не уводит галактики за камеру: ближний предел дальше глубины неба', () => {
+      for (const [, store] of skies) expect(flightPlan(buildSkyScene(store)).stops[0].minDistance).toBeGreaterThan(SKY_DEPTH)
+    })
+
+    it('дальний предел ручной камеры — не ближе, чем уходит автопролёт', () => {
+      for (const [name, store] of skies) {
+        const overview = flightPlan(buildSkyScene(store))
+        for (let t = 0; t < overview.loopSec; t += 0.31) expect(flightCamera(overview, t).distance, name).toBeLessThan(overview.maxDistance)
+      }
+    })
+  })
 
   it('маршрут: обзор, потом каждая живая галактика по разу; период — шаг × остановки', () => {
     expect(plan.stops[0].galaxyId).toBeNull()

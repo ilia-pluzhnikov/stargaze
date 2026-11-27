@@ -65,6 +65,38 @@ describe('автопролёт', () => {
       expect(f.distance).toBeLessThan(ORBIT_MAX_DISTANCE)
       expect(f.distance).toBeGreaterThan(plan.stops[f.focusIndex].minDistance)
     }
+    expect(plan.maxDistance).toBe(ORBIT_MAX_DISTANCE)
+  })
+
+  it('выросшее небо: дальний предел отходит вместе с обзором — перехват управления не стягивает камеру', () => {
+    const many: SkyStore = {
+      skills: Array.from({ length: 60 }, (_, i) => ({ ...skill(`s_${i}`, (i * 37) % 360), glyphId: 'delta' })),
+      stars: [], quests: [], xpLog: [],
+    }
+    const big = flightPlan(buildSkyScene(many))
+    // обзор такого неба дальше прежнего предела ручной камеры
+    expect(big.stops[0].distance).toBeGreaterThan(ORBIT_MAX_DISTANCE)
+    for (let t = 0; t < big.loopSec; t += 0.37) {
+      const f = flightCamera(big, t)
+      expect(f.distance).toBeLessThan(big.maxDistance)
+      expect(f.distance).toBeGreaterThan(big.stops[f.focusIndex].minDistance)
+    }
+    // взяли управление на обзоре — камера остаётся где была; в перелёте цель доезжает до
+    // остановки (так задумано), но расстояние не стягивается к прежнему пределу
+    for (const sec of [1, big.holdSec + big.travelSec * 0.2]) {
+      let auto = startPilot(big)
+      for (let t = 0; t < sec - 1e-9; t += DT) auto = pilotTick(auto, big, DT)
+      let manual = pilotRotate(auto, big, 0, 0)
+      expect(manual.mode).toBe('manual')
+      for (let i = 0; i < 60; i++) manual = pilotTick(manual, big, DT, true)
+      expect(Math.abs(manual.pose.distance - auto.pose.distance), `t=${sec}`).toBeLessThan(1e-6)
+      if (!auto.travelling) expect(jump(manual.pose, auto.pose), `t=${sec}`).toBeLessThan(1e-6)
+    }
+    // и руками можно отойти до обзора всего неба, но не дальше предела
+    let far = pilotRotate(startPilot(big), big, 0, 0)
+    for (let i = 0; i < 80; i++) far = pilotZoom(far, big, 1.3)
+    for (let i = 0; i < 240; i++) far = pilotTick(far, big, DT, true)
+    expect(far.pose.distance).toBeCloseTo(big.maxDistance, 2)
   })
 })
 

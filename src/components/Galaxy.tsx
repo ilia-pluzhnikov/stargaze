@@ -3,7 +3,7 @@ import type { Skill, StarComponent, XpEvent } from '../types'
 import { skillLevel } from '../logic/xp'
 import { skillXpTotal } from '../logic/selectors'
 import { currentRank, isRankAchieved, skillStars, skillTiers } from '../logic/stars'
-import { CONST_H, CONST_W, layoutConstellation } from '../logic/layout'
+import { CONST_H, CONST_W, MINI_LIFT, MINI_SCALE, layoutConstellation } from '../logic/layout'
 import type { SkyPlacement } from '../logic/layout'
 import { constellationAsOf } from '../logic/timeline'
 import { glyphById } from './skyGlyphs'
@@ -22,9 +22,8 @@ interface Props {
   onStarHover: (hover: { star: StarComponent; x: number; y: number } | null) => void
 }
 
-// В лабораторном all-sky созвездие занимает ~14% ширины мира.
-// 0.25 здесь даёт ту же пропорцию при SKY_W=1800 (раньше было всего ~9%).
-const MINI_SCALE = 0.25
+// Масштаб мини-созвездия и его подъём над точкой галактики — в logic/layout
+// (MINI_SCALE, MINI_LIFT): от них раскладка считает место галактики на небе.
 // Свет ядра в мини-созвездии крупнее, чем в открытой галактике: его рисуют в четверть масштаба.
 export const ROOT_MINI_SCALE = 1.5
 
@@ -46,7 +45,7 @@ export function Galaxy({ anchor, skill, stars, layoutStars, xpLog, onOpen, onSta
   return (
     <g className="galaxy-g" transform={`translate(${anchor.x}, ${anchor.y})`} onClick={onOpen}>
       <g transform={`rotate(${anchor.rotation})`}>
-      <g transform={`translate(${(-CONST_W * MINI_SCALE) / 2}, ${-half - 12}) scale(${MINI_SCALE})`}>
+      <g transform={`translate(${(-CONST_W * MINI_SCALE) / 2}, ${-half - MINI_LIFT}) scale(${MINI_SCALE})`}>
         {glyph && (
           <g className="glyph glyph-mini">
             {glyph.paths.map((d, i) => (

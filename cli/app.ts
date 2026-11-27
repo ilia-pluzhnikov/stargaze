@@ -12,6 +12,7 @@ import {
   movesUsedIn7d, parseTzOffset, provisionForQuest, purchasedDays, sparksBalance, todayInGameTz,
 } from '../src/logic/sparks'
 import { weeklyXp } from '../src/logic/stats'
+import { SKY_REACH, constellationPlacements, crowdedWith, skySkillsOf } from '../src/logic/layout'
 import {
   ViewError, parseWeeks, questView, questsView, ranksView, skillsView, starsView, statsView, statusView, walletView,
   wishlistView,
@@ -37,6 +38,9 @@ const USAGE = `stargaze — RPG-интерфейс над реальной жи�
   move <id> <дата> | cancel <id> --yes | adjust -- <±✨> <причина>
   tz [±ЧЧ:ММ] — игровой пояс мира (по умолчанию +07:00): без аргумента показывает, с аргументом меняет;
     отрицательный — после «--»: tz -- -03:30
+  place <навык> [<x> <y> | --auto] — место галактики на небе: без координат показывает, с координатами
+    закрепляет, --auto снимает закрепление (место снова выбирает раскладка). Небо не ограничено —
+    обзор сам отъезжает, чтобы показать всё; отрицательная координата — после «--»: place бег -- -300 240
   serve [--port 8643] [--host 127.0.0.1] [--public <dir>] — веб и API на локальном store (первый запуск создаёт демо-мир)
 Глобальные флаги: --store <path> (или env STARGAZE_STORE), --json
 Кошелёк: cancel показывает неустойку и требует --yes; adjust — break-glass-корректировка с причиной.
@@ -94,6 +98,7 @@ export function runCli(argv: string[], io: Io): number {
         name: { type: 'string' },
         image: { type: 'string' },
         repeat: { type: 'boolean', default: false },
+        auto: { type: 'boolean', default: false },
         once: { type: 'boolean', default: false },
         port: { type: 'string' },
         host: { type: 'string' },
@@ -187,6 +192,8 @@ export function runCli(argv: string[], io: Io): number {
         return cmdAddStar(ctx, values)
       case 'tz':
         return cmdTz(ctx, rest[0])
+      case 'place':
+        return cmdPlace(ctx, rest, values.auto)
       default:
         throw new CliError(`неизвестная команда «${command}»\n${USAGE}`, 2)
     }
@@ -1073,6 +1080,53 @@ function cmdTz(ctx: Ctx, arg: string | undefined): number {
   ctx.io.out(offsetMin !== before
     ? `игровой пояс: UTC${formatTzOffset(before)} → ${shown} · игровой день ${today} (записанные дни не пересчитываются)`
     : `игровой пояс: ${shown} · игровой день ${today}`)
+  return 0
+}
+
+/** Место галактики на обзорном небе: без координат показывает, с координатами
+ * закрепляет, --auto снимает закрепление. Координаты — точка неба (`logic/layout.ts`):
+ * небо не ограничено, кадр обзора подстраивается под него. Показ и --json — строка
+ * среза `skills` этого навыка. */
+function cmdPlace(ctx: Ctx, args: string[], auto: boolean): number {
+  const [prefix, xArg, yArg, ...extra] = args
+  const usage = `использование: stargaze place <навык> [<x> <y> | --auto] — x и y в пределах ±${SKY_REACH}`
+  if (!prefix || extra.length > 0 || (xArg === undefined) !== (yArg === undefined) || (auto && xArg !== undefined))
+    throw new CliError(usage, 2)
+  let s = loadStore(ctx.storePath)
+  // на небе только живые навыки — архивный здесь не ищем
+  const skillId = resolveId(s.skills.filter((sk) => !sk.archived), prefix, 'навык')
+  const prev = s.skills.find((sk) => sk.id === skillId)!
+  if (xArg !== undefined && yArg !== undefined) {
+    const coord = (raw: string) => {
+      const v = raw.trim() === '' ? NaN : Number(raw)
+      return Number.isFinite(v) && Math.abs(v) <= SKY_REACH ? v : null
+    }
+    const x = coord(xArg)
+    const y = coord(yArg)
+    // причину называем сами: ядро записало бы точку и упёрлось в validateStore
+    if (x === null || y === null) throw new CliError(`точка (${xArg}, ${yArg}) вне неба: x и y — числа в пределах ±${SKY_REACH}`, 2)
+    // та же точка — не ошибка: ядро ответило бы no-op, а applyOrFail — отказом
+    if (prev.skyPos?.x !== x || prev.skyPos?.y !== y)
+      s = applyOrFail(ctx, { type: 'setSkyPos', skillId, pos: { x, y } }, 'место не изменено')
+  } else if (auto && prev.skyPos) {
+    s = applyOrFail(ctx, { type: 'setSkyPos', skillId }, 'закрепление не снято')
+  }
+  const row = skillsView(s).find((r) => r.id === skillId)!
+  if (ctx.json) {
+    ctx.io.out(JSON.stringify(row, null, 2))
+    return 0
+  }
+  const at = `(${Math.round(row.sky.x)}, ${Math.round(row.sky.y)})`
+  ctx.io.out(row.sky.pinned
+    ? `${row.name}: закреплена в ${at}`
+    : `${row.name}: место выбирает раскладка — сейчас ${at}`)
+  // закреплённую точку раскладка не двигает: встала на другую закреплённую — говорим, кому тесно
+  const skySkills = skySkillsOf(s.skills, s.stars)
+  const crowded = crowdedWith(skySkills, constellationPlacements(skySkills), skillId)
+  if (crowded.length > 0) {
+    const names = crowded.map((id) => s.skills.find((sk) => sk.id === id)!.name).join(', ')
+    ctx.io.out(`внимание: налезает на ${names} — сдвинь точку или сними закрепление (--auto)`)
+  }
   return 0
 }
 

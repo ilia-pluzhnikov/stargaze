@@ -570,3 +570,61 @@ describe('игровой пояс: setGameTz', () => {
     expect(tick(habitWorld(), '2026-09-11').ledger?.map((e) => e.kind)).toEqual(['earn'])
   })
 })
+
+describe('место галактики на небе: setSkyPos', () => {
+  const place = (s: Store, skillId: string, pos?: unknown) =>
+    reducer(s, { type: 'setSkyPos', skillId, ...(pos !== undefined ? { pos: pos as { x: number; y: number } } : {}) })
+
+  it('закрепляет точку, store остаётся валидным; снятие убирает ключ, а не пишет undefined', () => {
+    const pinned = place(base(), 's1', { x: 400, y: 300 })
+    expect(pinned.skills[0].skyPos).toEqual({ x: 400, y: 300 })
+    expect(validateStore(pinned)).toEqual([])
+    const moved = place(pinned, 's1', { x: 1200, y: 800 })
+    expect(moved.skills[0].skyPos).toEqual({ x: 1200, y: 800 })
+    const freed = place(moved, 's1')
+    expect(Object.keys(freed.skills[0])).not.toContain('skyPos')
+    expect(validateStore(freed)).toEqual([])
+  })
+
+  it('в store ложатся только x и y', () => {
+    const s = place(base(), 's1', { x: 400, y: 300, z: 9, pinned: true })
+    expect(s.skills[0].skyPos).toEqual({ x: 400, y: 300 })
+  })
+
+  it('повтор и снятие без закрепления — тот же store; чужой id — тоже', () => {
+    const pinned = place(base(), 's1', { x: 400, y: 300 })
+    expect(place(pinned, 's1', { x: 400, y: 300 })).toBe(pinned)
+    const s = base()
+    expect(place(s, 's1')).toBe(s)
+    expect(place(s, 'нет-такого', { x: 1, y: 2 })).toBe(s)
+  })
+
+  it('негодная точка доходит до validateStore и отвергается им (422 у API)', () => {
+    for (const pos of [{ x: -10001, y: 10 }, { x: 10, y: 10000.5 }, { x: 1e9, y: 0 }, { x: NaN, y: 5 }, { x: Infinity, y: 5 }, { x: '400', y: 300 }, { y: 300 }, {}, { X: 900, Y: 480 }]) {
+      const errors = validateStore(place(base(), 's1', pos))
+      expect(errors, JSON.stringify(pos)).toEqual([expect.stringMatching(/skyPos — ожидается/)])
+    }
+    // небо не ограничено кадром: годится любая точка в пределах ±SKY_REACH, и за прежним кадром 1800×1000
+    expect(validateStore(place(base(), 's1', { x: -10000, y: 10000 }))).toEqual([])
+    expect(validateStore(place(base(), 's1', { x: 2600, y: -340.5 }))).toEqual([])
+  })
+
+  it('updateSkill не стирает и не меняет закрепление; addSkill его не заводит', () => {
+    const pinned = place(base(), 's1', { x: 400, y: 300 })
+    // форма навыка в вебе собирает навык заново — без skyPos
+    const { skyPos: _sky, ...edited } = { ...pinned.skills[0], name: 'Тайский язык' }
+    const updated = reducer(pinned, { type: 'updateSkill', skill: edited })
+    expect(updated.skills[0]).toMatchObject({ name: 'Тайский язык', skyPos: { x: 400, y: 300 } })
+    const hijack = reducer(pinned, { type: 'updateSkill', skill: { ...pinned.skills[0], skyPos: { x: 1, y: 1 } } })
+    expect(hijack.skills[0].skyPos).toEqual({ x: 400, y: 300 })
+    const freeOnly = reducer(base(), { type: 'updateSkill', skill: { ...base().skills[0], skyPos: { x: 1, y: 1 } } })
+    expect(Object.keys(freeOnly.skills[0])).not.toContain('skyPos')
+    const added = reducer(base(), { type: 'addSkill', skill: { ...skill('s2'), skyPos: { x: 5, y: 5 } } })
+    expect(Object.keys(added.skills[1])).not.toContain('skyPos')
+  })
+
+  it('архивный навык тоже закрепляется: на небе он не светит, место хранится в store', () => {
+    const archived: Store = { ...base(), skills: [{ ...base().skills[0], archived: true }] }
+    expect(place(archived, 's1', { x: 400, y: 300 }).skills[0].skyPos).toEqual({ x: 400, y: 300 })
+  })
+})

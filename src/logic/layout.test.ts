@@ -1,14 +1,26 @@
 import { describe, expect, it } from 'vitest'
 import type { StarComponent, Tier } from '../types'
 import {
+  CONST_H,
   CONST_ROOT,
   CONST_W,
+  GALAXY_CLEARANCE,
+  MINI_LIFT,
+  MINI_SCALE,
+  SKY_GAP,
   SKY_H,
+  SKY_MAX_ZOOM,
   SKY_W,
-  MAIN_QUEST_ANCHOR,
   constellationPlacements,
+  constellationRings,
+  crowdedWith,
+  galaxyFootprint,
   layoutConstellation,
+  mulberry32,
+  skySkillsOf,
+  skyView,
 } from './layout'
+import type { SkyPoint, SkySkill } from './layout'
 
 let seq = 0
 /** Звезда-фикстура: createdAt растёт монотонно по порядку вызова — канонический
@@ -25,126 +37,489 @@ function star(id: string, tier: Tier, parentStarId: string | null): StarComponen
   }
 }
 
-describe('constellationPlacements', () => {
-  const ids = Array.from({ length: 12 }, (_, i) => `skill-${i}`)
-  const skills = ids.map((id, i) => ({ id, hue: (i * 137.5) % 360 }))
+/** Небо из n галактик со случайными id, оттенками, кольцами и глифами. */
+function randomSky(n: number, seed: number): SkySkill[] {
+  const rnd = mulberry32(seed)
+  return Array.from({ length: n }, (_, i) => ({
+    id: `g${i}-${Math.floor(rnd() * 1e6)}`,
+    hue: Math.floor(rnd() * 360),
+    rings: Math.floor(rnd() * 8),
+    ...(rnd() < 0.7 ? { glyph: true } : {}),
+  }))
+}
 
-  it('при 12 навыках все якоря остаются в границах неба', () => {
-    for (const { x, y } of constellationPlacements(skills).values()) {
-      expect(x).toBeGreaterThanOrEqual(200)
-      expect(x).toBeLessThanOrEqual(SKY_W - 200)
-      expect(y).toBeGreaterThanOrEqual(150)
-      expect(y).toBeLessThanOrEqual(SKY_H - 140)
+/** Самая тесная пара мест (`galaxyFootprint`) в долях касания: < 1 — галактики
+ * налезают, < SKY_GAP — между ними меньше воздуха, чем положено. `among` —
+ * считать только пары, где хотя бы одна галактика из этого набора. */
+function tightest(skills: SkySkill[], placements: ReadonlyMap<string, SkyPoint>, among?: ReadonlySet<string>): number {
+  const bodies = skills.map((skill) => {
+    const place = galaxyFootprint(skill)
+    const at = placements.get(skill.id)!
+    return { id: skill.id, x: at.x, y: at.y + (place.top + place.bottom) / 2, a: place.half, b: (place.bottom - place.top) / 2 }
+  })
+  let min = Infinity
+  for (let i = 0; i < bodies.length; i++)
+    for (let j = i + 1; j < bodies.length; j++) {
+      if (among && !among.has(bodies[i].id) && !among.has(bodies[j].id)) continue
+      const [p, q] = [bodies[i], bodies[j]]
+      min = Math.min(min, Math.hypot((p.x - q.x) / (p.a + q.a), (p.y - q.y) / (p.b + q.b)))
     }
+  return min
+}
+
+/** Раскладка округляет точки до сотых — на столько же может не хватить воздуха. */
+const AIR = SKY_GAP - 0.001
+/** Рядом с закреплённой раскладка терпит чуть меньше воздуха (допуск `settle`): закрепление
+ * по координатам, которые показал `place` (целые числа), не должно сдвигать соседей. */
+const PIN_AIR = SKY_GAP - 0.011
+
+/** Небо владельца: id и оттенки навыков, кольца созвездий и места, на которых
+ * галактики стояли до растущей вселенной. Закреплённое, оно обязано остаться снимком. */
+const liveSky: SkySkill[] = [
+  { id: 's_streams', hue: 355, rings: 5, glyph: true, skyPos: { x: 1459.18, y: 721.71 } },
+  { id: 's_b2b', hue: 355, rings: 7, glyph: true, skyPos: { x: 1246.21, y: 486.16 } },
+  { id: 's_content', hue: 290, rings: 5, glyph: true, skyPos: { x: 932.54, y: 201.41 } },
+  { id: 's_agents', hue: 200, rings: 4, glyph: true, skyPos: { x: 579.83, y: 421.05 } },
+  { id: 's_treasury', hue: 52, rings: 5, glyph: true, skyPos: { x: 900, y: 480 } },
+  { id: 's_scene', hue: 290, rings: 4, glyph: true, skyPos: { x: 1418.35, y: 237 } },
+  { id: 's_crew', hue: 200, rings: 2, glyph: true, skyPos: { x: 237.71, y: 288.29 } },
+  { id: 's_siam', hue: 140, rings: 4, glyph: true, skyPos: { x: 354.41, y: 658.18 } },
+  { id: 's_regime', hue: 140, rings: 4, glyph: true, skyPos: { x: 575.95, y: 816.85 } },
+  { id: 's_product', hue: 355, rings: 7, glyph: true, skyPos: { x: 1574.34, y: 447.48 } },
+  { id: 's_body', hue: 140, rings: 5, glyph: true, skyPos: { x: 860, y: 825 } },
+  { id: 's_freedom', hue: 45, rings: 4, glyph: true, skyPos: { x: 1159.31, y: 804.88 } },
+]
+const unpinned = (sky: SkySkill[]): SkySkill[] => sky.map(({ skyPos: _pin, ...skill }) => skill)
+
+describe('constellationPlacements', () => {
+  const skills = Array.from({ length: 12 }, (_, i) => ({ id: `skill-${i}`, hue: (i * 137.5) % 360 }))
+
+  it('пустое небо — пустая раскладка; вход не мутируется', () => {
+    expect(constellationPlacements([]).size).toBe(0)
+    const before = structuredClone(liveSky)
+    constellationPlacements(liveSky)
+    expect(liveSky).toEqual(before)
   })
 
   it('детерминирован и не зависит от порядка входного массива', () => {
     expect([...constellationPlacements([...skills].reverse())]).toEqual([...constellationPlacements(skills)])
+    const mixed = randomSky(17, 3)
+    expect([...constellationPlacements([...mixed].reverse())]).toEqual([...constellationPlacements(mixed)])
   })
 
-  it('шесть созвездий разведены друг от друга и от Главного квеста', () => {
-    const placements = [...constellationPlacements(skills.slice(0, 6)).values()]
-    for (let i = 0; i < placements.length; i++) {
-      expect(Math.hypot(placements[i].x - MAIN_QUEST_ANCHOR.x, placements[i].y - MAIN_QUEST_ANCHOR.y)).toBeGreaterThanOrEqual(270)
-      for (let j = i + 1; j < placements.length; j++) {
-        expect(Math.hypot(placements[i].x - placements[j].x, placements[i].y - placements[j].y)).toBeGreaterThanOrEqual(330)
-      }
-    }
+  it('от названия навыка раскладка не зависит', () => {
+    const renamed = constellationPlacements(skills.map((skill) => ({ ...skill, name: 'Казна' })))
+    expect([...renamed]).toEqual([...constellationPlacements(skills)])
   })
 
-  it('даёт небольшие разные повороты как в лаборатории', () => {
-    const rotations = [...constellationPlacements(skills.slice(0, 6)).values()].map((p) => p.rotation)
+  it('поворот галактики — от её id: небольшой, разный и не зависит от неба вокруг', () => {
+    const six = constellationPlacements(skills.slice(0, 6))
+    const rotations = [...six.values()].map((p) => p.rotation)
     expect(new Set(rotations).size).toBeGreaterThan(1)
     for (const angle of rotations) {
       expect(angle).toBeGreaterThanOrEqual(-7)
       expect(angle).toBeLessThanOrEqual(7)
     }
+    const twelve = constellationPlacements(skills)
+    for (const [id, place] of six) expect(twelve.get(id)!.rotation).toBe(place.rotation)
   })
 
-  it('закрепляет Финансы по постоянному id независимо от названия', () => {
-    const fixture = skills.map((skill, i) => i === 4 ? { ...skill, id: 's_treasury' } : skill)
-    const before = constellationPlacements(fixture.map((skill) => ({ ...skill, name: 'Казна' })))
-    for (const name of ['Финансы', 'Finance', '', undefined]) {
-      const after = constellationPlacements(fixture.map((skill) => ({ ...skill, name })))
-      expect(after.get('s_treasury')).toMatchObject({ x: MAIN_QUEST_ANCHOR.x, y: MAIN_QUEST_ANCHOR.y })
-      expect([...after]).toEqual([...before])
+  it('между галактиками всегда воздух SKY_GAP: от 2 до 60 галактик любого размера', () => {
+    for (const n of [2, 3, 4, 5, 6, 8, 10, 12, 13, 15, 18, 20, 24, 25, 30, 40, 60])
+      for (const seed of [1, 2, 3]) {
+        const sky = randomSky(n, seed * 100 + n)
+        expect(tightest(sky, constellationPlacements(sky)), `n=${n}, seed=${seed}`).toBeGreaterThanOrEqual(AIR)
+      }
+    // и для галактик полного размера (число колец неизвестно)
+    for (const n of [2, 6, 12, 13, 24, 40]) {
+      const sky = Array.from({ length: n }, (_, i) => ({ id: `full-${n}-${i}`, hue: (i * 47) % 360 }))
+      expect(tightest(sky, constellationPlacements(sky)), `full n=${n}`).toBeGreaterThanOrEqual(AIR)
     }
   })
 
-  // Только id/цвета неба: прогресс и пользовательские данные тестам не нужны.
-  const liveSky = [
-    { id: 's_streams', hue: 355 }, { id: 's_b2b', hue: 355 },
-    { id: 's_content', hue: 290 }, { id: 's_agents', hue: 200 },
-    { id: 's_treasury', hue: 52 }, { id: 's_scene', hue: 290 },
-    { id: 's_crew', hue: 200 }, { id: 's_siam', hue: 140 },
-    { id: 's_regime', hue: 140 }, { id: 's_product', hue: 355 },
-    { id: 's_body', hue: 140 }, { id: 's_freedom', hue: 45 },
-  ]
-
-  it('Тело стоит в нижнем ряду между Режимом и Капиталом, с зазором для веток', () => {
-    const placements = constellationPlacements(liveSky)
-    const body = placements.get('s_body')!
-    const regime = placements.get('s_regime')!
-    const freedom = placements.get('s_freedom')!
-    const treasury = placements.get('s_treasury')!
-    expect(body).toEqual({ x: 860, y: 825, rotation: 0.24 })
-    // Мини-созвездие шириной 250px + небольшой поворот: 270px между якорями
-    // оставляет зазор даже для полной кроны, а не только между ядрами.
-    expect(body.x - regime.x).toBeGreaterThanOrEqual(270)
-    expect(freedom.x - body.x).toBeGreaterThanOrEqual(270)
-    expect(Math.abs(body.y - regime.y)).toBeLessThan(30)
-    expect(Math.abs(body.y - freedom.y)).toBeLessThan(30)
-    // Подписи Финансов не встречаются с верхними ветками Тела.
-    expect(body.y - treasury.y).toBeGreaterThanOrEqual(330)
+  it('небо не уплотняется: вселенная растёт как корень из числа галактик', () => {
+    const widthOf = (n: number) => {
+      const sky = Array.from({ length: n }, (_, i) => ({ id: `w-${n}-${i}`, hue: (i * 47) % 360 }))
+      return skyView(sky, constellationPlacements(sky)).w
+    }
+    const [w12, w24, w48] = [widthOf(12), widthOf(24), widthOf(48)]
+    expect(w24).toBeGreaterThan(w12)
+    expect(w48).toBeGreaterThan(w24)
+    // вчетверо больше галактик — кадр примерно вдвое шире (галактики вдвое мельче)
+    expect(w48 / w12).toBeGreaterThan(1.7)
+    expect(w48 / w12).toBeLessThan(2.3)
+    // двенадцать галактик полного размера занимают примерно кадр масштаба 1
+    expect(SKY_W / w12).toBeGreaterThan(0.85)
+    expect(SKY_W / w12).toBeLessThan(1.15)
   })
 
-  it('якорь Тела переживает добавление, удаление, перестановку и перекраску галактик', () => {
-    const expected = constellationPlacements(liveSky).get('s_body')
-    const variants = [
-      [...liveSky].reverse(),
-      liveSky.filter((skill) => skill.id !== 's_freedom'),
-      [...liveSky, { id: 's_new', hue: 139 }], // >12 слотов
-      [{ id: 's_body', hue: 300, name: 'Body' }],
-      liveSky.map((skill) => ({ ...skill, hue: 0, name: 'Переименовано' })),
+  // Снимок незакреплённого неба: правка констант россыпи (воздух, заполнение, число
+  // кандидатов, шаг роста) молча переставила бы галактики всем — тест заставляет её заметить.
+  it('россыпь небольшого неба закреплена снимком', () => {
+    const sky: SkySkill[] = [
+      { id: 's_run', hue: 210, rings: 3, glyph: true },
+      { id: 's_code', hue: 40, rings: 1 },
+      { id: 's_read', hue: 300, rings: 0, glyph: true },
+      { id: 's_cook', hue: 120, rings: 5, glyph: true },
+      { id: 's_draw', hue: 15, rings: 2 },
     ]
-    for (const skills of variants) {
-      expect(constellationPlacements(skills).get('s_body')).toEqual(expected)
+    const at = constellationPlacements(sky)
+    expect(Object.fromEntries(at)).toEqual({
+      s_run: { x: 891.73, y: 571.6, rotation: -5.66 },
+      s_read: { x: 498.24, y: 441.42, rotation: -3.07 },
+      s_draw: { x: 785.04, y: 296.04, rotation: 3.01 },
+      s_code: { x: 1024.36, y: 272.2, rotation: -6.53 },
+      s_cook: { x: 1244.85, y: 487.48, rotation: -5.04 },
+    })
+    expect(skyView(sky, at)).toEqual({ x: 321.54, y: 198.32, w: 1125, h: 625 })
+  })
+
+  it('созвездие выросло на кольцо — небо почти на месте: рисунок россыпи от размеров не зависит', () => {
+    let reshuffled = 0
+    let skies = 0
+    for (let seed = 1; seed <= 30; seed++) {
+      const sky = randomSky(12, seed * 7).map((skill) => ({ ...skill, rings: skill.rings! % 5 }))
+      // растёт галактика, у которой место от этого действительно меняется
+      const grows = sky.findIndex((skill) => {
+        const [was, now] = [galaxyFootprint(skill), galaxyFootprint({ ...skill, rings: skill.rings + 1 })]
+        return was.top !== now.top || was.half !== now.half
+      })
+      if (grows < 0) continue
+      skies++
+      const before = constellationPlacements(sky)
+      const after = constellationPlacements(sky.map((skill, i) => (i === grows ? { ...skill, rings: skill.rings + 1 } : skill)))
+      const moved = sky.map((skill) => Math.hypot(before.get(skill.id)!.x - after.get(skill.id)!.x, before.get(skill.id)!.y - after.get(skill.id)!.y))
+      if (moved.reduce((sum, d) => sum + d, 0) / moved.length > 60) reshuffled++
+    }
+    expect(skies).toBeGreaterThanOrEqual(25)
+    // в среднем галактики сдвигаются на считаные пиксели; заметная перестановка — редкость
+    expect(reshuffled).toBeLessThanOrEqual(2)
+  })
+
+  it('рядов нет: на большом небе галактики не выстраиваются по одной высоте', () => {
+    for (const n of [13, 18, 24, 40]) {
+      const sky = Array.from({ length: n }, (_, i) => ({ id: `row-${n}-${i}`, hue: (i * 47) % 360 }))
+      const heights = [...constellationPlacements(sky).values()].map((p) => Math.round(p.y / 5))
+      expect(new Set(heights).size, `n=${n}`).toBeGreaterThanOrEqual(n * 0.7)
     }
   })
 
-  it('override Тела не сдвигает остальные галактики и не мутирует вход', () => {
-    const before = structuredClone(liveSky)
-    const placements = constellationPlacements(liveSky)
-    // Другой id с тем же hue занимает тот же индекс общей hue-раскладки.
-    const automatic = constellationPlacements(liveSky.map((skill) =>
-      skill.id === 's_body' ? { ...skill, id: 's_bodz' } : skill,
-    ))
-    for (const { id } of liveSky.filter((skill) => skill.id !== 's_body')) {
-      expect(placements.get(id), id).toEqual(automatic.get(id))
+  it('галактики с маленькими созвездиями занимают меньше неба', () => {
+    const young = Array.from({ length: 12 }, (_, i) => ({ id: `y-${i}`, hue: (i * 47) % 360, rings: 1 }))
+    const grown = young.map((skill) => ({ ...skill, rings: 7 }))
+    expect(skyView(young, constellationPlacements(young)).w).toBeLessThan(skyView(grown, constellationPlacements(grown)).w)
+  })
+
+  it('соседние оттенки стоят рядом: расстояние до соседа по hue меньше среднего по небу', () => {
+    const sky = Array.from({ length: 12 }, (_, i) => ({ id: `hue-${i}`, hue: i * 30 }))
+    const at = constellationPlacements(sky)
+    const dist = (a: string, b: string) => Math.hypot(at.get(a)!.x - at.get(b)!.x, at.get(a)!.y - at.get(b)!.y)
+    let neighbours = 0
+    let all = 0
+    let pairs = 0
+    sky.forEach((skill, i) => {
+      neighbours += dist(skill.id, sky[(i + 1) % sky.length].id)
+      for (let j = i + 1; j < sky.length; j++) {
+        all += dist(skill.id, sky[j].id)
+        pairs++
+      }
+    })
+    expect(neighbours / sky.length).toBeLessThan((all / pairs) * 0.8)
+  })
+
+  describe('закрепления', () => {
+    it('небо владельца, закреплённое целиком, остаётся снимком', () => {
+      expect(Object.fromEntries(constellationPlacements(liveSky))).toEqual({
+        s_content: { x: 932.54, y: 201.41, rotation: -5.97 },
+        s_scene: { x: 1418.35, y: 237, rotation: 6.42 },
+        s_b2b: { x: 1246.21, y: 486.16, rotation: 3.75 },
+        s_product: { x: 1574.34, y: 447.48, rotation: -6.18 },
+        s_streams: { x: 1459.18, y: 721.71, rotation: 0.06 },
+        s_freedom: { x: 1159.31, y: 804.88, rotation: -6.57 },
+        s_treasury: { x: 900, y: 480, rotation: 5.01 },
+        s_body: { x: 860, y: 825, rotation: 0.24 },
+        s_regime: { x: 575.95, y: 816.85, rotation: 2.93 },
+        s_siam: { x: 354.41, y: 658.18, rotation: -0.15 },
+        s_agents: { x: 579.83, y: 421.05, rotation: -4.92 },
+        s_crew: { x: 237.71, y: 288.29, rotation: 6.06 },
+      })
+    })
+
+    it('особых id нет: без skyPos небо владельца раскладывается как любое другое', () => {
+      const free = unpinned(liveSky)
+      const at = constellationPlacements(free)
+      expect(at.get('s_treasury')).not.toMatchObject({ x: 900, y: 480 })
+      expect(at.get('s_body')).not.toMatchObject({ x: 860, y: 825 })
+      expect(tightest(free, at)).toBeGreaterThanOrEqual(AIR)
+    })
+
+    it('skyPos ставит галактику ровно в точку — и за пределами прежнего кадра; поворот прежний', () => {
+      const sky = randomSky(8, 4)
+      const plain = constellationPlacements(sky)
+      for (const pin of [{ x: 820.123, y: 517.5 }, { x: -340, y: 2600 }, { x: 0, y: 0 }]) {
+        const pinned = constellationPlacements(sky.map((skill, i) => (i === 3 ? { ...skill, skyPos: pin } : skill)))
+        expect(pinned.get(sky[3].id)).toEqual({ ...pin, rotation: plain.get(sky[3].id)!.rotation })
+      }
+    })
+
+    it('закрепление галактики на её же месте небо не меняет — и по целым координатам из вывода place', () => {
+      for (const n of [3, 8, 15, 24]) {
+        const sky = randomSky(n, n + 40)
+        const plain = constellationPlacements(sky)
+        const { x, y } = plain.get(sky[1].id)!
+        const pinned = constellationPlacements(sky.map((skill, i) => (i === 1 ? { ...skill, skyPos: { x, y } } : skill)))
+        expect([...pinned], `n=${n}`).toEqual([...plain])
+        const rounded = constellationPlacements(sky.map((skill, i) => (i === 1 ? { ...skill, skyPos: { x: Math.round(x), y: Math.round(y) } } : skill)))
+        for (const skill of sky) if (skill.id !== sky[1].id) expect(rounded.get(skill.id), `n=${n}`).toEqual(plain.get(skill.id))
+      }
+    })
+
+    it('закреплённая вдали никому не мешает: остальные стоят как стояли, её место в россыпи пустует', () => {
+      const sky = randomSky(10, 9)
+      const plain = constellationPlacements(sky)
+      const pinned = constellationPlacements(sky.map((skill, i) => (i === 0 ? { ...skill, skyPos: { x: 6000, y: -4000 } } : skill)))
+      for (const skill of sky.slice(1)) expect(pinned.get(skill.id)).toEqual(plain.get(skill.id))
+    })
+
+    it('закреплённая на чужом месте: сосед отходит на воздух SKY_GAP, остальные не двигаются', () => {
+      for (const n of [3, 8, 15, 24]) {
+        const sky = randomSky(n, n + 70)
+        const plain = constellationPlacements(sky)
+        const target = plain.get(sky[2].id)!
+        const withPin = sky.map((skill, i) => (i === 0 ? { ...skill, skyPos: { x: target.x, y: target.y } } : skill))
+        const pinned = constellationPlacements(withPin)
+        const free = new Set(sky.slice(1).map((skill) => skill.id))
+        expect(tightest(withPin, pinned, free), `n=${n}`).toBeGreaterThanOrEqual(PIN_AIR)
+        expect(pinned.get(sky[2].id), `n=${n}`).not.toEqual(plain.get(sky[2].id))
+        const stayed = sky.slice(1).filter((skill) => {
+          const [was, now] = [plain.get(skill.id)!, pinned.get(skill.id)!]
+          return was.x === now.x && was.y === now.y
+        })
+        // сдвинулись только те, кому закреплённая не оставила воздуха, — немногие
+        expect(stayed.length, `n=${n}`).toBeGreaterThanOrEqual(n - 1 - 4)
+      }
+    })
+
+    it('несколько закреплённых где попало: незакреплённые ни на кого не налезают', () => {
+      for (const n of [4, 9, 16, 25, 40])
+        for (const pins of [1, 3, 6]) {
+          const sky = randomSky(n, n * 10 + pins)
+          const plain = constellationPlacements(sky)
+          const spots = [...plain.values()]
+          const rnd = mulberry32(n * 31 + pins)
+          // закрепляем первые pins галактик на случайных чужих местах — с заведомыми конфликтами
+          const withPins = sky.map((skill, i) => {
+            if (i >= Math.min(pins, n - 1)) return skill
+            const spot = spots[Math.floor(rnd() * spots.length)]
+            return { ...skill, skyPos: { x: spot.x + Math.round(rnd() * 60 - 30), y: spot.y + Math.round(rnd() * 60 - 30) } }
+          })
+          const free = new Set(withPins.filter((skill) => !skill.skyPos).map((skill) => skill.id))
+          const placed = constellationPlacements(withPins)
+          expect(tightest(withPins, placed, free), `n=${n}, pins=${pins}`).toBeGreaterThanOrEqual(PIN_AIR)
+          for (const skill of withPins) if (skill.skyPos) expect(placed.get(skill.id)).toMatchObject(skill.skyPos)
+          // порядок входа не влияет и с закреплениями
+          expect([...constellationPlacements([...withPins].reverse())].sort(), `n=${n}, pins=${pins}`).toEqual([...placed].sort())
+        }
+    })
+
+    it('новая галактика на закреплённом небе владельца встаёт без наложений, закреплённые на месте', () => {
+      for (const hue of [0, 90, 180, 270]) {
+        const sky = [...liveSky, { id: `s_new_${hue}`, hue, rings: 1, glyph: true }, { id: `s_bare_${hue}`, hue: hue + 20, rings: 0 }]
+        const at = constellationPlacements(sky)
+        for (const skill of liveSky) expect(at.get(skill.id)).toMatchObject(skill.skyPos!)
+        expect(tightest(sky, at, new Set([`s_new_${hue}`, `s_bare_${hue}`])), `hue=${hue}`).toBeGreaterThanOrEqual(PIN_AIR)
+      }
+    })
+
+    it('закреплённые в одной точке стоят в ней: это воля владельца, раскладка их не разводит', () => {
+      const all = randomSky(13, 5).map((skill, i) => ({ ...skill, skyPos: { x: 100 + (i % 2) * 10, y: 100 } }))
+      const placements = constellationPlacements(all)
+      all.forEach((skill) => expect(placements.get(skill.id)).toMatchObject(skill.skyPos))
+    })
+
+    it('снятое закрепление возвращает небо к россыпи', () => {
+      const sky = randomSky(9, 12)
+      const pinned = sky.map((skill, i) => (i === 4 ? { ...skill, skyPos: { x: 300, y: 300 } } : skill))
+      constellationPlacements(pinned)
+      expect([...constellationPlacements(unpinned(pinned))]).toEqual([...constellationPlacements(sky)])
+    })
+  })
+})
+
+describe('galaxyFootprint', () => {
+  it('число колец неизвестно — место полного размера GALAXY_CLEARANCE', () => {
+    const full = galaxyFootprint({})
+    expect(full.half * 2).toBe(GALAXY_CLEARANCE.x)
+    expect(full.bottom - full.top).toBe(GALAXY_CLEARANCE.y)
+  })
+
+  it('без звёзд и глифа — ядро с подписью: место ниже точки галактики', () => {
+    const bare = galaxyFootprint({ rings: 0 })
+    expect(bare.top).toBeGreaterThan(0)
+    expect(bare.bottom - bare.top).toBeLessThan(GALAXY_CLEARANCE.y / 2)
+    expect(galaxyFootprint({ rings: -3 })).toEqual(bare)
+  })
+
+  it('растёт с каждым кольцом и упирается в полный размер', () => {
+    const sizes = [0, 1, 2, 3, 4, 5, 6, 12].map((rings) => galaxyFootprint({ rings }))
+    for (let i = 1; i < sizes.length; i++) {
+      expect(sizes[i].top).toBeLessThanOrEqual(sizes[i - 1].top)
+      expect(sizes[i].half).toBeGreaterThanOrEqual(sizes[i - 1].half)
     }
-    expect(liveSky).toEqual(before)
-    expect(constellationPlacements([]).size).toBe(0)
-    expect(constellationPlacements([{ id: 'other', hue: 140, name: 'Тело' }]).has('s_body')).toBe(false)
+    expect(sizes[1].top).toBeLessThan(sizes[0].top)
+    expect(sizes[4].top).toBeLessThan(sizes[3].top)
+    expect(sizes[5]).toEqual(galaxyFootprint({}))
+    expect(sizes[7]).toEqual(galaxyFootprint({}))
   })
 
-  it('название Казна у другого навыка не меняет его якорь', () => {
-    const plain = constellationPlacements(skills)
-    const renamed = constellationPlacements(skills.map((skill) => ({ ...skill, name: 'Казна' })))
-    expect([...renamed]).toEqual([...plain])
+  it('глиф занимает место и без звёзд; у выросшего созвездия место то же', () => {
+    const bare = galaxyFootprint({ rings: 0 })
+    const glyph = galaxyFootprint({ rings: 0, glyph: true })
+    expect(glyph.top).toBeLessThan(bare.top)
+    expect(glyph.top).toBeGreaterThan(galaxyFootprint({}).top)
+    expect(galaxyFootprint({ rings: 2, glyph: true })).toEqual(glyph)
+    expect(galaxyFootprint({ rings: 6, glyph: true })).toEqual(galaxyFootprint({ rings: 6 }))
   })
 
-  it('близкие оттенки, включая переход 359° → 1°, образуют кластер', () => {
-    const placements = constellationPlacements([
-      { id: 'red-a', hue: 359 },
-      { id: 'red-b', hue: 1 },
-      { id: 'cyan', hue: 180 },
+  it('веер созвездия любой формы помещается в место по числу своих колец', () => {
+    /** Точка созвездия → небо, как её рисует Galaxy.tsx (без поворота). */
+    const toSky = (x: number, y: number) => ({
+      x: (x - CONST_W / 2) * MINI_SCALE,
+      y: y * MINI_SCALE - (CONST_H * MINI_SCALE) / 2 - MINI_LIFT,
+    })
+    const chain = (depth: number) => Array.from({ length: depth }, (_, i) => star(`ch${depth}-${i}`, 'D', i === 0 ? null : `ch${depth}-${i - 1}`))
+    const bush = (depth: number) => {
+      const stars: StarComponent[] = []
+      let level: (string | null)[] = [null]
+      for (let d = 0; d < depth; d++) {
+        const next: string[] = []
+        level.forEach((parent, p) => {
+          for (let k = 0; k < (d < 2 ? 4 : 2); k++) {
+            const id = `b${depth}-${d}-${p}-${k}`
+            stars.push(star(id, 'D', parent))
+            next.push(id)
+          }
+        })
+        level = next.slice(0, 6)
+      }
+      return stars
+    }
+    const wide = Array.from({ length: 14 }, (_, i) => star(`wide-${i}`, 'D', null))
+    const trees = [wide, ...[1, 2, 3, 4, 5, 6, 7].flatMap((depth) => [chain(depth), bush(depth)])]
+    for (const stars of trees) {
+      const rings = constellationRings(stars)
+      const place = galaxyFootprint({ rings })
+      for (const seed of ['s1', 's_body', 'x', 'галактика']) {
+        const { nodes, root } = layoutConstellation(stars, seed)
+        expect(Math.max(...nodes.map((n) => n.depth)) + 1).toBe(rings)
+        for (const node of [...nodes, root]) {
+          const at = toSky(node.x, node.y)
+          expect(at.y, `rings=${rings}, seed=${seed}`).toBeGreaterThanOrEqual(place.top + 2)
+          expect(at.y).toBeLessThanOrEqual(place.bottom)
+          expect(Math.abs(at.x), `rings=${rings}, seed=${seed}`).toBeLessThanOrEqual(place.half - 2)
+        }
+      }
+    }
+  })
+})
+
+describe('constellationRings', () => {
+  it('глубина дерева звёзд: нет звёзд — 0, корни — 1, цепочка — её длина', () => {
+    expect(constellationRings([])).toBe(0)
+    expect(constellationRings([star('r1', 'D', null), star('r2', 'D', null)])).toBe(1)
+    expect(constellationRings([star('a', 'D', null), star('b', 'D', 'a'), star('c', 'D', 'b'), star('d', 'D', null)])).toBe(3)
+  })
+
+  it('звезда без родителя в наборе в дерево не попадает; цикл не зацикливает', () => {
+    expect(constellationRings([star('a', 'D', null), star('lost', 'D', 'нет такой'), star('deep', 'D', 'lost')])).toBe(1)
+    expect(constellationRings([star('x', 'D', 'y'), star('y', 'D', 'x')])).toBe(0)
+    expect(constellationRings([star('dup', 'D', null), star('dup', 'D', 'dup')])).toBe(1)
+  })
+})
+
+describe('skyView', () => {
+  const ratio = SKY_W / SKY_H
+
+  it('пустое небо — кадр масштаба 1', () => {
+    expect(skyView([], new Map())).toEqual({ x: 0, y: 0, w: SKY_W, h: SKY_H })
+  })
+
+  it('одна галактика: кадр вокруг неё, приближение не больше SKY_MAX_ZOOM', () => {
+    const sky = [{ id: 'one', hue: 10, rings: 2 }]
+    const at = constellationPlacements(sky)
+    const view = skyView(sky, at)
+    expect(view.w).toBeCloseTo(SKY_W / SKY_MAX_ZOOM, 1)
+    expect(view.w / view.h).toBeCloseTo(ratio, 3)
+    const place = galaxyFootprint(sky[0])
+    const { x, y } = at.get('one')!
+    expect(view.x + view.w / 2).toBeCloseTo(x, 1)
+    expect(view.y + view.h / 2).toBeCloseTo(y + (place.top + place.bottom) / 2, 1)
+  })
+
+  it('в кадре помещаются места всех галактик с полем, пропорции кадра постоянны', () => {
+    for (const n of [2, 7, 12, 20, 40]) {
+      const sky = randomSky(n, n + 5)
+      const at = constellationPlacements(sky)
+      const view = skyView(sky, at)
+      expect(view.w / view.h, `n=${n}`).toBeCloseTo(ratio, 2)
+      for (const skill of sky) {
+        const place = galaxyFootprint(skill)
+        const { x, y } = at.get(skill.id)!
+        expect(x - place.half).toBeGreaterThan(view.x + 30)
+        expect(x + place.half).toBeLessThan(view.x + view.w - 30)
+        expect(y + place.top).toBeGreaterThan(view.y + 30)
+        expect(y + place.bottom).toBeLessThan(view.y + view.h - 30)
+      }
+    }
+  })
+
+  it('закреплённое небо владельца видно почти как раньше: масштаб около 1', () => {
+    const view = skyView(liveSky, constellationPlacements(liveSky))
+    expect(SKY_W / view.w).toBeGreaterThan(0.97)
+    expect(SKY_W / view.w).toBeLessThan(1.06)
+    expect(Math.abs(view.x)).toBeLessThan(60)
+    expect(Math.abs(view.y)).toBeLessThan(60)
+  })
+
+  it('галактика, закреплённая далеко, раздвигает кадр; навык без места в раскладке не учитывается', () => {
+    const sky = randomSky(6, 2)
+    const near = skyView(sky, constellationPlacements(sky))
+    const far = sky.map((skill, i) => (i === 0 ? { ...skill, skyPos: { x: 5200, y: 480 } } : skill))
+    const wide = skyView(far, constellationPlacements(far))
+    expect(wide.w).toBeGreaterThan(near.w * 2)
+    expect(wide.x + wide.w).toBeGreaterThan(5200)
+    expect(skyView([...sky, { id: 'ghost', hue: 1 }], constellationPlacements(sky))).toEqual(near)
+  })
+})
+
+describe('crowdedWith', () => {
+  it('называет налезающих соседей, чистое небо — пусто', () => {
+    const sky = [{ id: 'a', hue: 1 }, { id: 'b', hue: 2 }, { id: 'c', hue: 3 }]
+    const placements = new Map([['a', { x: 500, y: 500 }], ['b', { x: 600, y: 520 }], ['c', { x: 1400, y: 500 }]])
+    expect(crowdedWith(sky, placements, 'a')).toEqual(['b'])
+    expect(crowdedWith(sky, placements, 'c')).toEqual([])
+    expect(crowdedWith(sky, placements, 'нет')).toEqual([])
+  })
+
+  it('считает по местам галактик: маленькие созвездия рядом не налезают, большие — налезают', () => {
+    const placements = new Map([['a', { x: 500, y: 500 }], ['b', { x: 500, y: 700 }]])
+    expect(crowdedWith([{ id: 'a', hue: 1 }, { id: 'b', hue: 2 }], placements, 'a')).toEqual(['b'])
+    expect(crowdedWith([{ id: 'a', hue: 1, rings: 0 }, { id: 'b', hue: 2, rings: 0 }], placements, 'a')).toEqual([])
+  })
+})
+
+describe('skySkillsOf', () => {
+  it('отбрасывает архивные; несёт кольца созвездия, глиф и skyPos только у закреплённых', () => {
+    const base = { emoji: '✨', wantStatement: '', archived: false, createdAt: '2026-01-01T00:00:00.000Z' }
+    const own = (id: string, skillId: string, parentStarId: string | null) => ({ ...star(id, 'D', parentStarId), skillId })
+    expect(skySkillsOf([
+      { ...base, id: 'a', name: 'A', hue: 10 },
+      { ...base, id: 'b', name: 'B', hue: 20, skyPos: { x: 1, y: 2 }, glyphId: 'delta' },
+      { ...base, id: 'c', name: 'C', hue: 30, archived: true },
+    ], [own('a1', 'a', null), own('a2', 'a', 'a1'), own('b1', 'b', null), own('c1', 'c', null), own('z1', 'нет такого', null)])).toEqual([
+      { id: 'a', name: 'A', hue: 10, rings: 2 },
+      { id: 'b', name: 'B', hue: 20, rings: 1, glyph: true, skyPos: { x: 1, y: 2 } },
     ])
-    const a = placements.get('red-a')!
-    const b = placements.get('red-b')!
-    const far = placements.get('cyan')!
-    const clustered = Math.hypot(a.x - b.x, a.y - b.y)
-    expect(clustered).toBeLessThan(Math.hypot(a.x - far.x, a.y - far.y))
-    expect(clustered).toBeLessThan(Math.hypot(b.x - far.x, b.y - far.y))
   })
 })
 

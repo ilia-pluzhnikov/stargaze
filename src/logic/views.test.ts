@@ -4,6 +4,7 @@ import {
   ViewError, parseWeeks, questView, questsView, ranksView, resolveIdPrefix, skillsView, starsView, statsView, statusView,
   walletView, wishlistView,
 } from './views'
+import { constellationPlacements, skySkillsOf } from './layout'
 
 const TODAY = '2026-10-30' // пятница; неделя Пн 10-26 .. Вс 11-01
 const TS = '2026-10-01T05:00:00.000Z'
@@ -248,16 +249,27 @@ describe('skillsView / ranksView / starsView', () => {
       star('c_o1', 's_old', 'C', true),
     ],
   })
-  it('skillsView: архив выпадает, имя с эмодзи, ранги сводкой, облик — hue и glyphId как в store', () =>
+  it('skillsView: архив выпадает, имя с эмодзи, ранги сводкой, облик — hue и glyphId как в store', () => {
+    const sky = constellationPlacements(skySkillsOf(s.skills, s.stars))
+    const at = (id: string) => ({ x: sky.get(id)!.x, y: sky.get(id)!.y, pinned: false })
     expect(skillsView(s)).toEqual([
-      { id: 's_run', name: '🏃 Бег', level: 1, into: 0, toNext: 100, ranks: { total: 2, achieved: 1 }, hue: 210, glyphId: 'delta' },
-      { id: 's_row', name: '⚔️ s_row', level: 1, into: 0, toNext: 100, ranks: { total: 0, achieved: 0 }, hue: 0 },
-    ]))
+      { id: 's_run', name: '🏃 Бег', level: 1, into: 0, toNext: 100, ranks: { total: 2, achieved: 1 }, hue: 210, glyphId: 'delta', sky: at('s_run') },
+      { id: 's_row', name: '⚔️ s_row', level: 1, into: 0, toNext: 100, ranks: { total: 0, achieved: 0 }, hue: 0, sky: at('s_row') },
+    ])
+  })
+  it('skillsView: sky — та же точка, что на небе веба; pinned — закрепление в store', () => {
+    const pinned = world({ skills: [skill('s_a', { hue: 10, skyPos: { x: 300, y: 700 } }), skill('s_b', { hue: 200 }), skill('s_c', { hue: 90, archived: true })] })
+    const rows = skillsView(pinned)
+    expect(rows.map((r) => r.id)).toEqual(['s_a', 's_b'])
+    expect(rows[0].sky).toEqual({ x: 300, y: 700, pinned: true })
+    const auto = constellationPlacements(skySkillsOf(pinned.skills, pinned.stars)).get('s_b')!
+    expect(rows[1].sky).toEqual({ x: auto.x, y: auto.y, pinned: false })
+  })
   it('skillsView: прежние поля — в прежнем порядке, облик дописан в конец; без глифа ключа glyphId нет', () => {
     // toEqual не отличает «ключа нет» от undefined — контракт JSON проверяем по ключам
     const [withGlyph, bare] = skillsView(s)
-    expect(Object.keys(withGlyph)).toEqual(['id', 'name', 'level', 'into', 'toNext', 'ranks', 'hue', 'glyphId'])
-    expect(Object.keys(bare)).toEqual(['id', 'name', 'level', 'into', 'toNext', 'ranks', 'hue'])
+    expect(Object.keys(withGlyph)).toEqual(['id', 'name', 'level', 'into', 'toNext', 'ranks', 'hue', 'glyphId', 'sky'])
+    expect(Object.keys(bare)).toEqual(['id', 'name', 'level', 'into', 'toNext', 'ranks', 'hue', 'sky'])
     expect(JSON.parse(JSON.stringify(bare))).not.toHaveProperty('glyphId')
   })
   it('skillsView: hue и glyphId не правятся — оттенок вне 0..360 и глиф не из каталога идут как есть', () => {
